@@ -1,14 +1,14 @@
 /**
- * SummaryBanner.jsx
- * Top-of-results banner. Shows overall health score, verdict, breakdown pills,
- * and the PDF download button.
+ * SummaryBanner.jsx — Premium summary with radar chart, score, and PDF export.
  */
 
+import HealthRadar from './HealthRadar';
+
 function getVerdict(pct) {
-  if (pct >= 80) return { label: 'Strong Financial Health',   emoji: '🟢', color: 'text-emerald-400', barColor: 'from-emerald-500 to-emerald-400' };
-  if (pct >= 60) return { label: 'Moderate Financial Health', emoji: '🟡', color: 'text-amber-400',   barColor: 'from-amber-500 to-amber-400'   };
-  if (pct >= 40) return { label: 'Below-Average Health',      emoji: '🟠', color: 'text-orange-400',  barColor: 'from-orange-500 to-orange-400'  };
-  return              { label: 'Critical — Action Required',  emoji: '🔴', color: 'text-red-400',     barColor: 'from-red-500 to-red-400'       };
+  if (pct >= 80) return { label: 'Strong Financial Health',   color: 'text-emerald-400', bar: 'from-emerald-500 to-emerald-400', ring: 'border-emerald-500/30' };
+  if (pct >= 60) return { label: 'Moderate Financial Health', color: 'text-amber-400',   bar: 'from-amber-500 to-amber-400',     ring: 'border-amber-500/30'   };
+  if (pct >= 40) return { label: 'Below-Average Health',      color: 'text-orange-400',  bar: 'from-orange-500 to-orange-400',   ring: 'border-orange-500/30'  };
+  return              { label: 'Critical — Action Required',  color: 'text-red-400',     bar: 'from-red-500 to-red-400',         ring: 'border-red-500/30'     };
 }
 
 export default function SummaryBanner({ statuses, onExportPDF }) {
@@ -18,65 +18,79 @@ export default function SummaryBanner({ statuses, onExportPDF }) {
   const na    = statuses.filter(s => s === 'na').length;
   const valid = statuses.length - na;
 
-  const points    = green * 2 + amber * 1;
-  const maxPoints = valid * 2;
-  const pct       = maxPoints > 0 ? Math.round((points / maxPoints) * 100) : 0;
-  const verdict   = getVerdict(pct);
+  const pct     = valid > 0 ? Math.round(((green * 2 + amber * 1) / (valid * 2)) * 100) : 0;
+  const verdict = getVerdict(pct);
+
+  // Build status map for radar from array — use index order
+  const statusKeys = ['currentRatio','quickRatio','cashRatio','grossMargin','operatingMargin','netMargin','roe','roa','assetTurnover','fixedAssetTurnover','receivablesDays','inventoryDays','debtToEquity','interestCoverage'];
+  const statusMap  = {};
+  statusKeys.forEach((k, i) => { statusMap[k] = statuses[i] || 'na'; });
+
+  const pills = [
+    { count: green, label: 'Healthy',         color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
+    { count: amber, label: 'Borderline',      color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',     dot: 'bg-amber-400'   },
+    { count: red,   label: 'Needs Attention', color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',         dot: 'bg-red-400'     },
+    ...(na > 0 ? [{ count: na, label: 'No Data', color: 'text-slate-500', bg: 'bg-white/5 border-white/10', dot: 'bg-slate-600' }] : []),
+  ];
 
   return (
-    <div className="glass-card rounded-2xl p-6 mb-8 relative overflow-hidden border-white/[0.08]">
+    <div className="glass-card rounded-2xl mb-8 overflow-hidden border-white/[0.08] relative">
       {/* Decorative blobs */}
-      <div className="absolute -top-16 -right-16 w-48 h-48 rounded-full bg-orange-500/5 blur-3xl pointer-events-none"></div>
-      <div className="absolute -bottom-16 -left-8 w-40 h-40 rounded-full bg-blue-500/5 blur-3xl pointer-events-none"></div>
+      <div className="absolute -top-20 -right-20 w-64 h-64 rounded-full bg-orange-500/5 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-20 -left-10 w-48 h-48 rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
 
-      <div className="relative">
-        {/* Top row */}
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-5 mb-6">
+      <div className="relative flex flex-col lg:flex-row">
+        {/* Left: Score + info */}
+        <div className="flex-1 p-6 flex flex-col justify-between">
           <div>
-            <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-widest mb-2">Overall Assessment</p>
-            <div className={`text-2xl font-bold ${verdict.color} leading-tight`}>
-              {verdict.emoji} Your business is in {verdict.label}
+            <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-3">Overall Financial Health</p>
+
+            {/* Circular score */}
+            <div className="flex items-center gap-5 mb-5">
+              <div className={`relative w-24 h-24 flex-shrink-0 rounded-full border-4 ${verdict.ring} flex flex-col items-center justify-center`}
+                style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.04) 0%, transparent 100%)' }}>
+                <span className={`text-3xl font-bold leading-none ${verdict.color}`}>{pct}</span>
+                <span className="text-slate-600 text-[10px] font-medium">/ 100</span>
+              </div>
+              <div>
+                <div className={`text-xl font-bold leading-tight mb-1 ${verdict.color}`}>{verdict.label}</div>
+                <div className="text-slate-500 text-xs">{valid} ratios calculated · {green} healthy</div>
+              </div>
             </div>
-            <p className="text-slate-500 text-sm mt-1.5">
-              Health Score: <span className={`font-bold ${verdict.color}`}>{pct}%</span>
-              <span className="text-slate-600"> · based on {valid} calculated ratios</span>
-            </p>
+
+            {/* Score bar */}
+            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden mb-5">
+              <div className={`h-full rounded-full bg-gradient-to-r ${verdict.bar} transition-all duration-1000 ease-out`}
+                style={{ width: `${pct}%` }} />
+            </div>
+
+            {/* Pills */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {pills.map(({ count, label, color, bg, dot }) => (
+                <span key={label} className={`inline-flex items-center gap-1.5 border text-[11px] font-semibold px-2.5 py-1.5 rounded-full ${bg} ${color}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />
+                  {count} {label}
+                </span>
+              ))}
+            </div>
           </div>
 
+          {/* Export button */}
           <button
             onClick={onExportPDF}
-            className="flex items-center gap-2 bg-orange-500 hover:bg-orange-400 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-all duration-150 glow-orange whitespace-nowrap self-start"
+            className="self-start inline-flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.10] border border-white/[0.1] hover:border-white/[0.18] text-slate-300 hover:text-white text-xs font-semibold px-4 py-2.5 rounded-xl transition-all duration-150"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Download PDF
+            Download PDF Report
           </button>
         </div>
 
-        {/* Score bar */}
-        <div className="mb-5">
-          <div className="w-full bg-white/[0.06] rounded-full h-2 overflow-hidden">
-            <div
-              className={`h-2 rounded-full bg-gradient-to-r ${verdict.barColor} transition-all duration-1000 ease-out`}
-              style={{ width: `${pct}%` }}
-            ></div>
-          </div>
-        </div>
-
-        {/* Breakdown pills */}
-        <div className="flex flex-wrap gap-2">
-          {[
-            { count: green, label: 'Healthy',         color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20', dot: 'bg-emerald-400' },
-            { count: amber, label: 'Borderline',      color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20',     dot: 'bg-amber-400'   },
-            { count: red,   label: 'Needs Attention', color: 'text-red-400',     bg: 'bg-red-500/10 border-red-500/20',         dot: 'bg-red-400'     },
-            ...(na > 0 ? [{ count: na, label: 'No Data', color: 'text-slate-500', bg: 'bg-white/5 border-white/10', dot: 'bg-slate-600' }] : []),
-          ].map(({ count, label, color, bg, dot }) => (
-            <span key={label} className={`inline-flex items-center gap-1.5 border text-[11px] font-semibold px-3 py-1.5 rounded-full ${bg} ${color}`}>
-              <span className={`w-2 h-2 rounded-full ${dot}`}></span>
-              {count} {label}
-            </span>
-          ))}
+        {/* Right: Radar chart */}
+        <div className="lg:w-80 p-4 flex flex-col items-center justify-center border-t lg:border-t-0 lg:border-l border-white/[0.05]">
+          <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-1 self-start pl-2">Health Dimensions</p>
+          <HealthRadar statuses={statusMap} />
         </div>
       </div>
     </div>
