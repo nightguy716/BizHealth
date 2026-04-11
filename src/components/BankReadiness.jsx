@@ -87,15 +87,15 @@ export default function BankReadiness({ ratioValues }) {
     <section className="mb-10">
       {/* Section header */}
       <div className="flex items-center gap-3 mb-5">
-        <span className="text-xl">🏦</span>
+        <span className="text-lg">🏦</span>
         <div>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none">Bank Loan Readiness</h2>
-          <p className="text-slate-600 text-[11px] mt-0.5">How your financials look to Indian bank loan officers</p>
+          <span className="mono text-[11px] font-bold uppercase tracking-[0.18em] text-amber-400">Bank Loan Readiness</span>
+          <span className="text-slate-700 text-[10px] ml-3">How Indian banks score your application</span>
         </div>
-        <div className="flex-1 h-px bg-white/[0.06] ml-2"></div>
+        <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, rgba(251,191,36,0.5), transparent)' }} />
       </div>
 
-      <div className="glass-card rounded-2xl p-6 border-white/[0.08]">
+      <div className="ghost-card rounded-2xl p-6" style={{ borderColor:'rgba(251,191,36,0.12)' }}>
         {/* Score */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>

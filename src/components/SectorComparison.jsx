@@ -30,15 +30,15 @@ export default function SectorComparison({ ratioValues, industry }) {
     <section className="mb-10">
       {/* Section header */}
       <div className="flex items-center gap-3 mb-5">
-        <span className="text-xl">🔍</span>
+        <span className="text-lg">◈</span>
         <div>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none">Sector Comparison</h2>
-          <p className="text-slate-600 text-[11px] mt-0.5">How your business compares to listed Indian companies</p>
+          <span className="mono text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-400">Sector Comparison</span>
+          <span className="text-slate-700 text-[10px] ml-3">Benchmarked against listed Indian companies · FY2024</span>
         </div>
-        <div className="flex-1 h-px bg-white/[0.06] ml-2"></div>
+        <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, rgba(34,211,238,0.5), transparent)' }} />
       </div>
 
-      <div className="glass-card rounded-2xl p-5 border-white/[0.08]">
+      <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(34,211,238,0.1)' }}>
         {/* Company picker */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-5">
           <span className="text-slate-400 text-xs font-medium flex-shrink-0">Compare with:</span>

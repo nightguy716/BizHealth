@@ -1,29 +1,31 @@
 import RatioCard from './RatioCard';
 
-const GROUP_META = {
-  Liquidity:     { icon: '💧', desc: 'Can your business meet short-term obligations?' },
-  Profitability: { icon: '📈', desc: 'How efficiently is your business generating profit?' },
-  Efficiency:    { icon: '⚙️', desc: 'How well are your assets and operations performing?' },
-  Leverage:      { icon: '⚖️', desc: 'How much debt is your business carrying?' },
+const META = {
+  Liquidity:     { icon: '💧', color: 'text-cyan-400',    line: 'from-cyan-500/60',   desc: 'Short-term solvency & cash availability' },
+  Profitability: { icon: '📈', color: 'text-emerald-400', line: 'from-emerald-500/60', desc: 'Revenue conversion & return metrics'      },
+  Efficiency:    { icon: '⚙️', color: 'text-violet-400',  line: 'from-violet-500/60',  desc: 'Asset utilisation & operational cycle'    },
+  Leverage:      { icon: '⚖️', color: 'text-amber-400',   line: 'from-amber-500/60',   desc: 'Debt structure & interest servicing'      },
 };
 
 export default function RatioGroup({ title, ratios, startIndex = 0 }) {
-  const meta = GROUP_META[title] || {};
+  const m = META[title] || { icon: '◆', color: 'text-slate-400', line: 'from-slate-500/60', desc: '' };
 
   return (
     <section className="mb-10">
+      {/* Section header */}
       <div className="flex items-center gap-3 mb-5">
-        <span className="text-xl">{meta.icon}</span>
-        <div>
-          <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none">{title}</h2>
-          <p className="text-slate-600 text-[11px] mt-0.5">{meta.desc}</p>
+        <span className="text-lg">{m.icon}</span>
+        <div className="min-w-0">
+          <span className={`mono text-[11px] font-bold uppercase tracking-[0.18em] ${m.color}`}>{title}</span>
+          <span className="text-slate-700 text-[10px] ml-3">{m.desc}</span>
         </div>
-        <div className="flex-1 h-px bg-white/[0.06] ml-2"></div>
+        {/* Neon divider */}
+        <div className={`flex-1 h-px bg-gradient-to-r ${m.line} to-transparent ml-2`} />
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {ratios.map((ratio, i) => (
-          <RatioCard key={ratio.key} {...ratio} index={startIndex + i} />
+        {ratios.map((r, i) => (
+          <RatioCard key={r.key} {...r} index={startIndex + i} />
         ))}
       </div>
     </section>

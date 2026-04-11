@@ -166,29 +166,46 @@ export default function App() {
           {/* ── Welcome state ── */}
           {!calculated && (
             <div className="flex flex-col items-center justify-center min-h-[80vh] text-center select-none">
-              <div className="mb-6">
-                <Logo size={72} />
+              {/* Glow halo behind logo */}
+              <div className="relative mb-6">
+                <div className="absolute inset-0 rounded-full blur-2xl" style={{ background:'radial-gradient(circle, rgba(249,115,22,0.3) 0%, transparent 70%)', transform:'scale(2.5)' }} />
+                <Logo size={80} />
               </div>
-              <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
-                Biz<span className="text-orange-400">Health</span>
-              </h1>
-              <p className="text-slate-500 text-base max-w-md leading-relaxed mb-2">
-                Enter your financial figures — or click <span className="text-orange-400 font-semibold">Demo Data</span> — then hit{' '}
-                <span className="text-orange-400 font-semibold">Calculate</span> to see a full analysis.
-              </p>
-              <p className="text-slate-600 text-sm mb-8">14 ratios · AI analysis · Bank readiness · Sector comparison · PDF export</p>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg">
+              <h1 className="font-bold tracking-tight mb-1" style={{ fontSize:'2.8rem', lineHeight:1.1 }}>
+                <span className="text-white">Biz</span><span style={{ color:'#22d3ee', textShadow:'0 0 30px rgba(34,211,238,0.6)' }}>Health</span>
+              </h1>
+              <p className="mono text-[11px] font-bold uppercase tracking-widest mb-6" style={{ color:'rgba(34,211,238,0.45)' }}>
+                Financial Intelligence Platform · v3.0
+              </p>
+
+              <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-2">
+                Enter your financials, or hit <span style={{ color:'#f97316' }}>⚡ Demo</span> in the sidebar for instant results.
+              </p>
+              <p className="text-slate-700 text-xs mb-10 mono">14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
+
+              {/* Feature grid */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg mb-8">
                 {[
-                  { icon: '💧', label: 'Liquidity',     count: '3 ratios' },
-                  { icon: '📈', label: 'Profitability', count: '5 ratios' },
-                  { icon: '⚙️', label: 'Efficiency',    count: '4 ratios' },
-                  { icon: '⚖️', label: 'Leverage',      count: '2 ratios' },
-                ].map(({ icon, label, count }) => (
-                  <div key={label} className="glass-card rounded-2xl p-4 text-center border-white/[0.07]">
+                  { icon:'💧', label:'Liquidity',     count:'3 ratios', color:'#22d3ee' },
+                  { icon:'📈', label:'Profitability', count:'5 ratios', color:'#00e887' },
+                  { icon:'⚙️', label:'Efficiency',    count:'4 ratios', color:'#a78bfa' },
+                  { icon:'⚖️', label:'Leverage',      count:'2 ratios', color:'#fbbf24' },
+                ].map(({ icon, label, count, color }) => (
+                  <div key={label} className="ghost-card rounded-2xl p-4 text-center" style={{ borderColor:`${color}25` }}>
                     <div className="text-2xl mb-1">{icon}</div>
                     <div className="text-slate-300 text-xs font-semibold">{label}</div>
-                    <div className="text-slate-600 text-[10px]">{count}</div>
+                    <div className="mono text-[10px]" style={{ color:`${color}80` }}>{count}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Status legend */}
+              <div className="flex items-center gap-6 text-[11px]">
+                {[['#00e887','Healthy'],['#fbbf24','Borderline'],['#f43f5e','Critical']].map(([c,l]) => (
+                  <div key={l} className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ background:c, boxShadow:`0 0 6px ${c}` }} />
+                    <span className="mono text-slate-600">{l}</span>
                   </div>
                 ))}
               </div>
