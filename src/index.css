@@ -1,53 +1,110 @@
 @import "tailwindcss";
 
 @layer base {
-  * {
-    box-sizing: border-box;
-  }
+  * { box-sizing: border-box; }
   body {
     margin: 0;
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
-    background-color: #f8fafc;
+    background-color: #070f1f;
+    color: #f1f5f9;
   }
+  input[type=number]::-webkit-inner-spin-button,
+  input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
+  input[type=number] { -moz-appearance: textfield; }
 }
 
-@layer utilities {
-  .scrollbar-thin {
-    scrollbar-width: thin;
-    scrollbar-color: #334155 #1e293b;
-  }
-  .scrollbar-thin::-webkit-scrollbar {
-    width: 6px;
-  }
-  .scrollbar-thin::-webkit-scrollbar-track {
-    background: #1e293b;
-  }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
-    background-color: #334155;
-    border-radius: 3px;
-  }
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: #0b1527; }
+::-webkit-scrollbar-thumb { background: #1e3356; border-radius: 4px; }
+
+/* ── Glassmorphism card ── */
+.glass-card {
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
-@keyframes fadeSlideIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+.glass-card-hover {
+  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.glass-card-hover:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.14);
 }
 
+/* ── Animated background gradient ── */
+.bg-animated {
+  background: linear-gradient(135deg, #070f1f 0%, #0b1527 50%, #070f1f 100%);
+  background-size: 400% 400%;
+  animation: gradientShift 12s ease infinite;
+}
+
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* ── Card entrance animation ── */
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 .animate-fade-slide {
-  animation: fadeSlideIn 0.4s ease forwards;
+  animation: fadeSlideUp 0.45s cubic-bezier(0.22,1,0.36,1) forwards;
 }
 
-@keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
-  50% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.15); }
+/* ── Number count-up animation ── */
+@keyframes countUp {
+  from { opacity: 0; transform: scale(0.8); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.animate-count {
+  animation: countUp 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
 }
 
-.animate-pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+/* ── Glow effects per status ── */
+.glow-green { box-shadow: 0 0 28px -4px rgba(16,185,129,0.25); }
+.glow-amber { box-shadow: 0 0 28px -4px rgba(245,158,11,0.25); }
+.glow-red   { box-shadow: 0 0 28px -4px rgba(239,68,68,0.25); }
+
+/* ── Orange CTA glow ── */
+.glow-orange { box-shadow: 0 0 24px -4px rgba(249,115,22,0.4); }
+
+/* ── Sidebar input focus ── */
+.input-dark {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #f1f5f9;
+  border-radius: 10px;
+  padding: 8px 12px 8px 30px;
+  width: 100%;
+  font-size: 13px;
+  transition: border-color 0.15s, background 0.15s;
+  outline: none;
+}
+.input-dark::placeholder { color: rgba(148,163,184,0.4); }
+.input-dark:focus {
+  border-color: rgba(249,115,22,0.6);
+  background: rgba(255,255,255,0.08);
+}
+
+/* ── Progress bar fill ── */
+.bar-fill {
+  height: 100%;
+  border-radius: 9999px;
+  transition: width 1s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ── Shimmer loading effect ── */
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0.03) 25%, rgba(255,255,255,0.08) 50%, rgba(255,255,255,0.03) 75%);
+  background-size: 800px 100%;
+  animation: shimmer 2s infinite;
 }

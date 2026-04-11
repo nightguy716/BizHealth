@@ -1,62 +1,26 @@
 /**
- * calculations.js
- *
- * All 11 ratio formulas live here. Each function takes the raw input values
- * and returns a number (the calculated ratio). Keeping all math in one place
- * makes it easy to audit, test, or swap in a backend later.
+ * calculations.js — All ratio formulas.
+ * Returns null when the denominator is zero to avoid divide-by-zero errors.
  */
 
-export function calcCurrentRatio(currentAssets, currentLiabilities) {
-  if (!currentLiabilities || currentLiabilities === 0) return null;
-  return currentAssets / currentLiabilities;
-}
+// ── Liquidity ──────────────────────────────────────────────
+export const calcCurrentRatio    = (ca, cl)            => cl   ? ca / cl               : null;
+export const calcQuickRatio      = (ca, inv, cl)       => cl   ? (ca - inv) / cl       : null;
+export const calcCashRatio       = (cash, cl)          => cl   ? cash / cl             : null;
 
-export function calcQuickRatio(currentAssets, inventory, currentLiabilities) {
-  if (!currentLiabilities || currentLiabilities === 0) return null;
-  return (currentAssets - inventory) / currentLiabilities;
-}
+// ── Profitability ──────────────────────────────────────────
+export const calcGrossMargin     = (gp, rev)           => rev  ? (gp / rev) * 100      : null;
+export const calcOperatingMargin = (gp, opex, rev)     => rev  ? ((gp - opex) / rev) * 100 : null;
+export const calcNetMargin       = (np, rev)           => rev  ? (np / rev) * 100      : null;
+export const calcROE             = (np, eq)            => eq   ? (np / eq) * 100       : null;
+export const calcROA             = (np, ta)            => ta   ? (np / ta) * 100       : null;
 
-export function calcCashRatio(cash, currentLiabilities) {
-  if (!currentLiabilities || currentLiabilities === 0) return null;
-  return cash / currentLiabilities;
-}
+// ── Efficiency ────────────────────────────────────────────
+export const calcAssetTurnover      = (rev, ta)        => ta                   ? rev / ta              : null;
+export const calcFixedAssetTurnover = (rev, ta, ca)    => (ta - ca) > 0        ? rev / (ta - ca)       : null;
+export const calcReceivablesDays    = (rec, rev)       => rev                  ? (rec / rev) * 365     : null;
+export const calcInventoryDays      = (inv, cogs)      => cogs                 ? (inv / cogs) * 365    : null;
 
-export function calcGrossMargin(grossProfit, revenue) {
-  if (!revenue || revenue === 0) return null;
-  return (grossProfit / revenue) * 100;
-}
-
-export function calcNetMargin(netProfit, revenue) {
-  if (!revenue || revenue === 0) return null;
-  return (netProfit / revenue) * 100;
-}
-
-export function calcROE(netProfit, equity) {
-  if (!equity || equity === 0) return null;
-  return (netProfit / equity) * 100;
-}
-
-export function calcROA(netProfit, totalAssets) {
-  if (!totalAssets || totalAssets === 0) return null;
-  return (netProfit / totalAssets) * 100;
-}
-
-export function calcAssetTurnover(revenue, totalAssets) {
-  if (!totalAssets || totalAssets === 0) return null;
-  return revenue / totalAssets;
-}
-
-export function calcReceivablesDays(receivables, revenue) {
-  if (!revenue || revenue === 0) return null;
-  return (receivables / revenue) * 365;
-}
-
-export function calcInventoryDays(inventory, cogs) {
-  if (!cogs || cogs === 0) return null;
-  return (inventory / cogs) * 365;
-}
-
-export function calcDebtToEquity(totalDebt, equity) {
-  if (!equity || equity === 0) return null;
-  return totalDebt / equity;
-}
+// ── Leverage ──────────────────────────────────────────────
+export const calcDebtToEquity    = (debt, eq)          => eq   ? debt / eq             : null;
+export const calcInterestCoverage = (gp, opex, intExp) => intExp ? (gp - opex) / intExp : null;
