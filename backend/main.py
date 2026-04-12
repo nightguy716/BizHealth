@@ -152,156 +152,137 @@ YF_HEADERS = {
     ),
     "Accept":          "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
-    "Origin":          "https://finance.yahoo.com",
     "Referer":         "https://finance.yahoo.com/",
 }
 
-
-async def _get_crumb(client: httpx.AsyncClient) -> str:
-    """Fetch Yahoo Finance session cookie + crumb (required since 2023)."""
-    await client.get("https://finance.yahoo.com", headers=YF_HEADERS)
-    r = await client.get(
-        "https://query2.finance.yahoo.com/v1/test/getcrumb",
-        headers=YF_HEADERS,
-    )
-    return r.text.strip()
-
-
-def _pick(d: dict, *keys):
-    """Return first non-None value from a nested dict by key path."""
-    for k in keys:
-        v = d.get(k)
-        if v is not None and v != "N/A":
-            try:
-                f = float(v)
-                if not math.isnan(f):
-                    return f
-            except (TypeError, ValueError):
-                pass
-    return None
+# Timeseries field names → our input keys
+TS_FIELDS = {
+    "annualTotalRevenue":              "revenue",
+    "annualGrossProfit":               "grossProfit",
+    "annualCostOfRevenue":             "cogs",
+    "annualOperatingIncome":           "_operatingIncome",   # derived
+    "annualNetIncome":                 "netProfit",
+    "annualInterestExpense":           "interestExpense",
+    "annualTotalAssets":               "totalAssets",
+    "annualCurrentAssets":             "currentAssets",
+    "annualCurrentLiabilities":        "currentLiabilities",
+    "annualInventory":                 "inventory",
+    "annualCashAndCashEquivalents":    "cash",
+    "annualStockholdersEquity":        "equity",
+    "annualTotalDebt":                 "totalDebt",
+    "annualAccountsReceivable":        "receivables",
+}
 
 
-def _annual(stmt_list: list, *keys):
-    """Most-recent annual figure from a Yahoo Finance statement list."""
-    if not stmt_list:
-        return None
-    row = stmt_list[0]
-    for k in keys:
-        item = row.get(k, {})
-        raw  = item.get("raw") if isinstance(item, dict) else None
-        if raw is not None:
-            try:
-                f = float(raw)
-                if not math.isnan(f):
-                    return f
-            except (TypeError, ValueError):
-                pass
+def _ts_latest(ts_result: list, field: str):
+    """Return most-recent annual value for a given timeseries field."""
+    for block in ts_result:
+        series = block.get(field)
+        if series and isinstance(series, list) and len(series) > 0:
+            # entries are sorted oldest→newest; pick last
+            entry = series[-1]
+            rv = entry.get("reportedValue", {})
+            raw = rv.get("raw") if isinstance(rv, dict) else None
+            if raw is not None:
+                try:
+                    f = float(raw)
+                    if not math.isnan(f):
+                        return f
+                except (TypeError, ValueError):
+                    pass
     return None
 
 
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
     """
-    Calls Yahoo Finance's quoteSummary v10 API directly — bypasses the
-    yfinance library which gets IP-blocked on cloud servers.
+    Uses Yahoo Finance's fundamentals-timeseries API — no cookie/crumb required,
+    reliable from cloud server IPs.
     """
     sym = ticker.upper()
-    modules = "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory,assetProfile,price"
-    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}?modules={modules}"
+    ts_types = ",".join(TS_FIELDS.keys())
+    ts_url = (
+        f"https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{sym}"
+        f"?type={ts_types}&period1=493590046&period2=9999999999&timeframe=annual"
+    )
+    # quoteSummary for name / sector / currency (lightweight, usually no crumb needed)
+    qs_url = (
+        f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+        f"?modules=assetProfile,price"
+    )
 
     try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            # Step 1 — get session cookie + crumb
-            crumb = await _get_crumb(client)
-            # Step 2 — fetch financial data
-            r = await client.get(
-                url + f"&crumb={crumb}",
-                headers=YF_HEADERS,
+        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
+            ts_r, qs_r = await asyncio.gather(
+                client.get(ts_url, headers=YF_HEADERS),
+                client.get(qs_url, headers=YF_HEADERS),
             )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Yahoo Finance request failed: {e}")
 
-    if r.status_code != 200:
-        raise HTTPException(status_code=r.status_code,
-                            detail=f"Yahoo Finance returned {r.status_code}")
+    # ── parse timeseries ─────────────────────────────────────────
+    if ts_r.status_code != 200:
+        raise HTTPException(status_code=ts_r.status_code,
+                            detail=f"Yahoo Finance timeseries returned {ts_r.status_code}")
 
-    body = r.json()
-    result = body.get("quoteSummary", {}).get("result")
-    if not result:
-        err = body.get("quoteSummary", {}).get("error", {})
-        raise HTTPException(status_code=404,
-                            detail=err.get("description", f"No data for {sym}"))
+    ts_body  = ts_r.json()
+    ts_result = ts_body.get("timeseries", {}).get("result", [])
+    if not ts_result:
+        raise HTTPException(status_code=404, detail=f"No financial data found for {sym}")
 
-    data   = result[0]
-    inc_h  = data.get("incomeStatementHistory",  {}).get("incomeStatementHistory",  [])
-    bal_h  = data.get("balanceSheetHistory",     {}).get("balanceSheetHistory",     [])
-    cf_h   = data.get("cashflowStatementHistory",{}).get("cashflowStatementHistory",[])
-    profile= data.get("assetProfile", {})
-    price  = data.get("price", {})
+    # ── parse meta (name / sector / currency) ────────────────────
+    name = sym; sector = ""; currency = "USD"
+    try:
+        qs_body = qs_r.json()
+        qs_res  = qs_body.get("quoteSummary", {}).get("result") or [{}]
+        qs_data = qs_res[0]
+        profile = qs_data.get("assetProfile", {})
+        price   = qs_data.get("price", {})
+        sector   = profile.get("sector", "")
+        name     = price.get("longName") or price.get("shortName") or sym
+        currency = price.get("currency") or "USD"
+    except Exception:
+        pass
 
-    sector   = profile.get("sector", "")
-    name     = price.get("longName") or price.get("shortName") or sym
-    currency = price.get("currency") or price.get("currencySymbol") or "USD"
+    # ── map fields ───────────────────────────────────────────────
+    raw_values = {}
+    for ts_key, our_key in TS_FIELDS.items():
+        v = _ts_latest(ts_result, ts_key)
+        if v is not None:
+            raw_values[our_key] = v
 
-    # ── income statement (most-recent annual = index 0) ──────────
-    revenue     = _annual(inc_h, "totalRevenue")
-    gross_p     = _annual(inc_h, "grossProfit")
-    cogs_raw    = _annual(inc_h, "costOfRevenue")
-    op_income   = _annual(inc_h, "operatingIncome", "ebit")
-    net_income  = _annual(inc_h, "netIncome")
-    int_exp_raw = _annual(inc_h, "interestExpense")
+    # Derive operating expenses = gross profit − operating income
+    op_income = raw_values.pop("_operatingIncome", None)
+    gross_p   = raw_values.get("grossProfit")
+    if op_income is not None and gross_p is not None:
+        raw_values["operatingExpenses"] = abs(gross_p - op_income)
 
-    # ── cash flow (interest paid fallback) ───────────────────────
-    int_paid = _annual(cf_h, "interestPaid") if int_exp_raw is None else None
+    # Derive COGS or gross profit if either is missing
+    revenue = raw_values.get("revenue")
+    if revenue:
+        if "grossProfit" not in raw_values and "cogs" in raw_values:
+            raw_values["grossProfit"] = revenue - raw_values["cogs"]
+        if "cogs" not in raw_values and "grossProfit" in raw_values:
+            raw_values["cogs"] = revenue - raw_values["grossProfit"]
 
-    # ── balance sheet ─────────────────────────────────────────────
-    cur_assets = _annual(bal_h, "totalCurrentAssets")
-    cur_liab   = _annual(bal_h, "totalCurrentLiabilities")
-    inventory  = _annual(bal_h, "inventory")
-    cash       = _annual(bal_h, "cash", "cashAndCashEquivalents",
-                         "cashAndShortTermInvestments")
-    total_assets = _annual(bal_h, "totalAssets")
-    equity     = _annual(bal_h, "totalStockholderEquity", "stockholdersEquity")
-    total_debt = _annual(bal_h, "totalDebt", "longTermDebt",
-                         "longTermDebtAndCapitalLeaseObligation")
-    receivables= _annual(bal_h, "netReceivables", "accountsReceivable")
+    # Interest expense is often reported negative
+    if "interestExpense" in raw_values:
+        raw_values["interestExpense"] = abs(raw_values["interestExpense"])
 
-    # ── derived values ────────────────────────────────────────────
-    if gross_p is None and revenue and cogs_raw:
-        gross_p = revenue - cogs_raw
-    if cogs_raw is None and revenue and gross_p:
-        cogs_raw = revenue - gross_p
-
-    op_expenses = None
-    if gross_p is not None and op_income is not None:
-        op_expenses = abs(gross_p - op_income)
-
-    interest = abs(int_exp_raw or int_paid or 0) or None
-
-    raw = {
-        "currentAssets":      cur_assets,
-        "currentLiabilities": cur_liab,
-        "inventory":          inventory,
-        "cash":               cash,
-        "totalAssets":        total_assets,
-        "equity":             equity,
-        "totalDebt":          total_debt,
-        "revenue":            revenue,
-        "grossProfit":        gross_p,
-        "operatingExpenses":  op_expenses,
-        "netProfit":          net_income,
-        "interestExpense":    interest,
-        "receivables":        receivables,
-        "cogs":               cogs_raw,
-    }
-
+    # ── convert to string integers ────────────────────────────────
+    ALL_KEYS = [
+        "currentAssets","currentLiabilities","inventory","cash","totalAssets",
+        "equity","totalDebt","revenue","grossProfit","operatingExpenses",
+        "netProfit","interestExpense","receivables","cogs",
+    ]
     mapped = {}
-    for k, v in raw.items():
-        if v is not None and not (isinstance(v, float) and math.isnan(v)) and v != 0:
+    for k in ALL_KEYS:
+        v = raw_values.get(k)
+        if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
             mapped[k] = str(int(abs(round(v))))
 
     industry = SECTOR_MAP.get(sector, "general")
-    total    = len(raw)
+    total    = len(ALL_KEYS)
     filled   = len(mapped)
     coverage = round((filled / total) * 100)
 
