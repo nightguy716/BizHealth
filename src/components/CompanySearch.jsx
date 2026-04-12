@@ -1,6 +1,92 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const BACKEND = import.meta.env.VITE_BACKEND_URL;
+const BACKEND  = import.meta.env.VITE_BACKEND_URL;
+const FMP_KEY  = import.meta.env.VITE_FMP_API_KEY;
+const FMP_BASE = 'https://financialmodelingprep.com/api/v3';
+
+const SECTOR_MAP = {
+  'Technology': 'tech', 'Communication Services': 'tech',
+  'Healthcare': 'healthcare', 'Financial Services': 'finance',
+  'Consumer Defensive': 'retail', 'Consumer Cyclical': 'retail',
+  'Industrials': 'manufacturing', 'Basic Materials': 'manufacturing',
+  'Energy': 'manufacturing',
+};
+
+function fv(obj, ...keys) {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (v != null && !Number.isNaN(Number(v))) return Number(v);
+  }
+  return null;
+}
+
+async function fetchCompanyData(ticker) {
+  // FMP uses bare tickers (no .NS / .BO suffix)
+  const sym = ticker.replace(/\.(NS|BO|L|PA|AS|TO|AX)$/i, '').toUpperCase();
+
+  const [incR, balR, profileR] = await Promise.all([
+    fetch(`${FMP_BASE}/income-statement/${sym}?limit=1&apikey=${FMP_KEY}`),
+    fetch(`${FMP_BASE}/balance-sheet-statement/${sym}?limit=1&apikey=${FMP_KEY}`),
+    fetch(`${FMP_BASE}/profile/${sym}?apikey=${FMP_KEY}`),
+  ]);
+
+  const [incList, balList, profileList] = await Promise.all([
+    incR.json(), balR.json(), profileR.json(),
+  ]);
+
+  if (!Array.isArray(incList) || !incList.length) {
+    throw new Error(`No financial data found for ${sym}`);
+  }
+
+  const inc     = incList[0];
+  const bal     = Array.isArray(balList) && balList.length ? balList[0] : {};
+  const profile = Array.isArray(profileList) && profileList.length ? profileList[0] : {};
+
+  const revenue   = fv(inc, 'revenue');
+  const grossP    = fv(inc, 'grossProfit');
+  const cogsRaw   = fv(inc, 'costOfRevenue');
+  const opExp     = fv(inc, 'operatingExpenses');
+  const netIncome = fv(inc, 'netIncome');
+  const interest  = fv(inc, 'interestExpense');
+
+  const raw = {
+    currentAssets:      fv(bal, 'totalCurrentAssets'),
+    currentLiabilities: fv(bal, 'totalCurrentLiabilities'),
+    inventory:          fv(bal, 'inventory'),
+    cash:               fv(bal, 'cashAndCashEquivalents', 'cashAndShortTermInvestments'),
+    totalAssets:        fv(bal, 'totalAssets'),
+    equity:             fv(bal, 'totalStockholdersEquity', 'stockholdersEquity'),
+    totalDebt:          fv(bal, 'totalDebt', 'longTermDebt'),
+    revenue,
+    grossProfit:  grossP  ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
+    operatingExpenses: opExp,
+    netProfit:    netIncome,
+    interestExpense: interest != null ? Math.abs(interest) : null,
+    receivables:  fv(bal, 'netReceivables', 'accountsReceivable'),
+    cogs:         cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
+  };
+
+  const data = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v != null && !Number.isNaN(v) && Math.abs(v) > 0) {
+      data[k] = String(Math.round(Math.abs(v)));
+    }
+  }
+
+  const total    = Object.keys(raw).length;
+  const filled   = Object.keys(data).length;
+  const coverage = Math.round((filled / total) * 100);
+
+  return {
+    ticker:   sym,
+    name:     profile.companyName || sym,
+    sector:   profile.sector || '',
+    industry: SECTOR_MAP[profile.sector] || 'general',
+    currency: profile.currency || inc.reportedCurrency || 'USD',
+    coverage, filled, total,
+    data,
+  };
+}
 
 export default function CompanySearch({ onSelect }) {
   const [query,    setQuery]   = useState('');
@@ -8,13 +94,12 @@ export default function CompanySearch({ onSelect }) {
   const [open,     setOpen]    = useState(false);
   const [loading,  setLoading] = useState(false);
   const [fetching, setFetching]= useState(false);
-  const [loaded,   setLoaded]  = useState(null);   // { ticker, name, coverage, filled, total }
+  const [loaded,   setLoaded]  = useState(null);
   const [error,    setError]   = useState('');
 
   const debounceRef  = useRef(null);
   const containerRef = useRef(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handler = e => {
       if (!containerRef.current?.contains(e.target)) setOpen(false);
@@ -52,65 +137,51 @@ export default function CompanySearch({ onSelect }) {
     setQuery(company.name || company.ticker);
     setFetching(true);
     try {
-      const res = await fetch(`${BACKEND}/company/${company.ticker}`);
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
+      if (!FMP_KEY) throw new Error('VITE_FMP_API_KEY not set in Vercel');
+      const companyData = await fetchCompanyData(company.ticker);
       setLoaded({
-        ticker:   data.ticker,
-        name:     data.name,
-        currency: data.currency,
-        coverage: data.coverage,
-        filled:   data.filled,
-        total:    data.total,
+        ticker:   companyData.ticker,
+        name:     companyData.name,
+        currency: companyData.currency,
+        coverage: companyData.coverage,
+        filled:   companyData.filled,
+        total:    companyData.total,
       });
-      onSelect(data);
+      onSelect(companyData);
     } catch (e) {
-      setError('Could not load financials. Try another ticker.');
+      setError(e.message || 'Could not load financials. Try another ticker.');
     } finally {
       setFetching(false);
     }
   };
 
-  const clear = () => {
-    setQuery('');
-    setLoaded(null);
-    setError('');
-    setResults([]);
-  };
+  const clear = () => { setQuery(''); setLoaded(null); setError(''); setResults([]); };
 
-  if (!BACKEND) {
+  if (!FMP_KEY) {
     return (
-      <div className="px-3 py-2 rounded-xl mono text-[10px]"
-        style={{ background:'rgba(244,63,94,0.06)', border:'1px solid rgba(244,63,94,0.18)', color:'rgba(244,63,94,0.7)' }}>
-        ⚠ Backend not connected — company search unavailable
+      <div className="px-3 py-2.5 rounded-xl mono text-[10px] leading-relaxed"
+        style={{ background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', color:'rgba(251,191,36,0.8)' }}>
+        ⚠ Add <strong>VITE_FMP_API_KEY</strong> to Vercel to enable company search
       </div>
     );
   }
 
   return (
     <div ref={containerRef} className="relative">
-
-      {/* Search box */}
       <div className="relative">
-        {/* Icon */}
         <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ color:'rgba(34,211,238,0.45)', fontSize:14, lineHeight:1 }}>
-          ⌕
-        </span>
+          style={{ color:'rgba(34,211,238,0.45)', fontSize:14 }}>⌕</span>
 
-        <input
-          type="text"
-          value={query}
+        <input type="text" value={query}
           onChange={e => { setQuery(e.target.value); setLoaded(null); setError(''); }}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="TCS, RELIANCE, AAPL…"
+          placeholder="AAPL, TCS, RELIANCE…"
           className="w-full py-2 text-xs outline-none"
           style={{
             paddingLeft: 28, paddingRight: 28,
             background: 'rgba(34,211,238,0.04)',
             border: '1px solid rgba(34,211,238,0.15)',
-            borderRadius: 10,
-            color: '#f1f5f9',
+            borderRadius: 10, color: '#f1f5f9',
             fontFamily: 'var(--font-mono)',
             transition: 'border-color .15s, box-shadow .15s',
           }}
@@ -124,7 +195,6 @@ export default function CompanySearch({ onSelect }) {
           }}
         />
 
-        {/* Spinner / clear */}
         <span className="absolute right-3 top-1/2 -translate-y-1/2">
           {(loading || fetching) ? (
             <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"
@@ -140,7 +210,7 @@ export default function CompanySearch({ onSelect }) {
         </span>
       </div>
 
-      {/* Results dropdown */}
+      {/* Dropdown */}
       {open && results.length > 0 && (
         <div className="absolute z-50 left-0 right-0 mt-1.5 rounded-xl overflow-hidden"
           style={{
@@ -151,22 +221,13 @@ export default function CompanySearch({ onSelect }) {
             boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
           }}>
           {results.map((r, i) => (
-            <button key={r.ticker}
-              onClick={() => selectCompany(r)}
+            <button key={r.ticker} onClick={() => selectCompany(r)}
               className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
-              style={{
-                borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none',
-              }}
+              style={{ borderBottom: i < results.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
               onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.04)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               <span className="mono text-[10px] font-bold px-2 py-0.5 rounded-lg flex-shrink-0"
-                style={{
-                  background: 'rgba(34,211,238,0.08)',
-                  color: '#22d3ee',
-                  border: '1px solid rgba(34,211,238,0.2)',
-                  minWidth: 52,
-                  textAlign: 'center',
-                }}>
+                style={{ background:'rgba(34,211,238,0.08)', color:'#22d3ee', border:'1px solid rgba(34,211,238,0.2)', minWidth:52, textAlign:'center' }}>
                 {r.ticker}
               </span>
               <div className="min-w-0 flex-1">
@@ -183,11 +244,8 @@ export default function CompanySearch({ onSelect }) {
 
       {/* Loaded chip */}
       {loaded && !fetching && (
-        <div className="mt-2 rounded-xl overflow-hidden"
-          style={{ border:'1px solid rgba(0,232,135,0.22)' }}>
-          {/* Top row */}
-          <div className="flex items-center gap-2 px-3 py-1.5"
-            style={{ background:'rgba(0,232,135,0.07)' }}>
+        <div className="mt-2 rounded-xl overflow-hidden" style={{ border:'1px solid rgba(0,232,135,0.22)' }}>
+          <div className="flex items-center gap-2 px-3 py-1.5" style={{ background:'rgba(0,232,135,0.07)' }}>
             <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-dot"
               style={{ background:'#00e887', boxShadow:'0 0 5px #00e887' }} />
             <span className="mono text-[11px] font-bold flex-shrink-0" style={{ color:'#00e887' }}>
@@ -202,32 +260,22 @@ export default function CompanySearch({ onSelect }) {
             )}
             <button onClick={clear} className="text-slate-600 hover:text-slate-400 text-xs flex-shrink-0">✕</button>
           </div>
-
-          {/* Coverage bar */}
           {loaded.coverage !== undefined && (
             <div className="px-3 py-2" style={{ background:'rgba(0,0,0,0.2)' }}>
               <div className="flex justify-between mono text-[9px] mb-1">
-                <span style={{ color:'rgba(148,163,184,0.5)' }}>
-                  FIELDS LOADED — {loaded.filled}/{loaded.total}
-                </span>
-                <span style={{ color: loaded.coverage >= 80 ? '#00e887' : loaded.coverage >= 60 ? '#fbbf24' : '#f43f5e', fontWeight:700 }}>
-                  {loaded.coverage}%
-                </span>
+                <span style={{ color:'rgba(148,163,184,0.5)' }}>FIELDS LOADED — {loaded.filled}/{loaded.total}</span>
+                <span style={{ color: loaded.coverage >= 80 ? '#00e887' : '#fbbf24', fontWeight:700 }}>{loaded.coverage}%</span>
               </div>
               <div className="h-[2px] rounded-full overflow-hidden" style={{ background:'rgba(255,255,255,0.06)' }}>
                 <div className="h-full rounded-full transition-all duration-700"
                   style={{
                     width: `${loaded.coverage}%`,
-                    background: loaded.coverage >= 80
-                      ? 'linear-gradient(90deg,#00e887,#22d3ee)'
-                      : loaded.coverage >= 60
-                        ? 'linear-gradient(90deg,#fbbf24,#f59e0b)'
-                        : 'linear-gradient(90deg,#f43f5e,#e11d48)',
+                    background: loaded.coverage >= 80 ? 'linear-gradient(90deg,#00e887,#22d3ee)' : 'linear-gradient(90deg,#fbbf24,#f59e0b)',
                   }} />
               </div>
               {loaded.coverage < 100 && (
                 <p className="text-[9px] mt-1.5 leading-relaxed" style={{ color:'rgba(100,116,139,0.7)' }}>
-                  Missing fields (e.g. Inventory, Interest) are normal for service/tech companies — those ratios show N/A.
+                  Missing fields (Inventory, Interest) are normal for service/tech companies.
                 </p>
               )}
             </div>
@@ -235,11 +283,8 @@ export default function CompanySearch({ onSelect }) {
         </div>
       )}
 
-      {/* Error */}
       {error && (
-        <p className="mt-1.5 mono text-[10px] px-1" style={{ color:'rgba(244,63,94,0.8)' }}>
-          ⚠ {error}
-        </p>
+        <p className="mt-1.5 mono text-[10px] px-1" style={{ color:'rgba(244,63,94,0.8)' }}>⚠ {error}</p>
       )}
     </div>
   );
