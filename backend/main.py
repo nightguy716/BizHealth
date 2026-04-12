@@ -37,39 +37,47 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-SYSTEM_PROMPT = """You are a senior financial analyst specialising in Indian SME financial health assessment. You have deep expertise in reading financial ratios and translating them into clear, actionable business advice for business owners — not accountants.
+SYSTEM_PROMPT = """You are a senior financial analyst with expertise across SMEs, large-cap corporations, and listed companies globally. You analyse financial ratios and translate them into clear, actionable intelligence tailored to the entity's scale and context.
 
 You must respond with ONLY a valid JSON object — no markdown, no explanation outside the JSON — with exactly these keys:
 
 {
-  "executive_summary": "2-3 sentence overview of overall financial health, mentioning specific ratio values",
+  "executive_summary": "2-3 sentence overview of overall financial health, mentioning specific ratio values and the company/entity name if known",
   "health_verdict": "exactly one of: Strong | Moderate | Below Average | Critical",
   "top_risks": [
     { "title": "short title max 6 words", "description": "2 sentences mentioning actual ratio values", "urgency": "High | Medium | Low" }
   ],
   "top_opportunities": [
-    { "title": "short title max 6 words", "description": "2 sentences with specific, actionable insight", "impact": "High | Medium | Low" }
+    { "title": "short title max 6 words", "description": "2 sentences with specific, actionable insight scaled to the entity size", "impact": "High | Medium | Low" }
   ],
   "priority_actions": [
-    { "action": "specific action to take, mentioning numbers", "timeline": "e.g. This week | Next 30 days | Next quarter", "expected_impact": "what metric will improve and by roughly how much" }
+    { "action": "specific action scaled to entity size, mentioning numbers", "timeline": "e.g. This week | Next 30 days | Next quarter", "expected_impact": "what metric will improve and by roughly how much" }
   ],
-  "industry_context": "one paragraph comparing to Indian industry norms, mentioning the selected industry"
+  "industry_context": "one paragraph comparing to global/sector peers, referencing the specific industry and entity scale"
 }
 
 Rules:
 - top_risks: exactly 3 items
-- top_opportunities: exactly 3 items  
+- top_opportunities: exactly 3 items
 - priority_actions: exactly 5 items
-- Be specific — always mention actual ratio values in descriptions
-- Be direct — this owner needs to act, not just understand
-- Avoid jargon — plain English throughout"""
+- If the entity is a large listed company (e.g. Amazon, Microsoft, TCS), frame advice for institutional investors, CFOs, and analysts — not SME owners
+- If the entity is an SME or unknown, frame advice for business owners in plain English
+- Always mention actual ratio values in descriptions
+- Tailor industry_context to global norms for listed companies, or local/regional norms for SMEs"""
 
+
+class CompanyCtx(BaseModel):
+    name:     str = ''
+    ticker:   str = ''
+    currency: str = 'INR'
+    isListed: bool = False
 
 class AnalysisRequest(BaseModel):
     ratios:   dict
     statuses: dict
     industry: str
     score:    int
+    company:  CompanyCtx = CompanyCtx()
 
 
 @app.get("/")
@@ -321,9 +329,17 @@ async def analyze(req: AnalysisRequest):
         "Critical"
     )
 
-    user_message = f"""Please analyse this SME's financial health and return your JSON response.
+    co = req.company
+    entity_label = f"{co.name} ({co.ticker})" if co.ticker else (co.name or "the business")
+    entity_type  = "Listed company" if co.isListed else "SME / private business"
+    currency_note = f"Currency: {co.currency}" if co.currency else ""
 
+    user_message = f"""Please analyse this entity's financial health and return your JSON response.
+
+Entity:        {entity_label}
+Type:          {entity_type}
 Industry:      {req.industry}
+{currency_note}
 Health Score:  {req.score}/100 ({verdict_word})
 
 Financial Ratios:

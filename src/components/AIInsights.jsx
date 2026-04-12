@@ -18,7 +18,7 @@ function Dots() {
   );
 }
 
-export default function AIInsights({ ratioValues, statuses, score, industry }) {
+export default function AIInsights({ ratioValues, statuses, score, industry, companyContext = {} }) {
   const [ins,     setIns]     = useState(null);
   const [loading, setLoading] = useState(false);
   const [done,    setDone]    = useState(false);
@@ -28,7 +28,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry }) {
     const url = import.meta.env.VITE_BACKEND_URL;
     if (url) {
       try {
-        const r = await fetch(`${url}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ratios:ratioValues, statuses, industry, score }) });
+        const r = await fetch(`${url}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ratios:ratioValues, statuses, industry, score, company: companyContext }) });
         if (r.ok) { setIns(await r.json()); setLoading(false); setDone(true); return; }
       } catch (_) {}
     }

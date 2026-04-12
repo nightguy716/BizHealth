@@ -5,7 +5,6 @@
 
 import { useState, useRef } from 'react';
 import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 import Sidebar          from './components/Sidebar';
 import SummaryBanner    from './components/SummaryBanner';
@@ -50,10 +49,11 @@ const EMPTY_INPUTS = {
 };
 
 export default function App() {
-  const [inputs,     setInputs]     = useState(EMPTY_INPUTS);
-  const [industry,   setIndustry]   = useState('general');
-  const [results,    setResults]    = useState(null);
-  const [calculated, setCalculated] = useState(false);
+  const [inputs,          setInputs]          = useState(EMPTY_INPUTS);
+  const [industry,        setIndustry]        = useState('general');
+  const [results,         setResults]         = useState(null);
+  const [calculated,      setCalculated]      = useState(false);
+  const [companyContext,  setCompanyContext]   = useState({ name: '', ticker: '', currency: 'INR', isListed: false });
   const resultsRef = useRef(null);
 
   const n = key => parseFloat(inputs[key]) || 0;
@@ -88,39 +88,149 @@ export default function App() {
     setCalculated(false);
   }
 
-  async function handleExportPDF() {
-    if (!resultsRef.current) return;
-    try {
-      const canvas  = await html2canvas(resultsRef.current, { scale: 2, backgroundColor: '#060d1a', useCORS: true });
-      const pdf     = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW   = pdf.internal.pageSize.getWidth();
-      const pageH   = pdf.internal.pageSize.getHeight();
-      const imgW    = pageW - 20;
-      const imgH    = (canvas.height * imgW) / canvas.width;
-      const margin  = 10;
+  function handleExportPDF() {
+    if (!results) return;
+    const pdf  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const W    = 210; const H = 297; const M = 16;
+    const col  = W - M * 2;
+    const date = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
+    const co   = companyContext.name || 'Business';
 
-      const addPage = (sourceCanvas, srcY, sliceH) => {
-        const sc  = document.createElement('canvas');
-        const r   = canvas.width / imgW;
-        sc.width  = canvas.width;
-        sc.height = sliceH * r;
-        sc.getContext('2d').drawImage(canvas, 0, srcY * r, canvas.width, sc.height, 0, 0, canvas.width, sc.height);
-        return sc.toDataURL('image/png');
-      };
+    const STATUS_COLOR = { green:[0,200,120], amber:[251,191,36], red:[220,50,80], na:[100,116,139] };
+    const STATUS_LABEL = { green:'Healthy', amber:'Borderline', red:'Critical', na:'N/A' };
 
-      if (imgH <= pageH - 20) {
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', margin, margin, imgW, imgH);
-      } else {
-        let rem  = imgH, srcY = 0, first = true;
-        while (rem > 0) {
-          if (!first) pdf.addPage();
-          const slice = Math.min(pageH - 20, rem);
-          pdf.addImage(addPage(canvas, srcY, slice), 'PNG', margin, margin, imgW, slice);
-          rem -= slice; srcY += slice; first = false;
-        }
+    const fmt = (v, unit) => {
+      if (v === null || v === undefined) return 'N/A';
+      const n = parseFloat(v);
+      if (isNaN(n)) return 'N/A';
+      if (unit === '%') return n.toFixed(1) + '%';
+      if (unit === ' days') return n.toFixed(0) + ' days';
+      return n.toFixed(2) + 'x';
+    };
+
+    // ── Cover page ────────────────────────────────────────
+    pdf.setFillColor(3, 7, 17);
+    pdf.rect(0, 0, W, H, 'F');
+    pdf.setFillColor(79, 110, 247);
+    pdf.rect(0, 0, W, 2, 'F');
+
+    pdf.setTextColor(79, 110, 247);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(9);
+    pdf.text('BIZHEALTH · FINANCIAL INTELLIGENCE', M, 22);
+
+    pdf.setTextColor(255, 255, 255);
+    pdf.setFontSize(28);
+    pdf.text('Financial Health', M, 50);
+    pdf.text('Report', M, 62);
+
+    pdf.setTextColor(100, 116, 139);
+    pdf.setFontSize(11);
+    pdf.text(co, M, 74);
+    pdf.text(date, M, 81);
+
+    // Score circle
+    const cx = W - M - 28; const cy = 62; const r = 22;
+    const sc = STATUS_COLOR[healthScore >= 80 ? 'green' : healthScore >= 60 ? 'amber' : healthScore >= 40 ? 'na' : 'red'];
+    pdf.setDrawColor(...sc); pdf.setLineWidth(3);
+    pdf.circle(cx, cy, r, 'S');
+    pdf.setTextColor(...sc); pdf.setFontSize(20); pdf.setFont('helvetica','bold');
+    pdf.text(String(healthScore), cx, cy + 4, { align:'center' });
+    pdf.setFontSize(7); pdf.setTextColor(100,116,139);
+    pdf.text('HEALTH SCORE', cx, cy + 10, { align:'center' });
+
+    // Status summary bar
+    const counts = { green:0, amber:0, red:0, na:0 };
+    Object.values(results.statuses).forEach(s => counts[s]++);
+    let bx = M; const by = 100;
+    [['green','Healthy'],['amber','Borderline'],['red','Critical'],['na','N/A']].forEach(([k,l]) => {
+      pdf.setFillColor(...STATUS_COLOR[k]);
+      pdf.roundedRect(bx, by, 36, 18, 2, 2, 'F');
+      pdf.setTextColor(3,7,17); pdf.setFontSize(14); pdf.setFont('helvetica','bold');
+      pdf.text(String(counts[k]), bx + 18, by + 10, { align:'center' });
+      pdf.setFontSize(6); pdf.setFont('helvetica','normal');
+      pdf.text(l, bx + 18, by + 15, { align:'center' });
+      bx += 40;
+    });
+
+    // ── Page 2 — ratio table ──────────────────────────────
+    pdf.addPage();
+    pdf.setFillColor(3, 7, 17); pdf.rect(0, 0, W, H, 'F');
+    pdf.setFillColor(79, 110, 247); pdf.rect(0, 0, W, 2, 'F');
+
+    pdf.setTextColor(79, 110, 247); pdf.setFont('helvetica','bold'); pdf.setFontSize(8);
+    pdf.text('BIZHEALTH · RATIO ANALYSIS', M, 14);
+    pdf.setTextColor(255,255,255); pdf.setFontSize(16);
+    pdf.text(co + ' — Key Financial Ratios', M, 24);
+
+    let y = 34;
+    const RATIO_ROWS = [
+      ['LIQUIDITY', null, null, null],
+      ['Current Ratio','currentRatio','x',null],
+      ['Quick Ratio','quickRatio','x',null],
+      ['Cash Ratio','cashRatio','x',null],
+      ['PROFITABILITY', null, null, null],
+      ['Gross Margin','grossMargin','%',null],
+      ['Operating Margin','operatingMargin','%',null],
+      ['Net Margin','netMargin','%',null],
+      ['Return on Equity','roe','%',null],
+      ['Return on Assets','roa','%',null],
+      ['EFFICIENCY', null, null, null],
+      ['Asset Turnover','assetTurnover','x',null],
+      ['Fixed Asset Turnover','fixedAssetTurnover','x',null],
+      ['Receivables Days','receivablesDays',' days',null],
+      ['Inventory Days','inventoryDays',' days',null],
+      ['LEVERAGE', null, null, null],
+      ['Debt to Equity','debtToEquity','x',null],
+      ['Interest Coverage','interestCoverage','x',null],
+    ];
+
+    RATIO_ROWS.forEach(([label, key, unit]) => {
+      if (!key) {
+        // Section header
+        pdf.setFillColor(15, 20, 40);
+        pdf.rect(M, y - 3, col, 8, 'F');
+        pdf.setTextColor(79, 110, 247); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+        pdf.text(label, M + 2, y + 2);
+        y += 9;
+        return;
       }
-      pdf.save(`BizHealth-${new Date().toISOString().slice(0,10)}.pdf`);
-    } catch (e) { console.error('PDF failed', e); }
+      const val    = results.ratioValues[key];
+      const status = results.statuses[key];
+      const sc2    = STATUS_COLOR[status] || STATUS_COLOR.na;
+
+      pdf.setFillColor(status === 'green' ? 0 : status === 'amber' ? 40 : status === 'red' ? 40 : 20,
+                       status === 'green' ? 30 : 20, status === 'red' ? 10 : 30, 0.1);
+
+      // Row bg
+      pdf.setFillColor(10, 15, 30);
+      pdf.rect(M, y - 3, col, 7.5, 'F');
+
+      // Status dot
+      pdf.setFillColor(...sc2);
+      pdf.circle(M + 3, y + 0.5, 1.5, 'F');
+
+      // Label
+      pdf.setTextColor(200, 210, 220); pdf.setFont('helvetica','normal'); pdf.setFontSize(8);
+      pdf.text(label, M + 8, y + 2);
+
+      // Value
+      pdf.setTextColor(...sc2); pdf.setFont('helvetica','bold'); pdf.setFontSize(9);
+      pdf.text(fmt(val, unit), W - M - 30, y + 2, { align:'right' });
+
+      // Status badge
+      pdf.setFillColor(...sc2.map(c => Math.min(255, c * 0.2)));
+      pdf.setTextColor(...sc2); pdf.setFontSize(6);
+      pdf.text(STATUS_LABEL[status], W - M - 2, y + 2, { align:'right' });
+
+      y += 8;
+    });
+
+    // Footer
+    pdf.setTextColor(50,60,80); pdf.setFontSize(7); pdf.setFont('helvetica','normal');
+    pdf.text('Generated by BizHealth · For informational purposes only · biz-health.vercel.app', W/2, H - 8, { align:'center' });
+
+    pdf.save(`BizHealth-${co.replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);
   }
 
   function card(key, name, unit) {
@@ -158,6 +268,7 @@ export default function App() {
         inputs={inputs} setInputs={setInputs}
         industry={industry} setIndustry={setIndustry}
         onCalculate={handleCalculate} onReset={handleReset}
+        onCompanyLoaded={ctx => setCompanyContext(ctx)}
       />
 
       <main className="flex-1 lg:ml-80 min-h-screen">
@@ -231,6 +342,7 @@ export default function App() {
                 statuses={results.statuses}
                 score={healthScore}
                 industry={industry}
+                companyContext={companyContext}
               />
 
               <BankReadiness ratioValues={results.ratioValues} />

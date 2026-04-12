@@ -44,7 +44,7 @@ const FIELDS = [
 
 const GROUPS = ['Balance Sheet','P&L','Working Capital'];
 
-export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset }) {
+export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded }) {
   const fileRef = useRef(null);
   const filled  = Object.values(inputs).filter(v => v !== '').length;
   const pct     = Math.round((filled / FIELDS.length) * 100);
@@ -105,9 +105,17 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(34,211,238,0.5)' }}>
           // LISTED COMPANY LOOKUP
         </label>
-        <CompanySearch onSelect={({ data, industry: sector }) => {
-          setInputs(p => ({ ...p, ...data }));
-          if (sector && INDUSTRY_BENCHMARKS[sector]) setIndustry(sector);
+        <CompanySearch onSelect={(companyData) => {
+          setInputs(p => ({ ...p, ...companyData.data }));
+          if (companyData.industry && INDUSTRY_BENCHMARKS[companyData.industry]) {
+            setIndustry(companyData.industry);
+          }
+          onCompanyLoaded?.({
+            name:     companyData.name,
+            ticker:   companyData.ticker,
+            currency: companyData.currency,
+            isListed: true,
+          });
         }} />
       </div>
 

@@ -60,40 +60,49 @@ const SECTOR_MAP = {
   'ENERGY':              'manufacturing',
 };
 
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function isRateLimited(d) {
+  return !!(d?.Information || d?.Note);
+}
+
 // ── Main fetch ─────────────────────────────────────────────
 async function fetchCompanyData(rawTicker, fallbackName) {
   const sym = toAVTicker(rawTicker);
 
-  // Check cache first
   const cached = getCached(sym);
   if (cached) return cached;
 
-  const [incRes, balRes] = await Promise.all([
-    fetch(`${AV_BASE}?function=INCOME_STATEMENT&symbol=${sym}&apikey=${AV_KEY}`),
-    fetch(`${AV_BASE}?function=BALANCE_SHEET&symbol=${sym}&apikey=${AV_KEY}`),
-  ]);
-  const [incData, balData] = await Promise.all([incRes.json(), balRes.json()]);
+  // Fetch income statement first
+  const incRes  = await fetch(`${AV_BASE}?function=INCOME_STATEMENT&symbol=${sym}&apikey=${AV_KEY}`);
+  const incData = await incRes.json();
 
-  // Alpha Vantage returns {"Information":"..."} when rate-limited
-  if (incData.Information || incData.Note) {
-    throw new Error('API rate limit reached — try again tomorrow or use CSV upload.');
-  }
-
+  if (isRateLimited(incData)) throw new Error('API rate limit reached (25/day). Try again tomorrow or use CSV upload.');
   const reports = incData.annualReports;
-  if (!reports || !reports.length) {
-    throw new Error(`No financial data found for ${sym}. Try the CSV upload instead.`);
-  }
+  if (!reports?.length) throw new Error(`No financial data found for ${sym}. Try CSV upload or a different ticker.`);
+
+  // Small delay to avoid hitting AV's 5-req/min limit
+  await sleep(250);
+
+  // Fetch balance sheet
+  const balRes  = await fetch(`${AV_BASE}?function=BALANCE_SHEET&symbol=${sym}&apikey=${AV_KEY}`);
+  const balData = await balRes.json();
+  const balOk   = !isRateLimited(balData) && !!balData.annualReports?.length;
+
+  await sleep(250);
+
+  // Fetch overview for sector/name/currency
+  const ovRes  = await fetch(`${AV_BASE}?function=OVERVIEW&symbol=${sym}&apikey=${AV_KEY}`);
+  const ovData = await ovRes.json();
 
   const inc = reports[0];
-  const bal = balData.annualReports?.[0] || {};
+  const bal = balOk ? balData.annualReports[0] : {};
 
   const grossP   = fv(inc, 'grossProfit');
   const opIncome = fv(inc, 'operatingIncome');
   const revenue  = fv(inc, 'totalRevenue');
   const cogsRaw  = fv(inc, 'costOfRevenue', 'costofGoodsAndServicesSold');
-
-  // Operating Expenses = Gross Profit − Operating Income
-  const opExp = (grossP != null && opIncome != null)
+  const opExp    = (grossP != null && opIncome != null)
     ? Math.abs(grossP - opIncome)
     : fv(inc, 'operatingExpenses');
 
@@ -102,46 +111,35 @@ async function fetchCompanyData(rawTicker, fallbackName) {
     currentLiabilities: fv(bal, 'totalCurrentLiabilities'),
     inventory:          fv(bal, 'inventory'),
     cash:               fv(bal, 'cashAndCashEquivalentsAtCarryingValue',
-                             'cashAndShortTermInvestments'),
+                             'cashAndShortTermInvestments', 'cashAndCashEquivalents'),
     totalAssets:        fv(bal, 'totalAssets'),
-    equity:             fv(bal, 'totalShareholderEquity', 'totalStockholdersEquity'),
-    totalDebt:          fv(bal, 'shortLongTermDebtTotal', 'longTermDebt', 'totalDebt'),
+    equity:             fv(bal, 'totalShareholderEquity', 'totalStockholdersEquity',
+                             'commonStockholdersEquity'),
+    totalDebt:          fv(bal, 'shortLongTermDebtTotal', 'longTermDebt',
+                             'currentLongTermDebt'),
     revenue,
-    grossProfit:  grossP  ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
-    operatingExpenses: opExp,
-    netProfit:    fv(inc, 'netIncome', 'netIncomeFromContinuingOperations'),
-    interestExpense: Math.abs(fv(inc, 'interestExpense', 'interestAndDebtExpense') ?? 0) || null,
-    receivables:  fv(bal, 'currentNetReceivables', 'netReceivables'),
-    cogs:         cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
+    grossProfit:        grossP  ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
+    operatingExpenses:  opExp,
+    netProfit:          fv(inc, 'netIncome', 'netIncomeFromContinuingOperations'),
+    interestExpense:    Math.abs(fv(inc, 'interestExpense', 'interestAndDebtExpense') ?? 0) || null,
+    receivables:        fv(bal, 'currentNetReceivables', 'netReceivables'),
+    cogs:               cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
   };
 
   const data = {};
   for (const [k, v] of Object.entries(raw)) {
-    if (v != null && !Number.isNaN(v) && Math.abs(v) > 0) {
-      data[k] = String(Math.round(Math.abs(v)));
-    }
+    if (v != null && !Number.isNaN(v) && Math.abs(v) > 0) data[k] = String(Math.round(Math.abs(v)));
   }
 
   const total    = Object.keys(raw).length;
   const filled   = Object.keys(data).length;
   const coverage = Math.round((filled / total) * 100);
 
-  // Try to get sector from overview (optional — skip if rate limited)
-  let sector = ''; let currency = 'USD'; let name = fallbackName || sym;
-  try {
-    const ovRes  = await fetch(`${AV_BASE}?function=OVERVIEW&symbol=${sym}&apikey=${AV_KEY}`);
-    const ovData = await ovRes.json();
-    if (ovData.Sector)   sector   = ovData.Sector.toUpperCase();
-    if (ovData.Currency) currency = ovData.Currency;
-    if (ovData.Name)     name     = ovData.Name;
-  } catch {}
+  const sector   = isRateLimited(ovData) ? '' : (ovData.Sector?.toUpperCase() || '');
+  const currency = isRateLimited(ovData) ? 'USD' : (ovData.Currency || 'USD');
+  const name     = isRateLimited(ovData) ? (fallbackName || sym) : (ovData.Name || fallbackName || sym);
 
-  const result = {
-    ticker: sym, name, sector,
-    industry: SECTOR_MAP[sector] || 'general',
-    currency, coverage, filled, total, data,
-  };
-
+  const result = { ticker: sym, name, sector, industry: SECTOR_MAP[sector] || 'general', currency, coverage, filled, total, data };
   setCached(sym, result);
   return result;
 }
