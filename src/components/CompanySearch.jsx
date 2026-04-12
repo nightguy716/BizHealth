@@ -81,7 +81,6 @@ async function fetchCompanyData(rawTicker, fallbackName) {
   const reports = incData.annualReports;
   if (!reports?.length) throw new Error(`No financial data found for ${sym}. Try CSV upload or a different ticker.`);
 
-  // Small delay to avoid hitting AV's 5-req/min limit
   await sleep(250);
 
   // Fetch balance sheet
@@ -91,50 +90,125 @@ async function fetchCompanyData(rawTicker, fallbackName) {
 
   await sleep(250);
 
+  // Fetch cash flow statement
+  const cfRes  = await fetch(`${AV_BASE}?function=CASH_FLOW&symbol=${sym}&apikey=${AV_KEY}`);
+  const cfData = await cfRes.json();
+  const cfOk   = !isRateLimited(cfData) && !!cfData.annualReports?.length;
+
+  await sleep(250);
+
   // Fetch overview for sector/name/currency
   const ovRes  = await fetch(`${AV_BASE}?function=OVERVIEW&symbol=${sym}&apikey=${AV_KEY}`);
   const ovData = await ovRes.json();
 
-  // ── Build 5-year historical dataset ───────────────────────
+  // ── Build 5-year historical dataset (newest-first from AV) ─
   const incReports = reports.slice(0, 5);
   const balReports = balOk ? (balData.annualReports || []).slice(0, 5) : [];
+  const cfReports  = cfOk  ? (cfData.annualReports  || []).slice(0, 5) : [];
 
   function parseIncYear(r) {
     const grossP   = fv(r, 'grossProfit');
     const opIncome = fv(r, 'operatingIncome');
     const revenue  = fv(r, 'totalRevenue');
     const cogsRaw  = fv(r, 'costOfRevenue', 'costofGoodsAndServicesSold');
-    const opExp    = grossP != null && opIncome != null ? Math.abs(grossP - opIncome) : fv(r, 'operatingExpenses');
+    const rd       = fv(r, 'researchAndDevelopment');
+    const sga      = fv(r, 'sellingGeneralAndAdministrative');
+    const da       = fv(r, 'depreciationAndAmortization');
+    const ebitda   = fv(r, 'ebitda') ?? (opIncome != null && da != null ? opIncome + da : null);
+    // opExp = R&D + SGA if both known, else derive from GP - EBIT, else fallback
+    const opExp = (rd != null && sga != null)
+      ? rd + sga
+      : (grossP != null && opIncome != null ? Math.abs(grossP - opIncome) : fv(r, 'operatingExpenses'));
+    const dilutedSharesRaw = fv(r, 'weightedAverageSharesOutstandingDiluted');
     return {
-      year:             r.fiscalDateEnding?.slice(0,4) || '',
-      revenue:          revenue,
-      grossProfit:      grossP ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
-      cogs:             cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
-      operatingExpenses:opExp,
-      operatingIncome:  opIncome,
-      netProfit:        fv(r, 'netIncome', 'netIncomeFromContinuingOperations'),
-      interestExpense:  Math.abs(fv(r, 'interestExpense', 'interestAndDebtExpense') ?? 0) || null,
-      ebitda:           fv(r, 'ebitda'),
+      year:              r.fiscalDateEnding?.slice(0,4) || '',
+      revenue,
+      grossProfit:       grossP ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
+      cogs:              cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
+      rd,
+      sga,
+      operatingExpenses: opExp,
+      operatingIncome:   opIncome,
+      preTaxIncome:      fv(r, 'incomeBeforeTax'),
+      tax:               fv(r, 'incomeTaxExpense'),
+      netProfit:         fv(r, 'netIncome', 'netIncomeFromContinuingOperations'),
+      interestIncome:    fv(r, 'interestIncome'),
+      interestExpense:   Math.abs(fv(r, 'interestAndDebtExpense', 'interestExpense') ?? 0) || null,
+      ebitda,
+      da,
+      eps:               fv(r, 'dilutedEPS'),
+      dilutedShares:     dilutedSharesRaw != null ? dilutedSharesRaw / 1e9 : null,
     };
   }
 
   function parseBalYear(r) {
+    const ca   = fv(r, 'totalCurrentAssets');
+    const cash = fv(r, 'cashAndCashEquivalentsAtCarryingValue', 'cashAndCashEquivalents');
+    const sti  = fv(r, 'shortTermInvestments');
+    const rec  = fv(r, 'currentNetReceivables', 'netReceivables');
+    const inv  = fv(r, 'inventory');
+    let otherCA = null;
+    if (ca != null) {
+      const known = (cash ?? 0) + (sti ?? 0) + (rec ?? 0) + (inv ?? 0);
+      otherCA = ca - known;
+      if (otherCA < 0) otherCA = null;
+    }
     return {
-      year:             r.fiscalDateEnding?.slice(0,4) || '',
-      currentAssets:    fv(r, 'totalCurrentAssets'),
-      currentLiabilities:fv(r,'totalCurrentLiabilities'),
-      inventory:        fv(r, 'inventory'),
-      cash:             fv(r, 'cashAndCashEquivalentsAtCarryingValue', 'cashAndShortTermInvestments', 'cashAndCashEquivalents'),
-      totalAssets:      fv(r, 'totalAssets'),
-      equity:           fv(r, 'totalShareholderEquity', 'totalStockholdersEquity', 'commonStockholdersEquity'),
-      totalDebt:        fv(r, 'shortLongTermDebtTotal', 'longTermDebt', 'currentLongTermDebt'),
-      receivables:      fv(r, 'currentNetReceivables', 'netReceivables'),
+      year:               r.fiscalDateEnding?.slice(0,4) || '',
+      currentAssets:      ca,
+      cash,
+      sti,
+      receivables:        rec,
+      inventory:          inv,
+      otherCurrentAssets: otherCA,
+      totalAssets:        fv(r, 'totalAssets'),
+      ppe:                fv(r, 'propertyPlantEquipmentNet'),
+      goodwill:           fv(r, 'goodwill'),
+      intangibles:        fv(r, 'intangibleAssets'),
+      otherNonCurrentAssets: fv(r, 'otherNonCurrentAssets'),
+      currentLiabilities: fv(r, 'totalCurrentLiabilities'),
+      ap:                 fv(r, 'accountsPayable'),
+      currentDebt:        fv(r, 'shortTermDebt', 'currentPortionOfLongTermDebt'),
+      deferredRevCurrent: fv(r, 'deferredRevenue', 'currentDeferredRevenue'),
+      otherCurrentLiab:   fv(r, 'otherCurrentLiabilities'),
+      ltDebt:             fv(r, 'longTermDebtNoncurrent', 'longTermDebt'),
+      otherNonCurrentLiab: fv(r, 'otherNonCurrentLiabilities'),
+      totalDebt:          fv(r, 'shortLongTermDebtTotal', 'longTermDebt', 'currentLongTermDebt'),
+      equity:             fv(r, 'totalShareholderEquity', 'totalStockholdersEquity', 'commonStockholdersEquity'),
+      apic:               fv(r, 'additionalPaidInCapital'),
+      retainedEarnings:   fv(r, 'retainedEarnings'),
     };
   }
 
+  function parseCfYear(r) {
+    const cfOps = fv(r, 'operatingCashflow');
+    const capex = fv(r, 'capitalExpenditures');
+    const ni    = fv(r, 'netIncome');
+    const da    = fv(r, 'depreciationDepletionAndAmortization');
+    const sbc   = fv(r, 'stockBasedCompensation');
+    const wc    = fv(r, 'changeInOperatingWorkingCapital');
+    const bb    = fv(r, 'paymentsForRepurchaseOfCommonStock');
+    const div   = fv(r, 'dividendPayout');
+    return {
+      year:        r.fiscalDateEnding?.slice(0,4) || '',
+      netIncome:   ni,
+      da,
+      sbc,
+      wc,
+      cfOps,
+      capex:       capex != null ? -Math.abs(capex) : null,
+      cfInvesting: fv(r, 'cashflowFromInvestment'),
+      buybacks:    bb  != null ? -Math.abs(bb)  : null,
+      dividends:   div != null ? -Math.abs(div) : null,
+      cfFinancing: fv(r, 'cashflowFromFinancing'),
+    };
+  }
+
+  // AV returns newest-first; keep that order (backend reverses for Excel display)
   const historical = {
-    income:  incReports.map(parseIncYear),
-    balance: balReports.map(parseBalYear),
+    income:   incReports.map(parseIncYear),
+    balance:  balReports.map(parseBalYear),
+    cashflow: cfReports.map(parseCfYear),
   };
 
   // Most-recent year → input fields

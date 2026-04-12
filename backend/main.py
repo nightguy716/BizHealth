@@ -312,7 +312,7 @@ async def get_company(ticker: str):
 
 
 # ─────────────────────────────────────────────────────────────
-#  IB-STYLE EXCEL EXPORT
+#  IB-STYLE EXCEL EXPORT — Models
 # ─────────────────────────────────────────────────────────────
 
 class IncomeYear(BaseModel):
@@ -320,26 +320,62 @@ class IncomeYear(BaseModel):
     revenue: Optional[float] = None
     grossProfit: Optional[float] = None
     cogs: Optional[float] = None
+    rd: Optional[float] = None
+    sga: Optional[float] = None
     operatingExpenses: Optional[float] = None
     operatingIncome: Optional[float] = None
+    preTaxIncome: Optional[float] = None
+    tax: Optional[float] = None
     netProfit: Optional[float] = None
+    interestIncome: Optional[float] = None
     interestExpense: Optional[float] = None
     ebitda: Optional[float] = None
+    da: Optional[float] = None
+    eps: Optional[float] = None
+    dilutedShares: Optional[float] = None   # in billions
 
 class BalanceYear(BaseModel):
     year: str = ''
     currentAssets: Optional[float] = None
-    currentLiabilities: Optional[float] = None
-    inventory: Optional[float] = None
     cash: Optional[float] = None
-    totalAssets: Optional[float] = None
-    equity: Optional[float] = None
-    totalDebt: Optional[float] = None
+    sti: Optional[float] = None             # short-term investments
     receivables: Optional[float] = None
+    inventory: Optional[float] = None
+    otherCurrentAssets: Optional[float] = None
+    totalAssets: Optional[float] = None
+    ppe: Optional[float] = None
+    goodwill: Optional[float] = None
+    intangibles: Optional[float] = None
+    otherNonCurrentAssets: Optional[float] = None
+    currentLiabilities: Optional[float] = None
+    ap: Optional[float] = None
+    currentDebt: Optional[float] = None
+    deferredRevCurrent: Optional[float] = None
+    otherCurrentLiab: Optional[float] = None
+    ltDebt: Optional[float] = None
+    otherNonCurrentLiab: Optional[float] = None
+    totalDebt: Optional[float] = None
+    equity: Optional[float] = None
+    apic: Optional[float] = None
+    retainedEarnings: Optional[float] = None
+
+class CashFlowYear(BaseModel):
+    year: str = ''
+    netIncome: Optional[float] = None
+    da: Optional[float] = None
+    sbc: Optional[float] = None
+    wc: Optional[float] = None
+    cfOps: Optional[float] = None
+    capex: Optional[float] = None           # stored as negative
+    cfInvesting: Optional[float] = None
+    buybacks: Optional[float] = None        # stored as negative
+    dividends: Optional[float] = None       # stored as negative
+    cfFinancing: Optional[float] = None
 
 class Historical(BaseModel):
-    income: List[IncomeYear] = []
-    balance: List[BalanceYear] = []
+    income:   List[IncomeYear]    = []
+    balance:  List[BalanceYear]   = []
+    cashflow: List[CashFlowYear]  = []
 
 class ExcelRequest(BaseModel):
     company:    CompanyCtx = CompanyCtx()
@@ -352,291 +388,751 @@ class ExcelRequest(BaseModel):
     ai_insights: dict = {}
 
 
-# Colour palette (R, G, B)
-NAVY    = '#003366'
-BLUE2   = '#1F3864'
-BLUE3   = '#2E75B6'
-LBLUE   = '#D6E4F0'
-WHITE   = '#FFFFFF'
-GREEN   = '#00B050'
-AMBER   = '#FFC000'
-RED_C   = '#FF4444'
-LGREY   = '#F2F2F2'
-DGREY   = '#595959'
-BLACK   = '#000000'
+# ── Colour palette ────────────────────────────────────────────
+_NAVY_HDR = '#0D1B3E'   # dark navy header (matches reference IB model)
+_NAVY     = '#003366'
+_WHITE    = '#FFFFFF'
+_BLACK    = '#000000'
+_DGREY    = '#595959'
+_LGREY    = '#F5F5F5'
+_GREEN    = '#00B050'
+_AMBER    = '#FFC000'
+_RED_C    = '#FF4444'
+_BLUE_INP = '#4472C4'   # blue for DCF assumption cells
 
-STATUS_HEX = {'green': GREEN, 'amber': AMBER, 'red': RED_C, 'na': '#AAAAAA'}
 STATUS_LBL = {'green': 'Healthy', 'amber': 'Borderline', 'red': 'Critical', 'na': 'N/A'}
 
+# ── Industry comps data (illustrative) ───────────────────────
+_COMPS: dict = {
+    'tech': [
+        ('AMD',      'AMD',  220,  235,  23.0, 4.5, 10.2, 52.2, 16.5),
+        ('Intel',    'INTC',  90,  115,  53.0, 8.0,  2.2, 14.4,  None),
+        ('Broadcom', 'AVGO', 800,  900,  51.0,30.0, 17.6, 30.0, 24.5),
+        ('Qualcomm', 'QCOM', 165,  175,  39.0,10.0,  4.5, 17.5, 15.2),
+        ('Marvell',  'MRVL',  60,   70,   6.0, 1.5, 11.7, 46.7, 30.1),
+    ],
+    'healthcare': [
+        ('Johnson & Johnson', 'JNJ',  380, 420,  88.0, 25.0,  4.8, 16.8, 19.2),
+        ('Pfizer',           'PFE',  140, 165,  63.0, 12.0,  2.6, 13.8, 12.1),
+        ('AbbVie',           'ABBV', 290, 330,  58.0, 19.0,  5.7, 17.4, 21.3),
+        ('Merck',            'MRK',  220, 250,  63.0, 20.0,  4.0, 12.5, 14.8),
+        ('Bristol-Myers',    'BMY',  110, 135,  48.0, 13.0,  2.8, 10.4,  9.5),
+    ],
+    'finance': [
+        ('JPMorgan Chase',  'JPM', 620, 650, 180.0, 65.0, 3.6, 10.0, 12.5),
+        ('Bank of America', 'BAC', 280, 310,  98.0, 35.0, 3.2,  8.9, 10.8),
+        ('Goldman Sachs',   'GS',  180, 200,  55.0, 22.0, 3.6,  9.1, 11.2),
+        ('Morgan Stanley',  'MS',  160, 175,  58.0, 20.0, 3.0,  8.8, 10.5),
+        ('Wells Fargo',     'WFC', 210, 240,  82.0, 28.0, 2.9,  8.6, 10.2),
+    ],
+    'retail': [
+        ('Walmart',    'WMT',  550, 600, 680.0, 28.0, 0.9, 21.4, 30.5),
+        ('Costco',     'COST', 380, 400, 238.0, 10.0, 1.7, 40.0, 50.2),
+        ('Amazon',     'AMZN',1800,1950, 575.0, 90.0, 3.4, 21.7, 45.8),
+        ('Target',     'TGT',   65,  78, 108.0,  8.0, 0.7,  9.8, 14.5),
+        ('Home Depot', 'HD',   330, 365, 153.0, 25.0, 2.4, 14.6, 22.3),
+    ],
+    'manufacturing': [
+        ('Caterpillar', 'CAT', 170, 200, 64.0, 12.0, 3.1, 16.7, 15.2),
+        ('Honeywell',   'HON', 130, 155, 38.0,  9.0, 4.1, 17.2, 20.5),
+        ('GE Aerospace','GE',  180, 210, 39.0,  7.0, 5.4, 30.0, 35.8),
+        ('3M',          'MMM',  60,  80, 24.0,  5.0, 3.3, 16.0, 14.2),
+        ('Deere',       'DE',  120, 140, 48.0, 10.0, 2.9, 14.0, 12.8),
+    ],
+    'general': [
+        ('Apple',     'AAPL', 3200, 3250, 400.0, 130.0,  8.1, 25.0, 31.2),
+        ('Microsoft', 'MSFT', 2800, 2820, 245.0, 120.0, 11.5, 23.5, 37.8),
+        ('Alphabet',  'GOOGL',2000, 2050, 340.0, 110.0,  6.0, 18.6, 23.5),
+        ('Meta',      'META', 1200, 1220, 165.0,  80.0,  7.4, 15.3, 27.8),
+        ('Berkshire', 'BRK.B', 900,  920, 364.0,  40.0,  2.5, 23.0, 20.1),
+    ],
+}
 
-def _millions(v):
+# ── DCF growth rate assumptions per industry ─────────────────
+_DCF_GROWTH = {
+    'tech':          [0.30, 0.22, 0.18, 0.14, 0.12],
+    'healthcare':    [0.12, 0.10, 0.09, 0.08, 0.07],
+    'finance':       [0.09, 0.08, 0.07, 0.06, 0.05],
+    'retail':        [0.07, 0.06, 0.06, 0.05, 0.04],
+    'manufacturing': [0.07, 0.06, 0.06, 0.05, 0.04],
+    'general':       [0.10, 0.08, 0.07, 0.06, 0.05],
+}
+_DCF_EBITDA_MARGIN = {
+    'tech': [0.28, 0.30, 0.31, 0.31, 0.32],
+    'healthcare': [0.25, 0.26, 0.27, 0.27, 0.27],
+    'finance':    [0.35, 0.36, 0.37, 0.37, 0.37],
+    'retail':     [0.08, 0.08, 0.09, 0.09, 0.09],
+    'manufacturing': [0.16, 0.17, 0.17, 0.18, 0.18],
+    'general':    [0.22, 0.23, 0.24, 0.24, 0.25],
+}
+
+
+def _mm(v):
+    """Raw value → $ millions (2 dp)."""
     if v is None: return None
     return round(v / 1_000_000, 2)
 
-def _pct(num, den):
+def _ratio(num, den):
+    """Returns decimal fraction for Excel % format."""
     if num is None or den is None or den == 0: return None
-    return round((num / den) * 100, 1)
+    return num / den
 
-def _growth(curr, prev):
+def _yoy(curr, prev):
+    """YoY growth as decimal fraction."""
     if curr is None or prev is None or prev == 0: return None
-    return round(((curr - prev) / abs(prev)) * 100, 1)
+    return (curr - prev) / abs(prev)
 
 
 def build_excel(req: ExcelRequest) -> bytes:
+    from datetime import date
     output = io.BytesIO()
     wb = xlsxwriter.Workbook(output, {'in_memory': True, 'nan_inf_to_errors': True})
 
     co   = req.company.name or 'Company'
     tick = req.company.ticker or ''
     curr = req.company.currency or 'USD'
-    unit = f'{curr} millions'
+    today_str = date.today().strftime('%d %B %Y')
 
-    # ── Format library ────────────────────────────────────────
-    def fmt(**kw):
+    # ── Format factory ────────────────────────────────────────
+    def F(**kw):
         base = {'font_name': 'Calibri', 'font_size': 10, 'valign': 'vcenter'}
         base.update(kw)
         return wb.add_format(base)
 
-    hdr_fmt   = fmt(bold=True, font_color=WHITE, bg_color=NAVY,   font_size=11, align='center', border=1)
-    sub_fmt   = fmt(bold=True, font_color=WHITE, bg_color=BLUE3,  align='left',  border=1)
-    label_fmt = fmt(bold=True, font_color=BLACK, bg_color=LGREY,  align='left',  border=1, indent=1)
-    num_fmt   = fmt(num_format='#,##0.00', align='right', border=1)
-    pct_fmt   = fmt(num_format='0.0"%"',   align='right', border=1)
-    txt_fmt   = fmt(align='left',  border=1)
-    txt_ctr   = fmt(align='center',border=1)
-    bold_txt  = fmt(bold=True, align='left', border=1)
-    title_fmt = fmt(bold=True, font_size=16, font_color=NAVY)
-    meta_fmt  = fmt(font_size=10, font_color=DGREY)
-    wrap_fmt  = fmt(text_wrap=True, align='left', valign='top', border=1)
+    # Title / meta
+    f_title   = F(bold=True, font_size=14, font_color=_NAVY_HDR)
+    f_sub     = F(font_size=10, font_color=_DGREY)
+    f_cover_h = F(bold=True, font_size=11, font_color=_NAVY_HDR)
+    f_cover_t = F(font_size=10, font_color=_BLACK)
+    f_cover_b = F(bold=True, font_size=10, font_color=_BLACK)
 
-    grn_fmt   = fmt(bold=True, font_color=WHITE, bg_color=GREEN,  align='center', border=1)
-    amb_fmt   = fmt(bold=True, font_color=BLACK, bg_color=AMBER,  align='center', border=1)
-    red_fmt   = fmt(bold=True, font_color=WHITE, bg_color=RED_C,  align='center', border=1)
-    na_fmt    = fmt(font_color='#888888', align='center', border=1)
+    # Header row (dark navy)
+    f_hdr = F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, align='center', border=1)
 
-    def status_fmt(s):
-        return {'green': grn_fmt, 'amber': amb_fmt, 'red': red_fmt}.get(s, na_fmt)
+    # Section label (ALL CAPS, bold, no fill)
+    f_sec = F(bold=True, font_size=10, font_color=_BLACK)
 
-    pos_fmt = fmt(num_format='0.0"%"', font_color=GREEN, align='right', border=1, bold=True)
-    neg_fmt = fmt(num_format='0.0"%"', font_color=RED_C, align='right', border=1, bold=True)
+    # Bold row (subtotal) — left label
+    f_bold_lbl = F(bold=True, font_color=_BLACK, border=1)
+    # Bold row — right number
+    f_bold_num = F(bold=True, font_color=_BLACK, num_format='#,##0', align='right', border=1)
 
-    def growth_fmt(v):
-        if v is None: return na_fmt
-        return pos_fmt if v >= 0 else neg_fmt
+    # Regular row — label (1-space indent)
+    f_lbl = F(font_color=_BLACK, border=1, indent=1)
+    # Regular row — number
+    f_num = F(num_format='#,##0', align='right', border=1)
 
-    # ════════════════════════════════════════════════════════
-    # SHEET 1 — SUMMARY
-    # ════════════════════════════════════════════════════════
-    ws = wb.add_worksheet('Summary')
-    ws.set_column('A:A', 32)
-    ws.set_column('B:B', 18)
-    ws.set_column('C:C', 18)
-    ws.set_column('D:D', 18)
-    ws.set_column('E:E', 22)
-    ws.freeze_panes(6, 0)
+    # % sub-row (grey italic, 2-space indent)
+    f_pct_lbl = F(font_color=_DGREY, border=1, indent=2, italic=True)
+    f_pct_num = F(num_format='0.0%', align='right', border=1, font_color=_DGREY, italic=True)
+
+    # YoY growth
+    f_pos = F(num_format='0.0%', align='right', border=1, font_color=_GREEN, italic=True)
+    f_neg = F(num_format='0.0%', align='right', border=1, font_color=_RED_C, italic=True)
+    f_na  = F(align='center', border=1, font_color='#AAAAAA')
+
+    # EPS / shares
+    f_eps = F(bold=True, num_format='$0.00', align='right', border=1)
+    f_shr = F(num_format='0.0', align='right', border=1)
+
+    # DCF blue input
+    f_inp_pct = F(font_color=_BLUE_INP, num_format='0.0%', align='right', border=1)
+    f_inp_num = F(font_color=_BLUE_INP, num_format='0.00', align='right', border=1)
+
+    # Status
+    f_grn = F(bold=True, font_color=_WHITE,  bg_color=_GREEN, align='center', border=1)
+    f_amb = F(bold=True, font_color=_BLACK,  bg_color=_AMBER, align='center', border=1)
+    f_red = F(bold=True, font_color=_WHITE,  bg_color=_RED_C, align='center', border=1)
+    f_nas = F(font_color='#888888', align='center', border=1)
+    f_txt = F(align='left', border=1)
+    f_ctr = F(align='center', border=1)
+    f_wrap= F(text_wrap=True, align='left', valign='top', border=1)
+
+    def sfmt(s):
+        return {'green': f_grn, 'amber': f_amb, 'red': f_red}.get(s, f_nas)
+
+    def gfmt(v):
+        if v is None: return f_pct_num
+        return f_pos if v >= 0 else f_neg
+
+    # ── Reversed (oldest→newest) views for Excel display ──────
+    inc = list(reversed(req.historical.income))
+    bal = list(reversed(req.historical.balance))
+    cf  = list(reversed(req.historical.cashflow))
+    n_inc = len(inc)
+    n_bal = len(bal)
+    n_cf  = len(cf)
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 1 — COVER & NOTES
+    # ──────────────────────────────────────────────────────────
+    ws0 = wb.add_worksheet('Cover & Notes')
+    ws0.set_column('A:A', 28)
+    ws0.set_column('B:B', 70)
+    ws0.set_zoom(90)
 
     # Title block
-    ws.merge_range('A1:E1', f'BizHealth — Financial Analysis Report', title_fmt)
-    ws.merge_range('A2:E2', f'{co}  ({tick})  ·  Industry: {req.industry.title()}', meta_fmt)
-    from datetime import date
-    ws.merge_range('A3:E3', f'Analysis Date: {date.today().strftime("%d %B %Y")}  ·  Currency: {unit}', meta_fmt)
-    ws.merge_range('A4:E4', '', fmt())
+    ws0.merge_range('A1:B1', '', F(font_size=4))  # spacer
+    entity_title = f'{co.upper()}  |  INVESTMENT BANKING FINANCIAL MODEL'
+    ws0.merge_range('A2:B2', entity_title if tick else co.upper(), f_title)
+    meta_line = f'Ticker: {tick}  |  Industry: {req.industry.title()}  |  Currency: {curr}  |  Units: $ Millions'
+    ws0.merge_range('A3:B3', meta_line, f_sub)
+    ws0.merge_range('A4:B4', f'Source: Alpha Vantage  |  Data as of {today_str}', f_sub)
+    ws0.merge_range('A5:B5', '', F(font_size=4))
+
+    # Model Contents table
+    ws0.write('A6', 'Model Contents', f_cover_h)
+    contents = [
+        ('Cover & Notes',    'This sheet — model overview, color coding, key assumptions.'),
+        ('Financial Ratios', 'Current-period ratios across Liquidity, Profitability, Efficiency & Leverage.'),
+        ('Income Statement', f'Historical P&L FY{inc[0].year if inc else "—"}–FY{inc[-1].year if inc else "—"}. Revenue, Gross Profit, EBITDA, EBIT, Net Income, EPS.'),
+        ('Balance Sheet',    f'Historical B/S FY{bal[0].year if bal else "—"}–FY{bal[-1].year if bal else "—"}. Assets, Liabilities, Shareholders\' Equity.'),
+        ('Cash Flow',        f'Historical CFS FY{cf[0].year if cf else "—"}–FY{cf[-1].year if cf else "—"}. Operating, Investing, Financing + Free Cash Flow.'),
+        ('DCF Valuation',    '5-year DCF model. WACC = 10%, TGR = 4%. Blue cells are editable assumptions.'),
+        ('Comps',            f'{req.industry.title()} sector peer trading comparables. Illustrative multiples.'),
+        ('AI Insights',      'AI-generated executive summary, risks, opportunities, and priority actions.'),
+    ]
+    for i, (sheet, desc) in enumerate(contents):
+        ws0.write(6+i, 0, sheet, f_cover_b)
+        ws0.write(6+i, 1, desc,  f_cover_t)
+
+    # Color Coding legend
+    ws0.write('A15', 'Color Coding', f_cover_h)
+    ws0.write('A16', 'Blue text',   F(bold=True, font_color=_BLUE_INP))
+    ws0.write('B16', 'Hardcoded inputs / assumptions — change these to run scenarios', f_cover_t)
+    ws0.write('A17', 'Black text',  f_cover_b)
+    ws0.write('B17', 'Calculated formulas', f_cover_t)
+    ws0.write('A18', 'Green fill',  F(bold=True, font_color=_WHITE, bg_color=_GREEN))
+    ws0.write('B18', 'Healthy / positive indicator', f_cover_t)
+    ws0.write('A19', 'Amber fill',  F(bold=True, font_color=_BLACK, bg_color=_AMBER))
+    ws0.write('B19', 'Borderline / watch indicator', f_cover_t)
+    ws0.write('A20', 'Red fill',    F(bold=True, font_color=_WHITE, bg_color=_RED_C))
+    ws0.write('B20', 'Critical / negative indicator', f_cover_t)
+
+    # Key DCF Assumptions
+    growth_rates = _DCF_GROWTH.get(req.industry, _DCF_GROWTH['general'])
+    ebitda_margins = _DCF_EBITDA_MARGIN.get(req.industry, _DCF_EBITDA_MARGIN['general'])
+    ws0.write('A22', 'Key Assumptions (DCF)', f_cover_h)
+    assumptions = [
+        ('Revenue Growth', f'FY+1: {growth_rates[0]:.0%}, FY+2: {growth_rates[1]:.0%}, FY+3: {growth_rates[2]:.0%}, FY+4: {growth_rates[3]:.0%}, FY+5: {growth_rates[4]:.0%}'),
+        ('EBITDA Margin',  f'~{ebitda_margins[2]:.0%}–{ebitda_margins[4]:.0%} — based on industry norms for {req.industry}'),
+        ('WACC',           '10% — reflects equity risk premium for the sector'),
+        ('Terminal Growth','4% — long-run nominal GDP growth + industry tailwinds'),
+        ('D&A % Revenue',  '2% — capex-light assumption; adjust for asset-heavy industries'),
+        ('CapEx % Revenue','4% — typical maintenance + growth capex assumption'),
+        ('Tax Rate',       '21% — US federal statutory rate; adjust for non-US entities'),
+    ]
+    for i, (k, v) in enumerate(assumptions):
+        ws0.write(22+i, 0, k, f_cover_b)
+        ws0.write(22+i, 1, v, f_cover_t)
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 2 — FINANCIAL RATIOS
+    # ──────────────────────────────────────────────────────────
+    ws1 = wb.add_worksheet('Financial Ratios')
+    ws1.set_column('A:A', 28)
+    ws1.set_column('B:B', 14)
+    ws1.set_column('C:C', 14)
+    ws1.set_column('D:D', 14)
+    ws1.set_column('E:E', 46)
+
+    ws1.write(0, 0, f'{co} ({tick})' if tick else co, f_title)
+    ws1.write(1, 0, f'Financial Ratios  |  {req.industry.title()}  |  Score: {req.score}/100  |  {today_str}', f_sub)
 
     verdict = ('STRONG' if req.score >= 80 else 'MODERATE' if req.score >= 60
                else 'BELOW AVERAGE' if req.score >= 40 else 'CRITICAL')
-    vfmt = grn_fmt if req.score >= 80 else amb_fmt if req.score >= 60 else red_fmt
+    v_sfmt = f_grn if req.score >= 80 else f_amb if req.score >= 60 else f_red
 
-    ws.write('A5', 'Health Score', label_fmt)
-    ws.write('B5', f'{req.score}/100', num_fmt)
-    ws.write('C5', 'Verdict', label_fmt)
-    ws.merge_range('D5:E5', verdict, vfmt)
+    ws1.write(2, 0, 'Health Score', f_bold_lbl)
+    ws1.write(2, 1, f'{req.score}/100', f_ctr)
+    ws1.write(2, 2, 'Verdict', f_bold_lbl)
+    ws1.merge_range(2, 3, 2, 4, verdict, v_sfmt)
 
-    # Status counts
     counts = {'green': 0, 'amber': 0, 'red': 0, 'na': 0}
     for s in req.statuses.values(): counts[s] = counts.get(s, 0) + 1
-    ws.write('A6', 'Status Breakdown', label_fmt)
-    ws.write('B6', f"✓ Healthy: {counts['green']}", grn_fmt)
-    ws.write('C6', f"~ Borderline: {counts['amber']}", amb_fmt)
-    ws.write('D6', f"✗ Critical: {counts['red']}", red_fmt)
-    ws.write('E6', f"– N/A: {counts['na']}", na_fmt)
+    ws1.write(3, 0, 'Healthy', f_grn); ws1.write(3, 1, counts['green'], f_grn)
+    ws1.write(3, 2, 'Borderline', f_amb); ws1.write(3, 3, counts['amber'], f_amb)
+    ws1.write(3, 4, f"Critical: {counts['red']}  |  N/A: {counts['na']}", f_red)
 
-    ws.write_row(7, 0, ['RATIO', 'VALUE', 'STATUS', 'BENCHMARK', 'INTERPRETATION'], hdr_fmt)
+    ws1.write_row(4, 0, ['RATIO', 'VALUE', 'STATUS', 'BENCHMARK', 'INTERPRETATION'], f_hdr)
 
     RATIO_ROWS = [
-        ('── LIQUIDITY', None, None, None, None),
-        ('Current Ratio', 'currentRatio', 'x', 1.5, None),
-        ('Quick Ratio', 'quickRatio', 'x', 1.0, None),
-        ('Cash Ratio', 'cashRatio', 'x', 0.5, None),
-        ('── PROFITABILITY', None, None, None, None),
-        ('Gross Margin', 'grossMargin', '%', 30, None),
-        ('Operating Margin', 'operatingMargin', '%', 15, None),
-        ('Net Margin', 'netMargin', '%', 10, None),
-        ('Return on Equity', 'roe', '%', 15, None),
-        ('Return on Assets', 'roa', '%', 5, None),
-        ('── EFFICIENCY', None, None, None, None),
-        ('Asset Turnover', 'assetTurnover', 'x', 1.0, None),
-        ('Fixed Asset Turnover', 'fixedAssetTurnover', 'x', 2.0, None),
-        ('Receivables Days', 'receivablesDays', 'days', 45, None),
-        ('Inventory Days', 'inventoryDays', 'days', 60, None),
-        ('── LEVERAGE', None, None, None, None),
-        ('Debt to Equity', 'debtToEquity', 'x', 1.5, None),
-        ('Interest Coverage', 'interestCoverage', 'x', 3.0, None),
+        ('LIQUIDITY', None, None, None),
+        ('Current Ratio',       'currentRatio',       'x',    '>1.5x'),
+        ('Quick Ratio',         'quickRatio',          'x',   '>1.0x'),
+        ('Cash Ratio',          'cashRatio',            'x',  '>0.5x'),
+        ('PROFITABILITY', None, None, None),
+        ('Gross Margin',        'grossMargin',          '%',  '>30%'),
+        ('Operating Margin',    'operatingMargin',      '%',  '>15%'),
+        ('Net Margin',          'netMargin',            '%',  '>10%'),
+        ('Return on Equity',    'roe',                  '%',  '>15%'),
+        ('Return on Assets',    'roa',                  '%',   '>5%'),
+        ('EFFICIENCY', None, None, None),
+        ('Asset Turnover',      'assetTurnover',        'x',  '>1.0x'),
+        ('Fixed Asset Turnover','fixedAssetTurnover',   'x',  '>2.0x'),
+        ('Receivables Days',    'receivablesDays',   'days',  '<45d'),
+        ('Inventory Days',      'inventoryDays',     'days',  '<60d'),
+        ('LEVERAGE', None, None, None),
+        ('Debt to Equity',      'debtToEquity',         'x',  '<1.5x'),
+        ('Interest Coverage',   'interestCoverage',     'x',  '>3.0x'),
     ]
-
     INTERP = {
-        'currentRatio': 'Ability to cover short-term liabilities with current assets.',
-        'quickRatio': 'Liquidity excluding inventory.',
-        'cashRatio': 'Strictest liquidity — cash vs current liabilities.',
-        'grossMargin': 'Revenue retained after direct production costs.',
-        'operatingMargin': 'Profitability from core operations.',
-        'netMargin': 'Bottom-line profitability after all expenses.',
-        'roe': 'Return generated on shareholders equity.',
-        'roa': 'Efficiency of asset utilisation to generate profit.',
-        'assetTurnover': 'Revenue generated per unit of total assets.',
-        'fixedAssetTurnover': 'Revenue efficiency from fixed/long-term assets.',
-        'receivablesDays': 'Average days to collect customer payments.',
-        'inventoryDays': 'Average days inventory is held before sale.',
-        'debtToEquity': 'Financial leverage — debt relative to equity.',
-        'interestCoverage': 'Ability to service interest from operating earnings.',
+        'currentRatio':       'Ability to cover short-term liabilities with current assets.',
+        'quickRatio':         'Liquidity excluding inventory — stricter liquidity test.',
+        'cashRatio':          'Strictest measure — cash only vs current liabilities.',
+        'grossMargin':        'Revenue retained after direct production costs.',
+        'operatingMargin':    'Profitability from core operations before tax & interest.',
+        'netMargin':          'Bottom-line profitability after all expenses and taxes.',
+        'roe':                'Return generated on shareholders\' equity.',
+        'roa':                'Efficiency of total assets in generating profit.',
+        'assetTurnover':      'Revenue generated per unit of total assets.',
+        'fixedAssetTurnover': 'Revenue efficiency from fixed / long-term assets.',
+        'receivablesDays':    'Average days to collect customer payments.',
+        'inventoryDays':      'Average days inventory is held before sale.',
+        'debtToEquity':       'Financial leverage — total debt relative to equity.',
+        'interestCoverage':   'Ability to service interest payments from operating earnings.',
     }
 
-    row = 8
-    for (lbl, key, unit_r, bench, _) in RATIO_ROWS:
+    rr = 5
+    for row_def in RATIO_ROWS:
+        lbl, key, unit_r, bench = row_def
         if key is None:
-            ws.merge_range(row, 0, row, 4, lbl, sub_fmt)
-            row += 1
-            continue
+            ws1.merge_range(rr, 0, rr, 4, lbl, F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, border=1))
+            rr += 1; continue
         val    = req.ratios.get(key)
         status = req.statuses.get(key, 'na')
-        sfmt   = status_fmt(status)
-        disp   = f"{val:.2f}{unit_r}" if val is not None else 'N/A'
-        ws.write(row, 0, lbl, label_fmt)
-        ws.write(row, 1, disp, txt_ctr)
-        ws.write(row, 2, STATUS_LBL[status], sfmt)
-        ws.write(row, 3, f">{bench}{unit_r}" if unit_r != 'days' else f"<{bench} days", txt_ctr)
-        ws.write(row, 4, INTERP.get(key, ''), txt_fmt)
-        row += 1
+        disp   = f'{val:.2f}{unit_r}' if val is not None else 'N/A'
+        ws1.write(rr, 0, lbl,   f_lbl)
+        ws1.write(rr, 1, disp,  f_ctr)
+        ws1.write(rr, 2, STATUS_LBL[status], sfmt(status))
+        ws1.write(rr, 3, bench, f_ctr)
+        ws1.write(rr, 4, INTERP.get(key, ''), f_txt)
+        rr += 1
 
-    # ════════════════════════════════════════════════════════
-    # SHEET 2 — INCOME STATEMENT
-    # ════════════════════════════════════════════════════════
-    inc_years = req.historical.income
+    ws1.freeze_panes(5, 0)
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 3 — INCOME STATEMENT
+    # ──────────────────────────────────────────────────────────
     ws2 = wb.add_worksheet('Income Statement')
     ws2.set_column('A:A', 30)
-    for i in range(len(inc_years)):
-        ws2.set_column(i+1, i+1, 14)
-        if len(inc_years) > 1:
-            ws2.set_column(i+1+len(inc_years), i+1+len(inc_years), 12)
+    for c in range(n_inc): ws2.set_column(c+1, c+1, 13)
+    ws2.freeze_panes(3, 1)
 
-    ws2.merge_range(0, 0, 0, max(1, len(inc_years)*2),
-                    f'{co} — Income Statement ({unit})', title_fmt)
-    years = [y.year for y in inc_years]
+    # Title
+    ws2.write(0, 0, f'{co} ({tick})'.upper() if tick else co.upper(), f_title)
+    ws2.write(1, 0, f'Income Statement  |  Fiscal Years Ending Dec/Jan 31  |  $ in Millions', f_sub)
 
-    # Headers
-    ws2.write(1, 0, 'Line Item', hdr_fmt)
-    for i, yr in enumerate(years):
-        ws2.write(1, i+1, yr, hdr_fmt)
-    for i in range(len(years)-1):
-        ws2.write(1, len(years)+1+i, f"YoY {years[i]}/{years[i+1]}", hdr_fmt)
+    # Header row
+    ws2.write(2, 0, '($mm)', f_hdr)
+    for i, y in enumerate(inc):
+        ws2.write(2, i+1, f'FY{y.year}', f_hdr)
 
-    def write_inc_row(r, label, values, is_pct=False, bold=False):
-        lf = bold_txt if bold else label_fmt
-        nf = pct_fmt if is_pct else num_fmt
-        ws2.write(r, 0, label, lf)
-        for i, v in enumerate(values):
-            ws2.write(r, i+1, v, nf)
-        # YoY growth
-        for i in range(len(values)-1):
-            g = _growth(values[i], values[i+1])
-            gf = growth_fmt(g)
-            ws2.write(r, len(values)+1+i, f"{g:+.1f}%" if g is not None else 'N/A', gf)
+    # Helper: write a data row
+    def irow(r, label, vals, lf=None, nf=None):
+        ws2.write(r, 0, label, lf or f_lbl)
+        for i, v in enumerate(vals):
+            ws2.write(r, i+1, v, nf or f_num)
 
-    r = 2
-    ws2.merge_range(r, 0, r, max(1, len(inc_years)*2), '── Revenue & Gross Profit', sub_fmt); r += 1
-    write_inc_row(r, 'Revenue', [_millions(y.revenue) for y in inc_years], bold=True); r += 1
-    write_inc_row(r, 'Cost of Revenue (COGS)', [_millions(y.cogs) for y in inc_years]); r += 1
-    write_inc_row(r, 'Gross Profit', [_millions(y.grossProfit) for y in inc_years], bold=True); r += 1
-    write_inc_row(r, 'Gross Margin %', [_pct(y.grossProfit, y.revenue) for y in inc_years], is_pct=True); r += 1
+    def ipct(r, label, vals):
+        """Write a % sub-row (grey italic)."""
+        ws2.write(r, 0, label, f_pct_lbl)
+        for i, v in enumerate(vals):
+            ws2.write(r, i+1, v, f_pct_num)
 
-    ws2.merge_range(r, 0, r, max(1, len(inc_years)*2), '── Operating Performance', sub_fmt); r += 1
-    write_inc_row(r, 'Operating Expenses (SG&A)', [_millions(y.operatingExpenses) for y in inc_years]); r += 1
-    write_inc_row(r, 'Operating Income (EBIT)', [_millions(y.operatingIncome) for y in inc_years], bold=True); r += 1
-    write_inc_row(r, 'Operating Margin %', [_pct(y.operatingIncome, y.revenue) for y in inc_years], is_pct=True); r += 1
-    write_inc_row(r, 'Interest Expense', [_millions(y.interestExpense) for y in inc_years]); r += 1
+    def iyoy(r, label, raw_vals):
+        """Write a YoY growth row."""
+        ws2.write(r, 0, label, f_pct_lbl)
+        for i in range(n_inc):
+            if i == 0:
+                ws2.write(r, 1, None, f_pct_num)
+            else:
+                g = _yoy(raw_vals[i], raw_vals[i-1])
+                ws2.write(r, i+1, g, gfmt(g))
 
-    ws2.merge_range(r, 0, r, max(1, len(inc_years)*2), '── Bottom Line', sub_fmt); r += 1
-    write_inc_row(r, 'Net Income', [_millions(y.netProfit) for y in inc_years], bold=True); r += 1
-    write_inc_row(r, 'Net Margin %', [_pct(y.netProfit, y.revenue) for y in inc_years], is_pct=True); r += 1
-    if any(y.ebitda for y in inc_years):
-        write_inc_row(r, 'EBITDA', [_millions(y.ebitda) for y in inc_years]); r += 1
+    def blank_row(r):
+        for c in range(n_inc+1): ws2.write(r, c, None, f_lbl)
 
-    ws2.freeze_panes(2, 1)
+    row = 3
+    # ── REVENUE ──────────────────────────────────────────────
+    ws2.write(row, 0, 'REVENUE', f_sec); row += 1
+    irow(row, '  Total Revenue', [_mm(y.revenue) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    iyoy(row, '    YoY Growth',  [y.revenue for y in inc]); row += 1
+    blank_row(row); row += 1
 
-    # ════════════════════════════════════════════════════════
-    # SHEET 3 — BALANCE SHEET
-    # ════════════════════════════════════════════════════════
-    bal_years = req.historical.balance
+    # ── PROFITABILITY ─────────────────────────────────────────
+    ws2.write(row, 0, 'PROFITABILITY', f_sec); row += 1
+    irow(row, '  Cost of Revenue',      [_mm(y.cogs) for y in inc]); row += 1
+    irow(row, 'Gross Profit',            [_mm(y.grossProfit) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    ipct(row, '    Gross Margin',        [_ratio(y.grossProfit, y.revenue) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    irow(row, '  Research & Development',[_mm(y.rd) for y in inc]); row += 1
+    ipct(row, '    % of Revenue',        [_ratio(y.rd, y.revenue) for y in inc]); row += 1
+    irow(row, '  Selling, General & Admin',[_mm(y.sga) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    irow(row, 'Operating Income (EBIT)', [_mm(y.operatingIncome) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    ipct(row, '    EBIT Margin',          [_ratio(y.operatingIncome, y.revenue) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    irow(row, '  Interest Income',        [_mm(y.interestIncome) for y in inc]); row += 1
+    irow(row, '  Interest Expense',       [_mm(y.interestExpense) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    irow(row, 'Pre-Tax Income',           [_mm(y.preTaxIncome) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    irow(row, '  Income Tax Provision',   [_mm(y.tax) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    irow(row, 'Net Income',               [_mm(y.netProfit) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    ipct(row, '    Net Margin',            [_ratio(y.netProfit, y.revenue) for y in inc]); row += 1
+    blank_row(row); row += 1
+
+    # ── KEY METRICS ───────────────────────────────────────────
+    ws2.write(row, 0, 'KEY METRICS', f_sec); row += 1
+    irow(row, '  EBITDA',                 [_mm(y.ebitda) for y in inc], f_bold_lbl, f_bold_num); row += 1
+    ipct(row, '    EBITDA Margin',        [_ratio(y.ebitda, y.revenue) for y in inc]); row += 1
+    irow(row, '  D&A',                    [_mm(y.da) for y in inc]); row += 1
+    irow(row, '  Diluted EPS',            [y.eps for y in inc], f_bold_lbl, f_eps); row += 1
+    irow(row, '  Diluted Shares (B)',     [y.dilutedShares for y in inc], f_lbl, f_shr); row += 1
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 4 — BALANCE SHEET
+    # ──────────────────────────────────────────────────────────
     ws3 = wb.add_worksheet('Balance Sheet')
     ws3.set_column('A:A', 30)
-    for i in range(max(1, len(bal_years))):
-        ws3.set_column(i+1, i+1, 14)
+    for c in range(n_bal): ws3.set_column(c+1, c+1, 13)
+    ws3.freeze_panes(3, 1)
 
-    ws3.merge_range(0, 0, 0, max(1, len(bal_years)),
-                    f'{co} — Balance Sheet ({unit})', title_fmt)
-    ws3.write(1, 0, 'Line Item', hdr_fmt)
-    for i, yr in enumerate(bal_years):
-        ws3.write(1, i+1, yr.year, hdr_fmt)
+    ws3.write(0, 0, f'{co} ({tick})'.upper() if tick else co.upper(), f_title)
+    ws3.write(1, 0, f'Balance Sheet  |  Fiscal Years Ending Dec/Jan 31  |  $ in Millions', f_sub)
+    ws3.write(2, 0, '($mm)', f_hdr)
+    for i, y in enumerate(bal): ws3.write(2, i+1, f'FY{y.year}', f_hdr)
 
-    def write_bal_row(r, label, values, bold=False):
-        lf = bold_txt if bold else label_fmt
-        ws3.write(r, 0, label, lf)
-        for i, v in enumerate(values):
-            ws3.write(r, i+1, v, num_fmt)
+    def brow(r, label, vals, lf=None, nf=None):
+        ws3.write(r, 0, label, lf or f_lbl)
+        for i, v in enumerate(vals):
+            ws3.write(r, i+1, v, nf or f_num)
 
-    r = 2
-    ws3.merge_range(r, 0, r, max(1, len(bal_years)), '── Assets', sub_fmt); r += 1
-    write_bal_row(r, 'Cash & Equivalents',    [_millions(y.cash) for y in bal_years]); r += 1
-    write_bal_row(r, 'Accounts Receivable',   [_millions(y.receivables) for y in bal_years]); r += 1
-    write_bal_row(r, 'Inventory',             [_millions(y.inventory) for y in bal_years]); r += 1
-    write_bal_row(r, 'Total Current Assets',  [_millions(y.currentAssets) for y in bal_years], bold=True); r += 1
-    write_bal_row(r, 'Total Assets',          [_millions(y.totalAssets) for y in bal_years], bold=True); r += 1
+    def bblank(r):
+        for c in range(n_bal+1): ws3.write(r, c, None, f_lbl)
 
-    ws3.merge_range(r, 0, r, max(1, len(bal_years)), '── Liabilities & Equity', sub_fmt); r += 1
-    write_bal_row(r, 'Total Current Liabilities', [_millions(y.currentLiabilities) for y in bal_years], bold=True); r += 1
-    write_bal_row(r, 'Total Debt',            [_millions(y.totalDebt) for y in bal_years]); r += 1
-    write_bal_row(r, 'Total Equity',          [_millions(y.equity) for y in bal_years], bold=True); r += 1
+    row = 3
+    # ── ASSETS ───────────────────────────────────────────────
+    ws3.write(row, 0, 'ASSETS', f_sec); row += 1
+    brow(row, '  Cash & Equivalents',       [_mm(y.cash) for y in bal]); row += 1
+    brow(row, '  Short-Term Investments',   [_mm(y.sti) for y in bal]); row += 1
+    brow(row, '  Accounts Receivable',      [_mm(y.receivables) for y in bal]); row += 1
+    brow(row, '  Inventory',                [_mm(y.inventory) for y in bal]); row += 1
+    brow(row, '  Other Current Assets',     [_mm(y.otherCurrentAssets) for y in bal]); row += 1
+    brow(row, 'Total Current Assets',       [_mm(y.currentAssets) for y in bal], f_bold_lbl, f_bold_num); row += 1
+    bblank(row); row += 1
+    brow(row, '  Net PP&E',                 [_mm(y.ppe) for y in bal]); row += 1
+    brow(row, '  Goodwill',                 [_mm(y.goodwill) for y in bal]); row += 1
+    brow(row, '  Other Intangibles',        [_mm(y.intangibles) for y in bal]); row += 1
+    brow(row, '  Other Non-Current Assets', [_mm(y.otherNonCurrentAssets) for y in bal]); row += 1
+    brow(row, 'Total Assets',               [_mm(y.totalAssets) for y in bal], f_bold_lbl, f_bold_num); row += 1
+    bblank(row); row += 1
 
-    ws3.freeze_panes(2, 1)
+    # ── LIABILITIES ───────────────────────────────────────────
+    ws3.write(row, 0, 'LIABILITIES', f_sec); row += 1
+    brow(row, '  Accounts Payable',         [_mm(y.ap) for y in bal]); row += 1
+    brow(row, '  Current Debt',             [_mm(y.currentDebt) for y in bal]); row += 1
+    brow(row, '  Deferred Revenue (Current)',[_mm(y.deferredRevCurrent) for y in bal]); row += 1
+    brow(row, '  Other Current Liabilities',[_mm(y.otherCurrentLiab) for y in bal]); row += 1
+    brow(row, 'Total Current Liabilities',  [_mm(y.currentLiabilities) for y in bal], f_bold_lbl, f_bold_num); row += 1
+    bblank(row); row += 1
+    brow(row, '  Long-Term Debt',           [_mm(y.ltDebt) for y in bal]); row += 1
+    brow(row, '  Other Non-Current Liab.',  [_mm(y.otherNonCurrentLiab) for y in bal]); row += 1
+    # Total liabilities = total assets - equity (if not given directly)
+    def _total_liab(y):
+        if y.totalAssets and y.equity:
+            return _mm(y.totalAssets - y.equity)
+        return None
+    brow(row, 'Total Liabilities',          [_total_liab(y) for y in bal], f_bold_lbl, f_bold_num); row += 1
+    bblank(row); row += 1
 
-    # ════════════════════════════════════════════════════════
-    # SHEET 4 — AI INSIGHTS  (if available)
-    # ════════════════════════════════════════════════════════
+    # ── SHAREHOLDERS' EQUITY ──────────────────────────────────
+    ws3.write(row, 0, "SHAREHOLDERS' EQUITY", f_sec); row += 1
+    brow(row, '  Additional Paid-In Capital',[_mm(y.apic) for y in bal]); row += 1
+    brow(row, '  Retained Earnings',         [_mm(y.retainedEarnings) for y in bal]); row += 1
+    brow(row, 'Total Equity',                [_mm(y.equity) for y in bal], f_bold_lbl, f_bold_num); row += 1
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 5 — CASH FLOW
+    # ──────────────────────────────────────────────────────────
+    ws4 = wb.add_worksheet('Cash Flow')
+    ws4.set_column('A:A', 30)
+    for c in range(n_cf): ws4.set_column(c+1, c+1, 13)
+    ws4.freeze_panes(3, 1)
+
+    ws4.write(0, 0, f'{co} ({tick})'.upper() if tick else co.upper(), f_title)
+    ws4.write(1, 0, 'Cash Flow Statement  |  Fiscal Years Ending Dec/Jan 31  |  $ in Millions', f_sub)
+    ws4.write(2, 0, '($mm)', f_hdr)
+    for i, y in enumerate(cf): ws4.write(2, i+1, f'FY{y.year}', f_hdr)
+
+    def crow(r, label, vals, lf=None, nf=None):
+        ws4.write(r, 0, label, lf or f_lbl)
+        for i, v in enumerate(vals):
+            ws4.write(r, i+1, v, nf or f_num)
+
+    def cblank(r):
+        for c in range(n_cf+1): ws4.write(r, c, None, f_lbl)
+
+    row = 3
+    # ── OPERATING ─────────────────────────────────────────────
+    ws4.write(row, 0, 'OPERATING ACTIVITIES', f_sec); row += 1
+    crow(row, '  Net Income',              [_mm(y.netIncome) for y in cf]); row += 1
+    crow(row, '  D&A',                     [_mm(y.da) for y in cf]); row += 1
+    crow(row, '  Stock-Based Compensation',[_mm(y.sbc) for y in cf]); row += 1
+    crow(row, '  Change in Working Capital',[_mm(y.wc) for y in cf]); row += 1
+    # Other operating = cfOps - ni - da - sbc - wc
+    def _other_ops(y):
+        if y.cfOps is None: return None
+        known = (y.netIncome or 0) + (y.da or 0) + (y.sbc or 0) + (y.wc or 0)
+        other = y.cfOps - known
+        return _mm(other) if abs(other) > 1e3 else None
+    crow(row, '  Other Operating Items',   [_other_ops(y) for y in cf]); row += 1
+    crow(row, 'Cash from Operations',      [_mm(y.cfOps) for y in cf], f_bold_lbl, f_bold_num); row += 1
+    cblank(row); row += 1
+
+    # ── INVESTING ─────────────────────────────────────────────
+    ws4.write(row, 0, 'INVESTING ACTIVITIES', f_sec); row += 1
+    crow(row, '  Capital Expenditure (CapEx)',[_mm(y.capex) for y in cf]); row += 1
+    crow(row, 'Cash from Investing',       [_mm(y.cfInvesting) for y in cf], f_bold_lbl, f_bold_num); row += 1
+    cblank(row); row += 1
+
+    # ── FINANCING ─────────────────────────────────────────────
+    ws4.write(row, 0, 'FINANCING ACTIVITIES', f_sec); row += 1
+    crow(row, '  Share Buybacks',          [_mm(y.buybacks) for y in cf]); row += 1
+    crow(row, '  Dividends Paid',          [_mm(y.dividends) for y in cf]); row += 1
+    # Debt repayment = cfFinancing - buybacks - dividends
+    def _debt_rep(y):
+        if y.cfFinancing is None: return None
+        other = y.cfFinancing - (y.buybacks or 0) - (y.dividends or 0)
+        return _mm(other) if abs(other) > 1e3 else None
+    crow(row, '  Debt / Other Financing',  [_debt_rep(y) for y in cf]); row += 1
+    crow(row, 'Cash from Financing',       [_mm(y.cfFinancing) for y in cf], f_bold_lbl, f_bold_num); row += 1
+    cblank(row); row += 1
+
+    # ── FREE CASH FLOW ────────────────────────────────────────
+    ws4.write(row, 0, 'FREE CASH FLOW & LIQUIDITY', f_sec); row += 1
+    def _fcf(y):
+        if y.cfOps and y.capex: return _mm(y.cfOps + y.capex)
+        if y.cfOps: return _mm(y.cfOps)
+        return None
+    crow(row, '  Free Cash Flow',          [_fcf(y) for y in cf], f_bold_lbl, f_bold_num); row += 1
+
+    # FCF conversion = FCF / NI
+    ws4.write(row, 0, '    FCF Conversion (FCF/NI)', f_pct_lbl)
+    for i, y in enumerate(cf):
+        fcf = (y.cfOps or 0) + (y.capex or 0) if y.cfOps else None
+        v = _ratio(fcf, y.netIncome) if fcf and y.netIncome else None
+        ws4.write(row, i+1, v, f_pct_num)
+    row += 1
+
+    # Beginning / ending cash from balance sheet
+    # (Use bal list if aligned; otherwise leave blank)
+    def _beg_cash(i_cf):
+        y = cf[i_cf]
+        # find matching bal year
+        for b in bal:
+            if b.year == y.year:
+                # beginning = prior year's ending
+                break
+        return None   # can't reliably derive without prior year
+    crow(row, '  Ending Cash', [None]*n_cf); row += 1
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 6 — DCF VALUATION
+    # ──────────────────────────────────────────────────────────
+    ws5 = wb.add_worksheet('DCF Valuation')
+    ws5.set_column('A:A', 34)
+    for c in range(5): ws5.set_column(c+1, c+1, 14)
+    ws5.freeze_panes(3, 1)
+
+    ws5.write(0, 0, f'{co} ({tick})'.upper() if tick else co.upper(), f_title)
+    ws5.write(1, 0, 'DCF Valuation Model  |  $ in Millions  |  Blue cells = Assumptions (change these)', f_sub)
+
+    # Base year data
+    base_inc = inc[-1] if inc else IncomeYear()
+    base_rev_raw = base_inc.revenue   # raw value
+
+    proj_yrs  = [f'FY{date.today().year + i}E' for i in range(1, 6)]
+    gr        = _DCF_GROWTH.get(req.industry, _DCF_GROWTH['general'])
+    em        = _DCF_EBITDA_MARGIN.get(req.industry, _DCF_EBITDA_MARGIN['general'])
+    da_pct    = [0.02]*5
+    capex_pct = [0.04]*5
+    nwc_pct   = [0.02]*5
+    tax_rate  = [0.21]*5
+    wacc      = 0.10
+    tgr       = 0.04
+
+    ws5.write(2, 0, '($mm)', f_hdr)
+    for i, yr in enumerate(proj_yrs): ws5.write(2, i+1, yr, f_hdr)
+
+    row = 3
+    ws5.write(row, 0, 'KEY ASSUMPTIONS  (Blue = Input)', f_sec); row += 1
+    assumption_rows = [
+        ('  Revenue Growth Rate', gr,       f_inp_pct),
+        ('  EBITDA Margin',       em,       f_inp_pct),
+        ('  D&A % of Revenue',    da_pct,   f_inp_pct),
+        ('  CapEx % of Revenue',  capex_pct,f_inp_pct),
+        ('  Change in NWC % Rev', nwc_pct,  f_inp_pct),
+        ('  Tax Rate',            tax_rate, f_inp_pct),
+    ]
+    for lbl, vals, nf in assumption_rows:
+        ws5.write(row, 0, lbl, f_lbl)
+        for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
+        row += 1
+
+    # Build projected financials
+    base_rev = _mm(base_rev_raw) or 1000.0
+    rev_proj = []
+    for g in gr:
+        base_rev = round(base_rev * (1 + g), 1)
+        rev_proj.append(base_rev)
+
+    ebitda_proj = [round(rev_proj[i] * em[i], 1) for i in range(5)]
+    da_proj     = [round(rev_proj[i] * da_pct[i], 1) for i in range(5)]
+    capex_proj  = [round(rev_proj[i] * capex_pct[i], 1) for i in range(5)]
+    nwc_proj    = [round(rev_proj[i] * nwc_pct[i], 1) for i in range(5)]
+    ebit_proj   = [round(ebitda_proj[i] - da_proj[i], 1) for i in range(5)]
+    tax_proj    = [round(ebit_proj[i] * tax_rate[i], 1) for i in range(5)]
+    nopat_proj  = [round(ebit_proj[i] - tax_proj[i], 1) for i in range(5)]
+    ufcf_proj   = [round(nopat_proj[i] + da_proj[i] - capex_proj[i] - nwc_proj[i], 1) for i in range(5)]
+
+    row += 1
+    ws5.write(row, 0, 'PROJECTED FINANCIALS', f_sec); row += 1
+    proj_rows = [
+        ('  Revenue',          rev_proj,    f_bold_lbl, f_bold_num),
+        ('  EBITDA',           ebitda_proj, f_lbl,      f_num),
+        ('  (-) D&A',          da_proj,     f_lbl,      f_num),
+        ('EBIT',               ebit_proj,   f_bold_lbl, f_bold_num),
+        ('  (-) Taxes on EBIT',tax_proj,    f_lbl,      f_num),
+        ('NOPAT',              nopat_proj,  f_bold_lbl, f_bold_num),
+        ('  (+) D&A Add-Back', da_proj,     f_lbl,      f_num),
+        ('  (-) CapEx',        capex_proj,  f_lbl,      f_num),
+        ('  (-) Change in NWC',nwc_proj,    f_lbl,      f_num),
+    ]
+    for lbl, vals, lf, nf in proj_rows:
+        ws5.write(row, 0, lbl, lf)
+        for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
+        row += 1
+    ws5.write(row, 0, 'Unlevered Free Cash Flow (UFCF)', f_bold_lbl)
+    for i, v in enumerate(ufcf_proj): ws5.write(row, i+1, v, f_bold_num)
+    row += 2
+
+    # WACC & TV
+    ws5.write(row, 0, 'WACC & TERMINAL VALUE', f_sec); row += 1
+    disc = [round(1 / (1+wacc)**(i+1), 4) for i in range(5)]
+    pv   = [round(ufcf_proj[i] * disc[i], 1) for i in range(5)]
+    tv   = round(ufcf_proj[-1] * (1+tgr) / (wacc - tgr), 1)
+    pv_tv= round(tv * disc[-1], 1)
+    sum_pv = round(sum(pv), 1)
+    ev   = round(sum_pv + pv_tv, 1)
+
+    wacc_rows = [
+        ('  WACC',             [wacc]*5,   f_inp_pct),
+        ('  Terminal Growth',  [tgr]*5,    f_inp_pct),
+        ('  Discount Factor',  disc,       f_inp_num),
+        ('  PV of UFCF',       pv,         f_num),
+    ]
+    for lbl, vals, nf in wacc_rows:
+        ws5.write(row, 0, lbl, f_lbl)
+        for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
+        row += 1
+
+    row += 1
+    ws5.write(row, 0, 'VALUATION SUMMARY', f_sec); row += 1
+    summ_rows = [
+        ('  Sum of PV (FCFs)',            sum_pv),
+        ('  Terminal Value (Gordon Growth)',tv),
+        ('  PV of Terminal Value',         pv_tv),
+        ('  Enterprise Value',             ev),
+    ]
+    for lbl, v in summ_rows:
+        ws5.write(row, 0, lbl, f_bold_lbl)
+        ws5.write(row, 1, v, f_bold_num)
+        row += 1
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 7 — COMPS
+    # ──────────────────────────────────────────────────────────
+    ws6 = wb.add_worksheet('Comps')
+    ws6.set_column('A:A', 22)
+    ws6.set_column('B:B', 8)
+    ws6.set_column('C:C', 14)
+    ws6.set_column('D:D', 10)
+    ws6.set_column('E:E', 14)
+    ws6.set_column('F:F', 14)
+    ws6.set_column('G:G', 8)
+    ws6.set_column('H:H', 10)
+    ws6.set_column('I:I', 8)
+
+    industry_label = req.industry.upper().replace('_', ' ')
+    ws6.write(0, 0, f'{industry_label} PEER TRADING COMPARABLES', f_title)
+    ws6.write(1, 0, 'Public Market Multiples  |  LTM Financials  |  Source: Public Filings / Market Data  |  Illustrative', f_sub)
+
+    hdrs = ['Company', 'Ticker', 'Market Cap\n($B)', 'EV ($B)', 'Revenue\n($B)', 'EBITDA\n($B)', 'EV/Rev', 'EV/EBITDA', 'P/E']
+    for i, h in enumerate(hdrs): ws6.write(2, i, h, f_hdr)
+
+    peers = _COMPS.get(req.industry, _COMPS['general'])
+    f_peer_num = F(num_format='#,##0.0', align='right', border=1)
+    f_peer_mult= F(num_format='0.0"x"', align='right', border=1)
+    f_peer_lbl = F(font_color=_BLACK, border=1)
+    f_peer_tkr = F(font_color=_BLACK, align='center', border=1)
+
+    for ri, (name_p, ticker_p, mcap, ev_p, rev_p, ebitda_p, ev_rev, ev_ebitda, pe) in enumerate(peers):
+        rr = 3 + ri
+        ws6.write(rr, 0, name_p,   f_peer_lbl)
+        ws6.write(rr, 1, ticker_p, f_peer_tkr)
+        ws6.write(rr, 2, mcap,     f_peer_num)
+        ws6.write(rr, 3, ev_p,     f_peer_num)
+        ws6.write(rr, 4, rev_p,    f_peer_num)
+        ws6.write(rr, 5, ebitda_p, f_peer_num)
+        ws6.write(rr, 6, ev_rev,   f_peer_mult)
+        ws6.write(rr, 7, ev_ebitda,f_peer_mult)
+        ws6.write(rr, 8, pe if pe else 'N/M', f_peer_mult if pe else f_ctr)
+
+    # Median row
+    mrow = 3 + len(peers)
+    ws6.write(mrow, 0, 'PEER MEDIAN', F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, border=1))
+    for c in range(1, 9): ws6.write(mrow, c, 'Median', F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, align='center', border=1))
+
+    # ──────────────────────────────────────────────────────────
+    # SHEET 8 — AI INSIGHTS
+    # ──────────────────────────────────────────────────────────
     if req.ai_insights:
-        ws4 = wb.add_worksheet('AI Insights')
-        ws4.set_column('A:A', 22)
-        ws4.set_column('B:B', 90)
-        ws4.merge_range('A1:B1', f'{co} — AI Financial Intelligence', title_fmt)
+        ws7 = wb.add_worksheet('AI Insights')
+        ws7.set_column('A:A', 24)
+        ws7.set_column('B:B', 88)
 
-        r = 1
+        ws7.write(0, 0, f'{co} — AI Financial Intelligence', f_title)
+        ws7.write(1, 0, f'Generated by Claude AI  |  {today_str}', f_sub)
+
+        ai_r = 2
         def ai_block(heading, items, key_field='description'):
-            nonlocal r
-            ws4.merge_range(r, 0, r, 1, heading, sub_fmt); r += 1
+            nonlocal ai_r
+            ws7.merge_range(ai_r, 0, ai_r, 1, heading,
+                F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, border=1))
+            ai_r += 1
             if isinstance(items, str):
-                ws4.merge_range(r, 0, r, 1, items, wrap_fmt)
-                ws4.set_row(r, 60); r += 1
+                ws7.merge_range(ai_r, 0, ai_r, 1, items, f_wrap)
+                ws7.set_row(ai_r, 60); ai_r += 1
             elif isinstance(items, list):
                 for item in items:
                     title = item.get('title', item.get('action', ''))
                     desc  = item.get(key_field, item.get('expected_impact', ''))
-                    ws4.write(r, 0, title, bold_txt)
-                    ws4.write(r, 1, desc, wrap_fmt)
-                    ws4.set_row(r, 40); r += 1
+                    ws7.write(ai_r, 0, title, f_bold_lbl)
+                    ws7.write(ai_r, 1, desc,  f_wrap)
+                    ws7.set_row(ai_r, 40); ai_r += 1
 
-        ai_block('Executive Summary', req.ai_insights.get('executive_summary',''))
-        ai_block('Top Risks',        req.ai_insights.get('top_risks', []))
-        ai_block('Opportunities',    req.ai_insights.get('top_opportunities', []))
-        ai_block('Priority Actions', req.ai_insights.get('priority_actions', []), key_field='expected_impact')
-        ai_block('Industry Context', req.ai_insights.get('industry_context',''))
+        ai_block('Executive Summary', req.ai_insights.get('executive_summary', ''))
+        ai_block('Top Risks',         req.ai_insights.get('top_risks', []))
+        ai_block('Opportunities',     req.ai_insights.get('top_opportunities', []))
+        ai_block('Priority Actions',  req.ai_insights.get('priority_actions', []), key_field='expected_impact')
+        ai_block('Industry Context',  req.ai_insights.get('industry_context', ''))
 
     wb.close()
     return output.getvalue()
