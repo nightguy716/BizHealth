@@ -8,7 +8,7 @@ export default function CompanySearch({ onSelect }) {
   const [open,     setOpen]    = useState(false);
   const [loading,  setLoading] = useState(false);
   const [fetching, setFetching]= useState(false);
-  const [loaded,   setLoaded]  = useState(null);   // { ticker, name }
+  const [loaded,   setLoaded]  = useState(null);   // { ticker, name, coverage, filled, total }
   const [error,    setError]   = useState('');
 
   const debounceRef  = useRef(null);
@@ -55,7 +55,14 @@ export default function CompanySearch({ onSelect }) {
       const res = await fetch(`${BACKEND}/company/${company.ticker}`);
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      setLoaded({ ticker: data.ticker, name: data.name, currency: data.currency });
+      setLoaded({
+        ticker:   data.ticker,
+        name:     data.name,
+        currency: data.currency,
+        coverage: data.coverage,
+        filled:   data.filled,
+        total:    data.total,
+      });
       onSelect(data);
     } catch (e) {
       setError('Could not load financials. Try another ticker.');
@@ -176,21 +183,55 @@ export default function CompanySearch({ onSelect }) {
 
       {/* Loaded chip */}
       {loaded && !fetching && (
-        <div className="flex items-center gap-2 mt-2 px-3 py-1.5 rounded-xl"
-          style={{ background:'rgba(0,232,135,0.07)', border:'1px solid rgba(0,232,135,0.22)' }}>
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-dot"
-            style={{ background:'#00e887', boxShadow:'0 0 5px #00e887' }} />
-          <span className="mono text-[11px] font-bold flex-shrink-0" style={{ color:'#00e887' }}>
-            {loaded.ticker}
-          </span>
-          <span className="text-slate-400 text-[11px] truncate">{loaded.name}</span>
-          {loaded.currency && loaded.currency !== 'INR' && (
-            <span className="mono text-[10px] ml-auto flex-shrink-0 px-1.5 py-0.5 rounded"
-              style={{ background:'rgba(251,191,36,0.1)', color:'#fbbf24', border:'1px solid rgba(251,191,36,0.2)' }}>
-              {loaded.currency}
+        <div className="mt-2 rounded-xl overflow-hidden"
+          style={{ border:'1px solid rgba(0,232,135,0.22)' }}>
+          {/* Top row */}
+          <div className="flex items-center gap-2 px-3 py-1.5"
+            style={{ background:'rgba(0,232,135,0.07)' }}>
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-dot"
+              style={{ background:'#00e887', boxShadow:'0 0 5px #00e887' }} />
+            <span className="mono text-[11px] font-bold flex-shrink-0" style={{ color:'#00e887' }}>
+              {loaded.ticker}
             </span>
+            <span className="text-slate-400 text-[11px] truncate flex-1">{loaded.name}</span>
+            {loaded.currency && loaded.currency !== 'INR' && (
+              <span className="mono text-[10px] flex-shrink-0 px-1.5 py-0.5 rounded"
+                style={{ background:'rgba(251,191,36,0.1)', color:'#fbbf24', border:'1px solid rgba(251,191,36,0.2)' }}>
+                {loaded.currency}
+              </span>
+            )}
+            <button onClick={clear} className="text-slate-600 hover:text-slate-400 text-xs flex-shrink-0">✕</button>
+          </div>
+
+          {/* Coverage bar */}
+          {loaded.coverage !== undefined && (
+            <div className="px-3 py-2" style={{ background:'rgba(0,0,0,0.2)' }}>
+              <div className="flex justify-between mono text-[9px] mb-1">
+                <span style={{ color:'rgba(148,163,184,0.5)' }}>
+                  FIELDS LOADED — {loaded.filled}/{loaded.total}
+                </span>
+                <span style={{ color: loaded.coverage >= 80 ? '#00e887' : loaded.coverage >= 60 ? '#fbbf24' : '#f43f5e', fontWeight:700 }}>
+                  {loaded.coverage}%
+                </span>
+              </div>
+              <div className="h-[2px] rounded-full overflow-hidden" style={{ background:'rgba(255,255,255,0.06)' }}>
+                <div className="h-full rounded-full transition-all duration-700"
+                  style={{
+                    width: `${loaded.coverage}%`,
+                    background: loaded.coverage >= 80
+                      ? 'linear-gradient(90deg,#00e887,#22d3ee)'
+                      : loaded.coverage >= 60
+                        ? 'linear-gradient(90deg,#fbbf24,#f59e0b)'
+                        : 'linear-gradient(90deg,#f43f5e,#e11d48)',
+                  }} />
+              </div>
+              {loaded.coverage < 100 && (
+                <p className="text-[9px] mt-1.5 leading-relaxed" style={{ color:'rgba(100,116,139,0.7)' }}>
+                  Missing fields (e.g. Inventory, Interest) are normal for service/tech companies — those ratios show N/A.
+                </p>
+              )}
+            </div>
           )}
-          <button onClick={clear} className="text-slate-600 hover:text-slate-400 text-xs flex-shrink-0 ml-1">✕</button>
         </div>
       )}
 

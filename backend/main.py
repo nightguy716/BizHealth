@@ -142,47 +142,115 @@ def _safe(df: pd.DataFrame, keys: list[str]):
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
     try:
-        t = yf.Ticker(ticker.upper())
+        t    = yf.Ticker(ticker.upper())
         info = t.info or {}
-        inc  = t.financials       # income statement (annual, most-recent = col 0)
-        bal  = t.balance_sheet    # balance sheet  (annual, most-recent = col 0)
+
+        # yfinance 0.2.x renamed properties; try both old and new names
+        inc = None
+        for attr in ("income_stmt", "financials"):
+            try:
+                df = getattr(t, attr, None)
+                if df is not None and not df.empty:
+                    inc = df
+                    break
+            except Exception:
+                pass
+
+        bal = None
+        for attr in ("balance_sheet",):
+            try:
+                df = getattr(t, attr, None)
+                if df is not None and not df.empty:
+                    bal = df
+                    break
+            except Exception:
+                pass
+
+        cf = None
+        for attr in ("cashflow", "cash_flow"):
+            try:
+                df = getattr(t, attr, None)
+                if df is not None and not df.empty:
+                    cf = df
+                    break
+            except Exception:
+                pass
+
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
     if inc is None or inc.empty:
-        raise HTTPException(status_code=404, detail=f"No financial data found for {ticker}")
+        raise HTTPException(status_code=404, detail=f"No financial data found for {ticker.upper()}")
 
-    gross_profit      = _safe(inc, ["Gross Profit"])
-    operating_income  = _safe(inc, ["Operating Income", "EBIT"])
-    interest_raw      = _safe(inc, ["Interest Expense", "Interest Expense Non Operating"])
+    gross_profit     = _safe(inc, ["Gross Profit"])
+    operating_income = _safe(inc, ["Operating Income", "EBIT", "Operating Income Loss"])
+    revenue          = _safe(inc, ["Total Revenue", "Revenue"])
+    net_income       = _safe(inc, ["Net Income", "Net Income Common Stockholders",
+                                   "Net Income Including Noncontrolling Interests"])
+    cogs_raw         = _safe(inc, ["Cost Of Revenue", "Reconciled Cost Of Revenue",
+                                   "Cost Of Goods Sold"])
+
+    # If gross profit is missing, derive it: Revenue − COGS
+    if gross_profit is None and revenue and cogs_raw:
+        gross_profit = revenue - cogs_raw
+
+    # If COGS is missing, derive it: Revenue − Gross Profit
+    if cogs_raw is None and revenue and gross_profit:
+        cogs_raw = revenue - gross_profit
 
     # Operating Expenses = Gross Profit − Operating Income
     op_expenses = None
     if gross_profit is not None and operating_income is not None:
         op_expenses = abs(gross_profit - operating_income)
 
-    # Interest expense is usually reported as negative in yfinance
+    # Interest expense: try income stmt first, then cash flow stmt
+    interest_raw = _safe(inc, ["Interest Expense", "Interest Expense Non Operating",
+                                "Net Interest Income"])
+    if interest_raw is None and cf is not None:
+        interest_raw = _safe(cf, ["Interest Paid Cff", "Interest Paid", "Interest Expense Paid"])
     interest = abs(interest_raw) if interest_raw is not None else None
+
+    # Cash: try progressively broader bucket
+    cash = _safe(bal, [
+        "Cash And Cash Equivalents",
+        "Cash Cash Equivalents And Short Term Investments",
+        "Cash And Short Term Investments",
+        "Cash Financial",
+    ])
+
+    # Equity: try multiple names used across regions/versions
+    equity = _safe(bal, [
+        "Stockholders Equity",
+        "Common Stock Equity",
+        "Total Stockholder Equity",
+        "Total Equity Gross Minority Interest",
+        "Tangible Book Value",
+    ])
+
+    # Receivables
+    receivables = _safe(bal, [
+        "Net Receivables",
+        "Accounts Receivable",
+        "Receivables",
+        "Gross Accounts Receivable",
+    ])
 
     raw = {
         "currentAssets":      _safe(bal, ["Current Assets", "Total Current Assets"]),
         "currentLiabilities": _safe(bal, ["Current Liabilities", "Total Current Liabilities"]),
-        "inventory":          _safe(bal, ["Inventory"]),
-        "cash":               _safe(bal, ["Cash And Cash Equivalents",
-                                          "Cash Cash Equivalents And Short Term Investments",
-                                          "Cash And Short Term Investments"]),
+        "inventory":          _safe(bal, ["Inventory", "Inventories"]),
+        "cash":               cash,
         "totalAssets":        _safe(bal, ["Total Assets"]),
-        "equity":             _safe(bal, ["Stockholders Equity", "Common Stock Equity",
-                                          "Total Stockholder Equity",
-                                          "Total Equity Gross Minority Interest"]),
-        "totalDebt":          _safe(bal, ["Total Debt", "Long Term Debt And Capital Lease Obligation"]),
-        "revenue":            _safe(inc, ["Total Revenue"]),
+        "equity":             equity,
+        "totalDebt":          _safe(bal, ["Total Debt", "Long Term Debt And Capital Lease Obligation",
+                                          "Long Term Debt", "Net Debt"]),
+        "revenue":            revenue,
         "grossProfit":        gross_profit,
         "operatingExpenses":  op_expenses,
-        "netProfit":          _safe(inc, ["Net Income", "Net Income Common Stockholders"]),
+        "netProfit":          net_income,
         "interestExpense":    interest,
-        "receivables":        _safe(bal, ["Net Receivables", "Accounts Receivable"]),
-        "cogs":               _safe(inc, ["Cost Of Revenue", "Reconciled Cost Of Revenue"]),
+        "receivables":        receivables,
+        "cogs":               cogs_raw,
     }
 
     # Convert to whole-number strings; skip nulls / NaN
@@ -194,12 +262,20 @@ async def get_company(ticker: str):
     sector   = info.get("sector", "")
     industry = SECTOR_MAP.get(sector, "general")
 
+    # Build a coverage report so the frontend can show what filled
+    total      = len(raw)
+    filled     = len(mapped)
+    coverage   = round((filled / total) * 100)
+
     return {
         "ticker":   ticker.upper(),
         "name":     info.get("longName") or info.get("shortName", ticker),
         "sector":   sector,
         "industry": industry,
         "currency": info.get("currency", "USD"),
+        "coverage": coverage,          # % of fields successfully fetched
+        "filled":   filled,
+        "total":    total,
         "data":     mapped,
     }
 
