@@ -218,6 +218,21 @@ def _fetch_ticker_blocking(ticker_str: str):
     return name, currency, sector, inc, bal, cf
 
 
+@app.get("/debug/{ticker}")
+async def debug_ticker(ticker: str):
+    """Returns raw field names from yfinance so we can fix the mapping."""
+    loop = asyncio.get_event_loop()
+    name, currency, sector, inc, bal, cf = await asyncio.wait_for(
+        loop.run_in_executor(_executor, _fetch_ticker_blocking, ticker.upper()),
+        timeout=35.0,
+    )
+    return {
+        "income_stmt_fields": list(inc.index) if inc is not None and not inc.empty else [],
+        "balance_sheet_fields": list(bal.index) if bal is not None and not bal.empty else [],
+        "cashflow_fields": list(cf.index) if cf is not None and not cf.empty else [],
+    }
+
+
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
     loop = asyncio.get_event_loop()
