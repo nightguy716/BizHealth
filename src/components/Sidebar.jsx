@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import Papa from 'papaparse';
 import Logo from './Logo';
+import CompanySearch from './CompanySearch';
 import { INDUSTRY_BENCHMARKS } from '../utils/benchmarks';
 
 export const DEMO_DATA = {
@@ -97,6 +98,17 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Company Search */}
+      <div className="px-5 pt-4 pb-4" style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
+        <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(34,211,238,0.5)' }}>
+          // LISTED COMPANY LOOKUP
+        </label>
+        <CompanySearch onSelect={({ data, industry: sector }) => {
+          setInputs(p => ({ ...p, ...data }));
+          if (sector && INDUSTRY_BENCHMARKS[sector]) setIndustry(sector);
+        }} />
       </div>
 
       {/* Industry */}

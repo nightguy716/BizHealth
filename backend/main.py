@@ -14,8 +14,12 @@ Deploy to Render:
 
 import os
 import json
+import math
 import anthropic
-from fastapi import FastAPI, HTTPException
+import httpx
+import yfinance as yf
+import pandas as pd
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -71,6 +75,133 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ─────────────────────────────────────────────────────────────
+#  COMPANY SEARCH  —  proxy Yahoo Finance suggest API
+# ─────────────────────────────────────────────────────────────
+@app.get("/search")
+async def search_companies(q: str = Query(..., min_length=1)):
+    url = (
+        "https://query2.finance.yahoo.com/v1/finance/search"
+        f"?q={q}&newsCount=0&quotesCount=10&enableFuzzyQuery=true"
+    )
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            r = await client.get(url, headers=headers)
+            data = r.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Yahoo Finance search failed: {e}")
+
+    quotes = data.get("quotes", [])
+    results = []
+    for item in quotes:
+        if item.get("quoteType") in ("EQUITY", "ETF"):
+            results.append({
+                "ticker":   item.get("symbol", ""),
+                "name":     item.get("longname") or item.get("shortname", ""),
+                "exchange": item.get("exchange", ""),
+                "type":     item.get("quoteType", ""),
+            })
+    return {"results": results[:8]}
+
+
+# ─────────────────────────────────────────────────────────────
+#  COMPANY FINANCIALS  —  yfinance → our 14 input fields
+# ─────────────────────────────────────────────────────────────
+SECTOR_MAP = {
+    "Technology":          "tech",
+    "Communication Services": "tech",
+    "Healthcare":          "healthcare",
+    "Financial Services":  "finance",
+    "Consumer Defensive":  "retail",
+    "Consumer Cyclical":   "retail",
+    "Industrials":         "manufacturing",
+    "Basic Materials":     "manufacturing",
+    "Energy":              "manufacturing",
+    "Real Estate":         "general",
+    "Utilities":           "general",
+}
+
+def _safe(df: pd.DataFrame, keys: list[str]):
+    """Return the first non-NaN float from df index matching any of keys."""
+    if df is None or df.empty:
+        return None
+    for k in keys:
+        if k in df.index:
+            try:
+                v = df[k].iloc[0]
+                if v is not None and not (isinstance(v, float) and math.isnan(v)):
+                    return float(v)
+            except Exception:
+                pass
+    return None
+
+
+@app.get("/company/{ticker}")
+async def get_company(ticker: str):
+    try:
+        t = yf.Ticker(ticker.upper())
+        info = t.info or {}
+        inc  = t.financials       # income statement (annual, most-recent = col 0)
+        bal  = t.balance_sheet    # balance sheet  (annual, most-recent = col 0)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+    if inc is None or inc.empty:
+        raise HTTPException(status_code=404, detail=f"No financial data found for {ticker}")
+
+    gross_profit      = _safe(inc, ["Gross Profit"])
+    operating_income  = _safe(inc, ["Operating Income", "EBIT"])
+    interest_raw      = _safe(inc, ["Interest Expense", "Interest Expense Non Operating"])
+
+    # Operating Expenses = Gross Profit − Operating Income
+    op_expenses = None
+    if gross_profit is not None and operating_income is not None:
+        op_expenses = abs(gross_profit - operating_income)
+
+    # Interest expense is usually reported as negative in yfinance
+    interest = abs(interest_raw) if interest_raw is not None else None
+
+    raw = {
+        "currentAssets":      _safe(bal, ["Current Assets", "Total Current Assets"]),
+        "currentLiabilities": _safe(bal, ["Current Liabilities", "Total Current Liabilities"]),
+        "inventory":          _safe(bal, ["Inventory"]),
+        "cash":               _safe(bal, ["Cash And Cash Equivalents",
+                                          "Cash Cash Equivalents And Short Term Investments",
+                                          "Cash And Short Term Investments"]),
+        "totalAssets":        _safe(bal, ["Total Assets"]),
+        "equity":             _safe(bal, ["Stockholders Equity", "Common Stock Equity",
+                                          "Total Stockholder Equity",
+                                          "Total Equity Gross Minority Interest"]),
+        "totalDebt":          _safe(bal, ["Total Debt", "Long Term Debt And Capital Lease Obligation"]),
+        "revenue":            _safe(inc, ["Total Revenue"]),
+        "grossProfit":        gross_profit,
+        "operatingExpenses":  op_expenses,
+        "netProfit":          _safe(inc, ["Net Income", "Net Income Common Stockholders"]),
+        "interestExpense":    interest,
+        "receivables":        _safe(bal, ["Net Receivables", "Accounts Receivable"]),
+        "cogs":               _safe(inc, ["Cost Of Revenue", "Reconciled Cost Of Revenue"]),
+    }
+
+    # Convert to whole-number strings; skip nulls / NaN
+    mapped = {}
+    for k, v in raw.items():
+        if v is not None and not (isinstance(v, float) and math.isnan(v)):
+            mapped[k] = str(int(abs(round(v))))
+
+    sector   = info.get("sector", "")
+    industry = SECTOR_MAP.get(sector, "general")
+
+    return {
+        "ticker":   ticker.upper(),
+        "name":     info.get("longName") or info.get("shortName", ticker),
+        "sector":   sector,
+        "industry": industry,
+        "currency": info.get("currency", "USD"),
+        "data":     mapped,
+    }
 
 
 @app.post("/analyze")
