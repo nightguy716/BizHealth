@@ -155,134 +155,134 @@ YF_HEADERS = {
     "Referer":         "https://finance.yahoo.com/",
 }
 
-# Timeseries field names → our input keys
-TS_FIELDS = {
-    "annualTotalRevenue":              "revenue",
-    "annualGrossProfit":               "grossProfit",
-    "annualCostOfRevenue":             "cogs",
-    "annualOperatingIncome":           "_operatingIncome",   # derived
-    "annualNetIncome":                 "netProfit",
-    "annualInterestExpense":           "interestExpense",
-    "annualTotalAssets":               "totalAssets",
-    "annualCurrentAssets":             "currentAssets",
-    "annualCurrentLiabilities":        "currentLiabilities",
-    "annualInventory":                 "inventory",
-    "annualCashAndCashEquivalents":    "cash",
-    "annualStockholdersEquity":        "equity",
-    "annualTotalDebt":                 "totalDebt",
-    "annualAccountsReceivable":        "receivables",
-}
+FMP_BASE = "https://financialmodelingprep.com/api/v3"
 
 
-def _ts_latest(ts_result: list, field: str):
-    """Return most-recent annual value for a given timeseries field."""
-    for block in ts_result:
-        series = block.get(field)
-        if series and isinstance(series, list) and len(series) > 0:
-            # entries are sorted oldest→newest; pick last
-            entry = series[-1]
-            rv = entry.get("reportedValue", {})
-            raw = rv.get("raw") if isinstance(rv, dict) else None
-            if raw is not None:
-                try:
-                    f = float(raw)
-                    if not math.isnan(f):
-                        return f
-                except (TypeError, ValueError):
-                    pass
+def _fv(d: dict, *keys):
+    """Return first numeric value found in dict from a list of keys."""
+    for k in keys:
+        v = d.get(k)
+        if v is not None:
+            try:
+                f = float(v)
+                if not math.isnan(f):
+                    return f
+            except (TypeError, ValueError):
+                pass
     return None
 
 
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
     """
-    Uses Yahoo Finance's fundamentals-timeseries API — no cookie/crumb required,
-    reliable from cloud server IPs.
+    Fetches financial statements from Financial Modeling Prep (FMP).
+    Requires FMP_API_KEY environment variable (free at financialmodelingprep.com).
+    Falls back to Yahoo Finance search for name/sector metadata.
     """
-    sym = ticker.upper()
-    ts_types = ",".join(TS_FIELDS.keys())
-    ts_url = (
-        f"https://query1.finance.yahoo.com/ws/fundamentals-timeseries/v1/finance/timeseries/{sym}"
-        f"?type={ts_types}&period1=493590046&period2=9999999999&timeframe=annual"
-    )
-    # quoteSummary for name / sector / currency (lightweight, usually no crumb needed)
-    qs_url = (
-        f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
-        f"?modules=assetProfile,price"
-    )
+    fmp_key = os.environ.get("FMP_API_KEY")
+    if not fmp_key:
+        raise HTTPException(
+            status_code=503,
+            detail="FMP_API_KEY not configured. Add it in Railway → Variables."
+        )
+
+    sym = ticker.upper().replace(".NS", "").replace(".BO", "")  # FMP uses bare tickers
+
+    inc_url = f"{FMP_BASE}/income-statement/{sym}?limit=1&apikey={fmp_key}"
+    bal_url = f"{FMP_BASE}/balance-sheet-statement/{sym}?limit=1&apikey={fmp_key}"
 
     try:
-        async with httpx.AsyncClient(timeout=25, follow_redirects=True) as client:
-            ts_r, qs_r = await asyncio.gather(
-                client.get(ts_url, headers=YF_HEADERS),
-                client.get(qs_url, headers=YF_HEADERS),
+        async with httpx.AsyncClient(timeout=20) as client:
+            inc_r, bal_r = await asyncio.gather(
+                client.get(inc_url),
+                client.get(bal_url),
             )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Yahoo Finance request failed: {e}")
+        raise HTTPException(status_code=502, detail=f"FMP request failed: {e}")
 
-    # ── parse timeseries ─────────────────────────────────────────
-    if ts_r.status_code != 200:
-        raise HTTPException(status_code=ts_r.status_code,
-                            detail=f"Yahoo Finance timeseries returned {ts_r.status_code}")
+    if inc_r.status_code != 200:
+        raise HTTPException(status_code=inc_r.status_code,
+                            detail=f"FMP income statement returned {inc_r.status_code}")
 
-    ts_body  = ts_r.json()
-    ts_result = ts_body.get("timeseries", {}).get("result", [])
-    if not ts_result:
-        raise HTTPException(status_code=404, detail=f"No financial data found for {sym}")
+    inc_list = inc_r.json()
+    bal_list = bal_r.json()
 
-    # ── parse meta (name / sector / currency) ────────────────────
-    name = sym; sector = ""; currency = "USD"
+    if not inc_list or not isinstance(inc_list, list):
+        raise HTTPException(status_code=404, detail=f"No data found for {sym} on FMP")
+
+    inc = inc_list[0]   # most recent annual
+    bal = bal_list[0] if bal_list and isinstance(bal_list, list) else {}
+
+    # ── income statement ─────────────────────────────────────────
+    revenue    = _fv(inc, "revenue")
+    gross_p    = _fv(inc, "grossProfit")
+    cogs_raw   = _fv(inc, "costOfRevenue")
+    op_exp     = _fv(inc, "operatingExpenses")   # SG&A + other (excludes COGS)
+    net_income = _fv(inc, "netIncome")
+    interest   = _fv(inc, "interestExpense")
+
+    # FMP reports interestExpense as positive
+    if interest is not None:
+        interest = abs(interest)
+
+    # Derive missing values
+    if gross_p is None and revenue and cogs_raw:
+        gross_p = revenue - cogs_raw
+    if cogs_raw is None and revenue and gross_p:
+        cogs_raw = revenue - gross_p
+
+    # ── balance sheet ─────────────────────────────────────────────
+    cur_assets   = _fv(bal, "totalCurrentAssets")
+    cur_liab     = _fv(bal, "totalCurrentLiabilities")
+    inventory    = _fv(bal, "inventory")
+    cash         = _fv(bal, "cashAndCashEquivalents", "cashAndShortTermInvestments")
+    total_assets = _fv(bal, "totalAssets")
+    equity       = _fv(bal, "totalStockholdersEquity", "stockholdersEquity")
+    total_debt   = _fv(bal, "totalDebt", "longTermDebt")
+    receivables  = _fv(bal, "netReceivables", "accountsReceivable")
+
+    # ── metadata ──────────────────────────────────────────────────
+    name     = inc.get("symbol", sym)
+    sector   = ""
+    currency = inc.get("reportedCurrency", "USD")
+
+    # Try FMP company profile for sector/name
     try:
-        qs_body = qs_r.json()
-        qs_res  = qs_body.get("quoteSummary", {}).get("result") or [{}]
-        qs_data = qs_res[0]
-        profile = qs_data.get("assetProfile", {})
-        price   = qs_data.get("price", {})
-        sector   = profile.get("sector", "")
-        name     = price.get("longName") or price.get("shortName") or sym
-        currency = price.get("currency") or "USD"
+        async with httpx.AsyncClient(timeout=10) as client:
+            pr = await client.get(f"{FMP_BASE}/profile/{sym}?apikey={fmp_key}")
+            profiles = pr.json()
+            if profiles and isinstance(profiles, list):
+                p      = profiles[0]
+                name   = p.get("companyName", sym)
+                sector = p.get("sector", "")
+                currency = p.get("currency", currency)
     except Exception:
         pass
 
-    # ── map fields ───────────────────────────────────────────────
-    raw_values = {}
-    for ts_key, our_key in TS_FIELDS.items():
-        v = _ts_latest(ts_result, ts_key)
-        if v is not None:
-            raw_values[our_key] = v
+    raw = {
+        "currentAssets":      cur_assets,
+        "currentLiabilities": cur_liab,
+        "inventory":          inventory,
+        "cash":               cash,
+        "totalAssets":        total_assets,
+        "equity":             equity,
+        "totalDebt":          total_debt,
+        "revenue":            revenue,
+        "grossProfit":        gross_p,
+        "operatingExpenses":  op_exp,
+        "netProfit":          net_income,
+        "interestExpense":    interest,
+        "receivables":        receivables,
+        "cogs":               cogs_raw,
+    }
 
-    # Derive operating expenses = gross profit − operating income
-    op_income = raw_values.pop("_operatingIncome", None)
-    gross_p   = raw_values.get("grossProfit")
-    if op_income is not None and gross_p is not None:
-        raw_values["operatingExpenses"] = abs(gross_p - op_income)
-
-    # Derive COGS or gross profit if either is missing
-    revenue = raw_values.get("revenue")
-    if revenue:
-        if "grossProfit" not in raw_values and "cogs" in raw_values:
-            raw_values["grossProfit"] = revenue - raw_values["cogs"]
-        if "cogs" not in raw_values and "grossProfit" in raw_values:
-            raw_values["cogs"] = revenue - raw_values["grossProfit"]
-
-    # Interest expense is often reported negative
-    if "interestExpense" in raw_values:
-        raw_values["interestExpense"] = abs(raw_values["interestExpense"])
-
-    # ── convert to string integers ────────────────────────────────
-    ALL_KEYS = [
-        "currentAssets","currentLiabilities","inventory","cash","totalAssets",
-        "equity","totalDebt","revenue","grossProfit","operatingExpenses",
-        "netProfit","interestExpense","receivables","cogs",
-    ]
     mapped = {}
-    for k in ALL_KEYS:
-        v = raw_values.get(k)
+    for k, v in raw.items():
         if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
             mapped[k] = str(int(abs(round(v))))
 
     industry = SECTOR_MAP.get(sector, "general")
-    total    = len(ALL_KEYS)
+    total    = len(raw)
     filled   = len(mapped)
     coverage = round((filled / total) * 100)
 
