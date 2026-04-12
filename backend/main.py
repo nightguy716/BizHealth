@@ -15,6 +15,9 @@ Deploy to Render:
 import os
 import json
 import math
+import asyncio
+import requests
+from concurrent.futures import ThreadPoolExecutor
 import anthropic
 import httpx
 import yfinance as yf
@@ -22,6 +25,8 @@ import pandas as pd
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+_executor = ThreadPoolExecutor(max_workers=4)
 
 app = FastAPI(title="BizHealth API", version="1.0.0")
 
@@ -139,43 +144,90 @@ def _safe(df: pd.DataFrame, keys: list[str]):
     return None
 
 
+def _yf_session() -> requests.Session:
+    """Browser-like session so Yahoo Finance doesn't block Railway's server IP."""
+    s = requests.Session()
+    s.headers.update({
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    })
+    return s
+
+
+def _fetch_ticker_blocking(ticker_str: str):
+    """
+    All yfinance calls are synchronous blocking I/O.
+    This runs inside a ThreadPoolExecutor so the async event loop stays free.
+    """
+    session = _yf_session()
+    t = yf.Ticker(ticker_str, session=session)
+
+    # --- meta info (optional — graceful fallback) ---
+    name = ticker_str
+    currency = "USD"
+    sector = ""
+    try:
+        fi = t.fast_info
+        currency = getattr(fi, "currency", "USD") or "USD"
+    except Exception:
+        pass
+    try:
+        info = t.info or {}
+        name     = info.get("longName") or info.get("shortName") or ticker_str
+        sector   = info.get("sector", "")
+        currency = info.get("currency", currency)
+    except Exception:
+        pass
+
+    # --- income statement ---
+    inc = None
+    for attr in ("income_stmt", "financials"):
+        try:
+            df = getattr(t, attr, None)
+            if df is not None and not df.empty:
+                inc = df
+                break
+        except Exception:
+            pass
+
+    # --- balance sheet ---
+    bal = None
+    try:
+        df = t.balance_sheet
+        if df is not None and not df.empty:
+            bal = df
+    except Exception:
+        pass
+
+    # --- cash flow (for interest fallback) ---
+    cf = None
+    for attr in ("cashflow", "cash_flow"):
+        try:
+            df = getattr(t, attr, None)
+            if df is not None and not df.empty:
+                cf = df
+                break
+        except Exception:
+            pass
+
+    return name, currency, sector, inc, bal, cf
+
+
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
+    loop = asyncio.get_event_loop()
     try:
-        t    = yf.Ticker(ticker.upper())
-        info = t.info or {}
-
-        # yfinance 0.2.x renamed properties; try both old and new names
-        inc = None
-        for attr in ("income_stmt", "financials"):
-            try:
-                df = getattr(t, attr, None)
-                if df is not None and not df.empty:
-                    inc = df
-                    break
-            except Exception:
-                pass
-
-        bal = None
-        for attr in ("balance_sheet",):
-            try:
-                df = getattr(t, attr, None)
-                if df is not None and not df.empty:
-                    bal = df
-                    break
-            except Exception:
-                pass
-
-        cf = None
-        for attr in ("cashflow", "cash_flow"):
-            try:
-                df = getattr(t, attr, None)
-                if df is not None and not df.empty:
-                    cf = df
-                    break
-            except Exception:
-                pass
-
+        name, currency, sector, inc, bal, cf = await asyncio.wait_for(
+            loop.run_in_executor(_executor, _fetch_ticker_blocking, ticker.upper()),
+            timeout=35.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Yahoo Finance timed out — try again in a moment")
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
@@ -190,49 +242,35 @@ async def get_company(ticker: str):
     cogs_raw         = _safe(inc, ["Cost Of Revenue", "Reconciled Cost Of Revenue",
                                    "Cost Of Goods Sold"])
 
-    # If gross profit is missing, derive it: Revenue − COGS
     if gross_profit is None and revenue and cogs_raw:
         gross_profit = revenue - cogs_raw
-
-    # If COGS is missing, derive it: Revenue − Gross Profit
     if cogs_raw is None and revenue and gross_profit:
         cogs_raw = revenue - gross_profit
 
-    # Operating Expenses = Gross Profit − Operating Income
     op_expenses = None
     if gross_profit is not None and operating_income is not None:
         op_expenses = abs(gross_profit - operating_income)
 
-    # Interest expense: try income stmt first, then cash flow stmt
     interest_raw = _safe(inc, ["Interest Expense", "Interest Expense Non Operating",
                                 "Net Interest Income"])
     if interest_raw is None and cf is not None:
         interest_raw = _safe(cf, ["Interest Paid Cff", "Interest Paid", "Interest Expense Paid"])
     interest = abs(interest_raw) if interest_raw is not None else None
 
-    # Cash: try progressively broader bucket
     cash = _safe(bal, [
         "Cash And Cash Equivalents",
         "Cash Cash Equivalents And Short Term Investments",
         "Cash And Short Term Investments",
         "Cash Financial",
     ])
-
-    # Equity: try multiple names used across regions/versions
     equity = _safe(bal, [
-        "Stockholders Equity",
-        "Common Stock Equity",
-        "Total Stockholder Equity",
-        "Total Equity Gross Minority Interest",
+        "Stockholders Equity", "Common Stock Equity",
+        "Total Stockholder Equity", "Total Equity Gross Minority Interest",
         "Tangible Book Value",
     ])
-
-    # Receivables
     receivables = _safe(bal, [
-        "Net Receivables",
-        "Accounts Receivable",
-        "Receivables",
-        "Gross Accounts Receivable",
+        "Net Receivables", "Accounts Receivable",
+        "Receivables", "Gross Accounts Receivable",
     ])
 
     raw = {
@@ -243,7 +281,7 @@ async def get_company(ticker: str):
         "totalAssets":        _safe(bal, ["Total Assets"]),
         "equity":             equity,
         "totalDebt":          _safe(bal, ["Total Debt", "Long Term Debt And Capital Lease Obligation",
-                                          "Long Term Debt", "Net Debt"]),
+                                          "Long Term Debt"]),
         "revenue":            revenue,
         "grossProfit":        gross_profit,
         "operatingExpenses":  op_expenses,
@@ -253,27 +291,23 @@ async def get_company(ticker: str):
         "cogs":               cogs_raw,
     }
 
-    # Convert to whole-number strings; skip nulls / NaN
     mapped = {}
     for k, v in raw.items():
         if v is not None and not (isinstance(v, float) and math.isnan(v)):
             mapped[k] = str(int(abs(round(v))))
 
-    sector   = info.get("sector", "")
     industry = SECTOR_MAP.get(sector, "general")
-
-    # Build a coverage report so the frontend can show what filled
-    total      = len(raw)
-    filled     = len(mapped)
-    coverage   = round((filled / total) * 100)
+    total    = len(raw)
+    filled   = len(mapped)
+    coverage = round((filled / total) * 100)
 
     return {
         "ticker":   ticker.upper(),
-        "name":     info.get("longName") or info.get("shortName", ticker),
+        "name":     name,
         "sector":   sector,
         "industry": industry,
-        "currency": info.get("currency", "USD"),
-        "coverage": coverage,          # % of fields successfully fetched
+        "currency": currency,
+        "coverage": coverage,
         "filled":   filled,
         "total":    total,
         "data":     mapped,
