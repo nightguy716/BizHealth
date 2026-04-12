@@ -144,161 +144,150 @@ def _safe(df: pd.DataFrame, keys: list[str]):
     return None
 
 
-def _yf_session() -> requests.Session:
-    """Browser-like session so Yahoo Finance doesn't block Railway's server IP."""
-    s = requests.Session()
-    s.headers.update({
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        ),
-        "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-    })
-    return s
+YF_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Origin":          "https://finance.yahoo.com",
+    "Referer":         "https://finance.yahoo.com/",
+}
 
 
-def _fetch_ticker_blocking(ticker_str: str):
-    """
-    All yfinance calls are synchronous blocking I/O.
-    This runs inside a ThreadPoolExecutor so the async event loop stays free.
-    """
-    session = _yf_session()
-    t = yf.Ticker(ticker_str, session=session)
-
-    # --- meta info (optional — graceful fallback) ---
-    name = ticker_str
-    currency = "USD"
-    sector = ""
-    try:
-        fi = t.fast_info
-        currency = getattr(fi, "currency", "USD") or "USD"
-    except Exception:
-        pass
-    try:
-        info = t.info or {}
-        name     = info.get("longName") or info.get("shortName") or ticker_str
-        sector   = info.get("sector", "")
-        currency = info.get("currency", currency)
-    except Exception:
-        pass
-
-    # --- income statement ---
-    inc = None
-    for attr in ("income_stmt", "financials"):
-        try:
-            df = getattr(t, attr, None)
-            if df is not None and not df.empty:
-                inc = df
-                break
-        except Exception:
-            pass
-
-    # --- balance sheet ---
-    bal = None
-    try:
-        df = t.balance_sheet
-        if df is not None and not df.empty:
-            bal = df
-    except Exception:
-        pass
-
-    # --- cash flow (for interest fallback) ---
-    cf = None
-    for attr in ("cashflow", "cash_flow"):
-        try:
-            df = getattr(t, attr, None)
-            if df is not None and not df.empty:
-                cf = df
-                break
-        except Exception:
-            pass
-
-    return name, currency, sector, inc, bal, cf
-
-
-@app.get("/debug/{ticker}")
-async def debug_ticker(ticker: str):
-    """Returns raw field names from yfinance so we can fix the mapping."""
-    loop = asyncio.get_event_loop()
-    name, currency, sector, inc, bal, cf = await asyncio.wait_for(
-        loop.run_in_executor(_executor, _fetch_ticker_blocking, ticker.upper()),
-        timeout=35.0,
+async def _get_crumb(client: httpx.AsyncClient) -> str:
+    """Fetch Yahoo Finance session cookie + crumb (required since 2023)."""
+    await client.get("https://finance.yahoo.com", headers=YF_HEADERS)
+    r = await client.get(
+        "https://query2.finance.yahoo.com/v1/test/getcrumb",
+        headers=YF_HEADERS,
     )
-    return {
-        "income_stmt_fields": list(inc.index) if inc is not None and not inc.empty else [],
-        "balance_sheet_fields": list(bal.index) if bal is not None and not bal.empty else [],
-        "cashflow_fields": list(cf.index) if cf is not None and not cf.empty else [],
-    }
+    return r.text.strip()
+
+
+def _pick(d: dict, *keys):
+    """Return first non-None value from a nested dict by key path."""
+    for k in keys:
+        v = d.get(k)
+        if v is not None and v != "N/A":
+            try:
+                f = float(v)
+                if not math.isnan(f):
+                    return f
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _annual(stmt_list: list, *keys):
+    """Most-recent annual figure from a Yahoo Finance statement list."""
+    if not stmt_list:
+        return None
+    row = stmt_list[0]
+    for k in keys:
+        item = row.get(k, {})
+        raw  = item.get("raw") if isinstance(item, dict) else None
+        if raw is not None:
+            try:
+                f = float(raw)
+                if not math.isnan(f):
+                    return f
+            except (TypeError, ValueError):
+                pass
+    return None
 
 
 @app.get("/company/{ticker}")
 async def get_company(ticker: str):
-    loop = asyncio.get_event_loop()
+    """
+    Calls Yahoo Finance's quoteSummary v10 API directly — bypasses the
+    yfinance library which gets IP-blocked on cloud servers.
+    """
+    sym = ticker.upper()
+    modules = "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory,assetProfile,price"
+    url = f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}?modules={modules}"
+
     try:
-        name, currency, sector, inc, bal, cf = await asyncio.wait_for(
-            loop.run_in_executor(_executor, _fetch_ticker_blocking, ticker.upper()),
-            timeout=35.0,
-        )
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="Yahoo Finance timed out — try again in a moment")
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            # Step 1 — get session cookie + crumb
+            crumb = await _get_crumb(client)
+            # Step 2 — fetch financial data
+            r = await client.get(
+                url + f"&crumb={crumb}",
+                headers=YF_HEADERS,
+            )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+        raise HTTPException(status_code=502, detail=f"Yahoo Finance request failed: {e}")
 
-    if inc is None or inc.empty:
-        raise HTTPException(status_code=404, detail=f"No financial data found for {ticker.upper()}")
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code,
+                            detail=f"Yahoo Finance returned {r.status_code}")
 
-    gross_profit     = _safe(inc, ["Gross Profit"])
-    operating_income = _safe(inc, ["Operating Income", "EBIT", "Operating Income Loss"])
-    revenue          = _safe(inc, ["Total Revenue", "Revenue"])
-    net_income       = _safe(inc, ["Net Income", "Net Income Common Stockholders",
-                                   "Net Income Including Noncontrolling Interests"])
-    cogs_raw         = _safe(inc, ["Cost Of Revenue", "Reconciled Cost Of Revenue",
-                                   "Cost Of Goods Sold"])
+    body = r.json()
+    result = body.get("quoteSummary", {}).get("result")
+    if not result:
+        err = body.get("quoteSummary", {}).get("error", {})
+        raise HTTPException(status_code=404,
+                            detail=err.get("description", f"No data for {sym}"))
 
-    if gross_profit is None and revenue and cogs_raw:
-        gross_profit = revenue - cogs_raw
-    if cogs_raw is None and revenue and gross_profit:
-        cogs_raw = revenue - gross_profit
+    data   = result[0]
+    inc_h  = data.get("incomeStatementHistory",  {}).get("incomeStatementHistory",  [])
+    bal_h  = data.get("balanceSheetHistory",     {}).get("balanceSheetHistory",     [])
+    cf_h   = data.get("cashflowStatementHistory",{}).get("cashflowStatementHistory",[])
+    profile= data.get("assetProfile", {})
+    price  = data.get("price", {})
+
+    sector   = profile.get("sector", "")
+    name     = price.get("longName") or price.get("shortName") or sym
+    currency = price.get("currency") or price.get("currencySymbol") or "USD"
+
+    # ── income statement (most-recent annual = index 0) ──────────
+    revenue     = _annual(inc_h, "totalRevenue")
+    gross_p     = _annual(inc_h, "grossProfit")
+    cogs_raw    = _annual(inc_h, "costOfRevenue")
+    op_income   = _annual(inc_h, "operatingIncome", "ebit")
+    net_income  = _annual(inc_h, "netIncome")
+    int_exp_raw = _annual(inc_h, "interestExpense")
+
+    # ── cash flow (interest paid fallback) ───────────────────────
+    int_paid = _annual(cf_h, "interestPaid") if int_exp_raw is None else None
+
+    # ── balance sheet ─────────────────────────────────────────────
+    cur_assets = _annual(bal_h, "totalCurrentAssets")
+    cur_liab   = _annual(bal_h, "totalCurrentLiabilities")
+    inventory  = _annual(bal_h, "inventory")
+    cash       = _annual(bal_h, "cash", "cashAndCashEquivalents",
+                         "cashAndShortTermInvestments")
+    total_assets = _annual(bal_h, "totalAssets")
+    equity     = _annual(bal_h, "totalStockholderEquity", "stockholdersEquity")
+    total_debt = _annual(bal_h, "totalDebt", "longTermDebt",
+                         "longTermDebtAndCapitalLeaseObligation")
+    receivables= _annual(bal_h, "netReceivables", "accountsReceivable")
+
+    # ── derived values ────────────────────────────────────────────
+    if gross_p is None and revenue and cogs_raw:
+        gross_p = revenue - cogs_raw
+    if cogs_raw is None and revenue and gross_p:
+        cogs_raw = revenue - gross_p
 
     op_expenses = None
-    if gross_profit is not None and operating_income is not None:
-        op_expenses = abs(gross_profit - operating_income)
+    if gross_p is not None and op_income is not None:
+        op_expenses = abs(gross_p - op_income)
 
-    interest_raw = _safe(inc, ["Interest Expense", "Interest Expense Non Operating",
-                                "Net Interest Income"])
-    if interest_raw is None and cf is not None:
-        interest_raw = _safe(cf, ["Interest Paid Cff", "Interest Paid", "Interest Expense Paid"])
-    interest = abs(interest_raw) if interest_raw is not None else None
-
-    cash = _safe(bal, [
-        "Cash And Cash Equivalents",
-        "Cash Cash Equivalents And Short Term Investments",
-        "Cash And Short Term Investments",
-        "Cash Financial",
-    ])
-    equity = _safe(bal, [
-        "Stockholders Equity", "Common Stock Equity",
-        "Total Stockholder Equity", "Total Equity Gross Minority Interest",
-        "Tangible Book Value",
-    ])
-    receivables = _safe(bal, [
-        "Net Receivables", "Accounts Receivable",
-        "Receivables", "Gross Accounts Receivable",
-    ])
+    interest = abs(int_exp_raw or int_paid or 0) or None
 
     raw = {
-        "currentAssets":      _safe(bal, ["Current Assets", "Total Current Assets"]),
-        "currentLiabilities": _safe(bal, ["Current Liabilities", "Total Current Liabilities"]),
-        "inventory":          _safe(bal, ["Inventory", "Inventories"]),
+        "currentAssets":      cur_assets,
+        "currentLiabilities": cur_liab,
+        "inventory":          inventory,
         "cash":               cash,
-        "totalAssets":        _safe(bal, ["Total Assets"]),
+        "totalAssets":        total_assets,
         "equity":             equity,
-        "totalDebt":          _safe(bal, ["Total Debt", "Long Term Debt And Capital Lease Obligation",
-                                          "Long Term Debt"]),
+        "totalDebt":          total_debt,
         "revenue":            revenue,
-        "grossProfit":        gross_profit,
+        "grossProfit":        gross_p,
         "operatingExpenses":  op_expenses,
         "netProfit":          net_income,
         "interestExpense":    interest,
@@ -308,7 +297,7 @@ async def get_company(ticker: str):
 
     mapped = {}
     for k, v in raw.items():
-        if v is not None and not (isinstance(v, float) and math.isnan(v)):
+        if v is not None and not (isinstance(v, float) and math.isnan(v)) and v != 0:
             mapped[k] = str(int(abs(round(v))))
 
     industry = SECTOR_MAP.get(sector, "general")
@@ -317,7 +306,7 @@ async def get_company(ticker: str):
     coverage = round((filled / total) * 100)
 
     return {
-        "ticker":   ticker.upper(),
+        "ticker":   sym,
         "name":     name,
         "sector":   sector,
         "industry": industry,
