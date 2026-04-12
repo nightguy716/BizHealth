@@ -54,6 +54,9 @@ export default function App() {
   const [results,         setResults]         = useState(null);
   const [calculated,      setCalculated]      = useState(false);
   const [companyContext,  setCompanyContext]   = useState({ name: '', ticker: '', currency: 'INR', isListed: false });
+  const [historical,      setHistorical]      = useState({ income: [], balance: [] });
+  const [aiInsights,      setAiInsights]      = useState(null);
+  const [exporting,       setExporting]       = useState(false);
   const resultsRef = useRef(null);
 
   const n = key => parseFloat(inputs[key]) || 0;
@@ -86,6 +89,46 @@ export default function App() {
     setInputs(EMPTY_INPUTS);
     setResults(null);
     setCalculated(false);
+    setHistorical({ income: [], balance: [] });
+    setAiInsights(null);
+    setCompanyContext({ name: '', ticker: '', currency: 'INR', isListed: false });
+  }
+
+  async function handleExportExcel() {
+    if (!results) return;
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) { alert('Backend not connected'); return; }
+    setExporting(true);
+    try {
+      const body = {
+        company:    companyContext,
+        industry,
+        score:      healthScore,
+        ratios:     results.ratioValues,
+        statuses:   results.statuses,
+        inputs,
+        historical,
+        ai_insights: aiInsights || {},
+      };
+      const res = await fetch(`${backendUrl}/export/excel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      const co   = companyContext.name || 'BizHealth';
+      a.href     = url;
+      a.download = `BizHealth-${co.replace(/\s+/g,'-')}-Analysis.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Excel export failed: ' + e.message);
+    } finally {
+      setExporting(false);
+    }
   }
 
   function handleExportPDF() {
@@ -268,7 +311,10 @@ export default function App() {
         inputs={inputs} setInputs={setInputs}
         industry={industry} setIndustry={setIndustry}
         onCalculate={handleCalculate} onReset={handleReset}
-        onCompanyLoaded={ctx => setCompanyContext(ctx)}
+        onCompanyLoaded={(ctx, hist) => {
+          setCompanyContext(ctx);
+          if (hist) setHistorical(hist);
+        }}
       />
 
       <main className="flex-1 lg:ml-80 min-h-screen">
@@ -326,7 +372,12 @@ export default function App() {
           {/* ── Results ── */}
           {calculated && results && (
             <>
-              <SummaryBanner statuses={allStatuses} onExportPDF={handleExportPDF} />
+              <SummaryBanner
+                statuses={allStatuses}
+                onExportPDF={handleExportPDF}
+                onExportExcel={handleExportExcel}
+                exporting={exporting}
+              />
 
               {(() => {
                 let idx = 0;
@@ -343,6 +394,7 @@ export default function App() {
                 score={healthScore}
                 industry={industry}
                 companyContext={companyContext}
+                onInsightsReady={setAiInsights}
               />
 
               <BankReadiness ratioValues={results.ratioValues} />

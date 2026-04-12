@@ -110,12 +110,10 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
           if (companyData.industry && INDUSTRY_BENCHMARKS[companyData.industry]) {
             setIndustry(companyData.industry);
           }
-          onCompanyLoaded?.({
-            name:     companyData.name,
-            ticker:   companyData.ticker,
-            currency: companyData.currency,
-            isListed: true,
-          });
+          onCompanyLoaded?.(
+            { name: companyData.name, ticker: companyData.ticker, currency: companyData.currency, isListed: true },
+            companyData.historical || { income: [], balance: [] }
+          );
         }} />
       </div>
 

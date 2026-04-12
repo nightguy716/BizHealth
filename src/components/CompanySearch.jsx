@@ -95,35 +95,67 @@ async function fetchCompanyData(rawTicker, fallbackName) {
   const ovRes  = await fetch(`${AV_BASE}?function=OVERVIEW&symbol=${sym}&apikey=${AV_KEY}`);
   const ovData = await ovRes.json();
 
-  const inc = reports[0];
-  const bal = balOk ? balData.annualReports[0] : {};
+  // ── Build 5-year historical dataset ───────────────────────
+  const incReports = reports.slice(0, 5);
+  const balReports = balOk ? (balData.annualReports || []).slice(0, 5) : [];
 
-  const grossP   = fv(inc, 'grossProfit');
-  const opIncome = fv(inc, 'operatingIncome');
-  const revenue  = fv(inc, 'totalRevenue');
-  const cogsRaw  = fv(inc, 'costOfRevenue', 'costofGoodsAndServicesSold');
-  const opExp    = (grossP != null && opIncome != null)
-    ? Math.abs(grossP - opIncome)
-    : fv(inc, 'operatingExpenses');
+  function parseIncYear(r) {
+    const grossP   = fv(r, 'grossProfit');
+    const opIncome = fv(r, 'operatingIncome');
+    const revenue  = fv(r, 'totalRevenue');
+    const cogsRaw  = fv(r, 'costOfRevenue', 'costofGoodsAndServicesSold');
+    const opExp    = grossP != null && opIncome != null ? Math.abs(grossP - opIncome) : fv(r, 'operatingExpenses');
+    return {
+      year:             r.fiscalDateEnding?.slice(0,4) || '',
+      revenue:          revenue,
+      grossProfit:      grossP ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
+      cogs:             cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
+      operatingExpenses:opExp,
+      operatingIncome:  opIncome,
+      netProfit:        fv(r, 'netIncome', 'netIncomeFromContinuingOperations'),
+      interestExpense:  Math.abs(fv(r, 'interestExpense', 'interestAndDebtExpense') ?? 0) || null,
+      ebitda:           fv(r, 'ebitda'),
+    };
+  }
+
+  function parseBalYear(r) {
+    return {
+      year:             r.fiscalDateEnding?.slice(0,4) || '',
+      currentAssets:    fv(r, 'totalCurrentAssets'),
+      currentLiabilities:fv(r,'totalCurrentLiabilities'),
+      inventory:        fv(r, 'inventory'),
+      cash:             fv(r, 'cashAndCashEquivalentsAtCarryingValue', 'cashAndShortTermInvestments', 'cashAndCashEquivalents'),
+      totalAssets:      fv(r, 'totalAssets'),
+      equity:           fv(r, 'totalShareholderEquity', 'totalStockholdersEquity', 'commonStockholdersEquity'),
+      totalDebt:        fv(r, 'shortLongTermDebtTotal', 'longTermDebt', 'currentLongTermDebt'),
+      receivables:      fv(r, 'currentNetReceivables', 'netReceivables'),
+    };
+  }
+
+  const historical = {
+    income:  incReports.map(parseIncYear),
+    balance: balReports.map(parseBalYear),
+  };
+
+  // Most-recent year → input fields
+  const inc = historical.income[0] || {};
+  const bal = historical.balance[0] || {};
 
   const raw = {
-    currentAssets:      fv(bal, 'totalCurrentAssets'),
-    currentLiabilities: fv(bal, 'totalCurrentLiabilities'),
-    inventory:          fv(bal, 'inventory'),
-    cash:               fv(bal, 'cashAndCashEquivalentsAtCarryingValue',
-                             'cashAndShortTermInvestments', 'cashAndCashEquivalents'),
-    totalAssets:        fv(bal, 'totalAssets'),
-    equity:             fv(bal, 'totalShareholderEquity', 'totalStockholdersEquity',
-                             'commonStockholdersEquity'),
-    totalDebt:          fv(bal, 'shortLongTermDebtTotal', 'longTermDebt',
-                             'currentLongTermDebt'),
-    revenue,
-    grossProfit:        grossP  ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
-    operatingExpenses:  opExp,
-    netProfit:          fv(inc, 'netIncome', 'netIncomeFromContinuingOperations'),
-    interestExpense:    Math.abs(fv(inc, 'interestExpense', 'interestAndDebtExpense') ?? 0) || null,
-    receivables:        fv(bal, 'currentNetReceivables', 'netReceivables'),
-    cogs:               cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
+    currentAssets:      bal.currentAssets,
+    currentLiabilities: bal.currentLiabilities,
+    inventory:          bal.inventory,
+    cash:               bal.cash,
+    totalAssets:        bal.totalAssets,
+    equity:             bal.equity,
+    totalDebt:          bal.totalDebt,
+    revenue:            inc.revenue,
+    grossProfit:        inc.grossProfit,
+    operatingExpenses:  inc.operatingExpenses,
+    netProfit:          inc.netProfit,
+    interestExpense:    inc.interestExpense,
+    receivables:        bal.receivables,
+    cogs:               inc.cogs,
   };
 
   const data = {};
@@ -139,7 +171,7 @@ async function fetchCompanyData(rawTicker, fallbackName) {
   const currency = isRateLimited(ovData) ? 'USD' : (ovData.Currency || 'USD');
   const name     = isRateLimited(ovData) ? (fallbackName || sym) : (ovData.Name || fallbackName || sym);
 
-  const result = { ticker: sym, name, sector, industry: SECTOR_MAP[sector] || 'general', currency, coverage, filled, total, data };
+  const result = { ticker: sym, name, sector, industry: SECTOR_MAP[sector] || 'general', currency, coverage, filled, total, data, historical };
   setCached(sym, result);
   return result;
 }

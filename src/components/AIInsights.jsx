@@ -18,7 +18,7 @@ function Dots() {
   );
 }
 
-export default function AIInsights({ ratioValues, statuses, score, industry, companyContext = {} }) {
+export default function AIInsights({ ratioValues, statuses, score, industry, companyContext = {}, onInsightsReady }) {
   const [ins,     setIns]     = useState(null);
   const [loading, setLoading] = useState(false);
   const [done,    setDone]    = useState(false);
@@ -29,12 +29,12 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
     if (url) {
       try {
         const r = await fetch(`${url}/analyze`,{ method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ratios:ratioValues, statuses, industry, score, company: companyContext }) });
-        if (r.ok) { setIns(await r.json()); setLoading(false); setDone(true); return; }
+        if (r.ok) { const ins = await r.json(); setIns(ins); onInsightsReady?.(ins); setLoading(false); setDone(true); return; }
       } catch (_) {}
     }
     await new Promise(r=>setTimeout(r,1500));
-    setIns(analyzeFinancials(ratioValues, statuses, score, industry));
-    setLoading(false); setDone(true);
+    const ins = analyzeFinancials(ratioValues, statuses, score, industry);
+    setIns(ins); onInsightsReady?.(ins); setLoading(false); setDone(true);
   }
 
   return (
