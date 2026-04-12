@@ -49,8 +49,9 @@ export default function SectorComparison({ ratioValues, industry }) {
                 onClick={() => setSelected(c.name)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all duration-150 border
                   ${selected === c.name
-                    ? 'bg-orange-500/20 border-orange-500/40 text-orange-300'
+                    ? 'border-[rgba(79,110,247,0.45)] text-[#6b84f8]'
                     : 'bg-white/[0.04] border-white/[0.08] text-slate-400 hover:text-slate-200 hover:bg-white/[0.08]'}`}
+                style={selected === c.name ? { background:'rgba(79,110,247,0.12)' } : {}}
               >
                 {c.name}
                 <span className="ml-1.5 text-[10px] opacity-60">({c.ticker})</span>
@@ -72,7 +73,7 @@ export default function SectorComparison({ ratioValues, industry }) {
             <thead>
               <tr className="border-b border-white/[0.06]">
                 <th className="text-left text-[10px] font-semibold text-slate-600 uppercase tracking-wider pb-3 pr-4">Ratio</th>
-                <th className="text-right text-[10px] font-semibold text-orange-400 uppercase tracking-wider pb-3 px-4">Your Business</th>
+                <th className="text-right text-[10px] font-semibold uppercase tracking-wider pb-3 px-4" style={{ color:'#6b84f8' }}>Your Business</th>
                 <th className="text-right text-[10px] font-semibold text-slate-500 uppercase tracking-wider pb-3 px-4">{company?.ticker || '—'}</th>
                 <th className="text-right text-[10px] font-semibold text-slate-600 uppercase tracking-wider pb-3 pl-4">vs</th>
               </tr>
@@ -93,7 +94,7 @@ export default function SectorComparison({ ratioValues, industry }) {
                 return (
                   <tr key={key} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
                     <td className="py-2.5 pr-4 text-slate-400 text-xs">{label}</td>
-                    <td className="py-2.5 px-4 text-right text-orange-300 font-semibold text-sm">{userDisplay}</td>
+                    <td className="py-2.5 px-4 text-right font-semibold text-sm" style={{ color:'#6b84f8' }}>{userDisplay}</td>
                     <td className="py-2.5 px-4 text-right text-slate-500 text-sm">{compDisplay}</td>
                     <td className="py-2.5 pl-4 text-right">
                       {indicator

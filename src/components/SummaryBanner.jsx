@@ -7,7 +7,7 @@ import HealthRadar from './HealthRadar';
 const VERDICTS = {
   strong:  { label: 'STRONG',        sub: 'Financial Health',   color: '#00e887', ring: '#00e887', shadow: 'rgba(0,232,135,0.4)'   },
   moderate:{ label: 'MODERATE',      sub: 'Financial Health',   color: '#fbbf24', ring: '#fbbf24', shadow: 'rgba(251,191,36,0.4)'  },
-  below:   { label: 'BELOW AVERAGE', sub: 'Requires Attention', color: '#f97316', ring: '#f97316', shadow: 'rgba(249,115,22,0.4)'  },
+  below:   { label: 'BELOW AVERAGE', sub: 'Requires Attention', color: '#6b84f8', ring: '#4f6ef7', shadow: 'rgba(79,110,247,0.45)' },
   critical:{ label: 'CRITICAL',      sub: 'Immediate Action',   color: '#f43f5e', ring: '#f43f5e', shadow: 'rgba(244,63,94,0.4)'   },
 };
 
@@ -76,7 +76,7 @@ export default function SummaryBanner({ statuses, onExportPDF }) {
 
   return (
     <div className="ghost-card rounded-2xl mb-8 overflow-hidden relative animate-in"
-      style={{ borderColor: `rgba(${v.ring === '#00e887' ? '0,232,135' : v.ring === '#fbbf24' ? '251,191,36' : v.ring === '#f97316' ? '249,115,22' : '244,63,94'},0.18)` }}>
+      style={{ borderColor: `rgba(${v.ring === '#00e887' ? '0,232,135' : v.ring === '#fbbf24' ? '251,191,36' : v.ring === '#4f6ef7' ? '79,110,247' : '244,63,94'},0.18)` }}>
 
       {/* Corner decorations */}
       <div className="absolute top-0 right-0 w-64 h-64 rounded-full blur-3xl pointer-events-none" style={{ background: `radial-gradient(circle, ${v.shadow} 0%, transparent 70%)`, opacity: 0.12, transform: 'translate(30%,-30%)' }} />

@@ -90,9 +90,9 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
           <Logo size={40} />
           <div>
             <div className="text-white font-bold text-[17px] tracking-tight leading-none">
-              Biz<span style={{ color:'#22d3ee' }}>Health</span>
+              Biz<span style={{ color:'#6b84f8' }}>Health</span>
             </div>
-            <div className="mono text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color:'rgba(34,211,238,0.4)' }}>
+            <div className="mono text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color:'rgba(79,110,247,0.5)' }}>
               Financial Intelligence v3
             </div>
           </div>
@@ -101,12 +101,12 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* Industry */}
       <div className="px-5 pt-4 pb-3">
-        <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(34,211,238,0.5)' }}>
+        <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(79,110,247,0.6)' }}>
           // INDUSTRY SECTOR
         </label>
         <select value={industry} onChange={e => setIndustry(e.target.value)}
           className="w-full text-slate-200 text-xs rounded-xl px-3 py-2.5 cursor-pointer outline-none"
-          style={{ background:'rgba(34,211,238,0.04)', border:'1px solid rgba(34,211,238,0.15)', colorScheme:'dark' }}>
+          style={{ background:'rgba(79,110,247,0.05)', border:'1px solid rgba(79,110,247,0.2)', colorScheme:'dark' }}>
           {Object.entries(INDUSTRY_BENCHMARKS).map(([k,v]) => (
             <option key={k} value={k} style={{ background:'#030711' }}>{v.label}</option>
           ))}
@@ -115,13 +115,13 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* Quick fill */}
       <div className="px-5 pb-3" style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-        <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(34,211,238,0.5)' }}>
+        <label className="mono block text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(79,110,247,0.6)' }}>
           // QUICK FILL
         </label>
         <div className="flex gap-2">
           <button onClick={() => setInputs(DEMO_DATA)}
             className="flex-1 text-[11px] font-bold py-2 rounded-xl transition-all duration-200"
-            style={{ background:'rgba(249,115,22,0.1)', border:'1px solid rgba(249,115,22,0.25)', color:'#f97316' }}>
+            style={{ background:'rgba(79,110,247,0.12)', border:'1px solid rgba(79,110,247,0.3)', color:'#6b84f8' }}>
             ⚡ Demo
           </button>
           <button onClick={() => fileRef.current?.click()}
@@ -141,7 +141,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         </div>
         <div className="h-[2px] rounded-full overflow-hidden" style={{ background:'rgba(255,255,255,0.05)' }}>
           <div className="h-full rounded-full transition-all duration-500"
-            style={{ width:`${pct}%`, background: pct===100 ? 'linear-gradient(90deg,#00e887,#22d3ee)' : 'linear-gradient(90deg,#f97316,#fbbf24)', boxShadow: pct===100?'0 0 8px #00e887':'0 0 8px #f97316' }} />
+            style={{ width:`${pct}%`, background: pct===100 ? 'linear-gradient(90deg,#00e887,#22d3ee)' : 'linear-gradient(90deg,#4f6ef7,#6b84f8)', boxShadow: pct===100?'0 0 8px #00e887':'0 0 8px rgba(79,110,247,0.7)' }} />
         </div>
       </div>
 
@@ -149,7 +149,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
       <div className="px-5 pb-2 pt-2 flex-1">
         {GROUPS.map(g => (
           <div key={g} className="mb-4">
-            <div className="mono text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(34,211,238,0.35)' }}>
+            <div className="mono text-[9px] font-bold uppercase tracking-widest mb-2" style={{ color:'rgba(79,110,247,0.5)' }}>
               // {g}
             </div>
             <div className="space-y-1.5">

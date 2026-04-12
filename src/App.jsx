@@ -168,7 +168,7 @@ export default function App() {
             <div className="flex flex-col items-center justify-center min-h-[80vh] text-center select-none">
               {/* Glow halo behind logo */}
               <div className="relative mb-6">
-                <div className="absolute inset-0 rounded-full blur-2xl" style={{ background:'radial-gradient(circle, rgba(249,115,22,0.3) 0%, transparent 70%)', transform:'scale(2.5)' }} />
+                <div className="absolute inset-0 rounded-full blur-2xl" style={{ background:'radial-gradient(circle, rgba(79,110,247,0.35) 0%, transparent 70%)', transform:'scale(2.5)' }} />
                 <Logo size={80} />
               </div>
 
@@ -180,7 +180,7 @@ export default function App() {
               </p>
 
               <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-2">
-                Enter your financials, or hit <span style={{ color:'#f97316' }}>⚡ Demo</span> in the sidebar for instant results.
+                Enter your financials, or hit <span style={{ color:'#6b84f8' }}>⚡ Demo</span> in the sidebar for instant results.
               </p>
               <p className="text-slate-700 text-xs mb-10 mono">14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
 

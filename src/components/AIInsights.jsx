@@ -5,13 +5,13 @@ const U = { High:'rgba(244,63,94,0.12)','Medium':'rgba(251,191,36,0.1)','Low':'r
 const UC= { High:'#f43f5e', Medium:'#fbbf24', Low:'#64748b' };
 const I = { High:'rgba(0,232,135,0.1)', Medium:'rgba(34,211,238,0.08)', Low:'rgba(255,255,255,0.04)' };
 const IC= { High:'#00e887', Medium:'#22d3ee', Low:'#64748b' };
-const V = { Strong:'#00e887', Moderate:'#fbbf24', 'Below Average':'#f97316', Critical:'#f43f5e' };
+const V = { Strong:'#00e887', Moderate:'#fbbf24', 'Below Average':'#6b84f8', Critical:'#f43f5e' };
 
 function Dots() {
   return (
     <div className="flex items-center gap-1.5">
       {[0,1,2].map(i => (
-        <span key={i} className="w-2 h-2 rounded-full" style={{ background:'#f97316', boxShadow:'0 0 6px #f97316', animation:`neon-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
+        <span key={i} className="w-2 h-2 rounded-full" style={{ background:'#4f6ef7', boxShadow:'0 0 6px #4f6ef7', animation:`neon-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
       ))}
       <span className="mono text-[11px] text-slate-600 ml-2">ANALYSING FINANCIALS…</span>
     </div>
@@ -116,12 +116,12 @@ export default function AIInsights({ ratioValues, statuses, score, industry }) {
           </div>
 
           {/* Actions */}
-          <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(249,115,22,0.15)' }}>
-            <div className="mono text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-4">⚡ PRIORITY ACTION PLAN</div>
+          <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(79,110,247,0.18)' }}>
+            <div className="mono text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color:'#6b84f8' }}>⚡ PRIORITY ACTION PLAN</div>
             <div className="space-y-3">
               {(ins.priority_actions||[]).map((a,i) => (
                 <div key={i} className="flex gap-3 py-2.5" style={{ borderBottom:'1px solid rgba(255,255,255,0.04)' }}>
-                  <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mono text-[11px] font-bold mt-0.5" style={{ background:'rgba(249,115,22,0.12)', border:'1px solid rgba(249,115,22,0.3)', color:'#f97316' }}>{i+1}</div>
+                  <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center mono text-[11px] font-bold mt-0.5" style={{ background:'rgba(79,110,247,0.12)', border:'1px solid rgba(79,110,247,0.3)', color:'#6b84f8' }}>{i+1}</div>
                   <div>
                     <p className="text-slate-300 text-xs leading-relaxed">{a.action}</p>
                     <div className="flex flex-wrap gap-3 mt-1.5">

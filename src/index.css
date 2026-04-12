@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════════════════════
-   BIZHEALTH — NEON/GHOST DESIGN SYSTEM
+   BIZHEALTH — NEON/GHOST DESIGN SYSTEM · ROYAL BLUE
    ═══════════════════════════════════════════════════════ */
 
 :root {
@@ -12,7 +12,9 @@
   --border-hi:  rgba(255, 255, 255, 0.14);
 
   --cyan:   #22d3ee;
-  --orange: #f97316;
+  --royal:  #4f6ef7;          /* primary action colour */
+  --royal-light: #6b84f8;
+  --royal-dark:  #3d5af1;
   --green:  #00e887;
   --amber:  #fbbf24;
   --red:    #f43f5e;
@@ -42,17 +44,17 @@
 /* ── Scrollbar ─────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: rgba(34,211,238,0.2); border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: rgba(79,110,247,0.25); border-radius: 4px; }
 
 /* ── Animated grid background ──────────────────────── */
 .page-bg {
   background-color: var(--bg);
   background-image:
-    linear-gradient(rgba(34,211,238,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(34,211,238,0.03) 1px, transparent 1px),
-    radial-gradient(ellipse 70% 50% at 105% -5%,  rgba(249,115,22,0.09)  0%, transparent 55%),
+    linear-gradient(rgba(34,211,238,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34,211,238,0.025) 1px, transparent 1px),
+    radial-gradient(ellipse 70% 50% at 105% -5%,  rgba(79,110,247,0.12)  0%, transparent 55%),
     radial-gradient(ellipse 55% 45% at -5%  105%, rgba(34,211,238,0.07)  0%, transparent 55%),
-    radial-gradient(ellipse 40% 35% at 50%  50%,  rgba(34,211,238,0.02)  0%, transparent 70%);
+    radial-gradient(ellipse 40% 35% at 50%  50%,  rgba(79,110,247,0.03)  0%, transparent 70%);
   background-size: 48px 48px, 48px 48px, 100% 100%, 100% 100%, 100% 100%;
 }
 
@@ -81,7 +83,6 @@
   box-shadow: 0 0 0 1px rgba(0,232,135,0.10) inset,
               0 0 36px -5px rgba(0,232,135,0.28);
 }
-
 .card-amber {
   border-color: rgba(251,191,36,0.22);
   box-shadow: 0 0 0 1px rgba(251,191,36,0.06) inset,
@@ -93,7 +94,6 @@
   box-shadow: 0 0 0 1px rgba(251,191,36,0.10) inset,
               0 0 36px -5px rgba(251,191,36,0.28);
 }
-
 .card-red {
   border-color: rgba(244,63,94,0.22);
   box-shadow: 0 0 0 1px rgba(244,63,94,0.06) inset,
@@ -105,13 +105,12 @@
   box-shadow: 0 0 0 1px rgba(244,63,94,0.10) inset,
               0 0 36px -5px rgba(244,63,94,0.28);
 }
-
 .card-na {
   border-color: rgba(255,255,255,0.06);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
-/* ── Neon value text (glowing numbers) ─────────────── */
+/* ── Neon value text ────────────────────────────────── */
 .val-green { color: var(--green); text-shadow: 0 0 22px rgba(0,232,135,0.55); }
 .val-amber { color: var(--amber); text-shadow: 0 0 22px rgba(251,191,36,0.55); }
 .val-red   { color: var(--red);   text-shadow: 0 0 22px rgba(244,63,94,0.55);  }
@@ -124,15 +123,15 @@
 .badge-na    { background: rgba(255,255,255,0.05); color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); }
 
 /* ── Neon bar fills ─────────────────────────────────── */
-.bar-green { background: linear-gradient(90deg, rgba(0,232,135,0.6), var(--green));   box-shadow: 0 0 8px rgba(0,232,135,0.6);  }
-.bar-amber { background: linear-gradient(90deg, rgba(251,191,36,0.6), var(--amber));  box-shadow: 0 0 8px rgba(251,191,36,0.6); }
-.bar-red   { background: linear-gradient(90deg, rgba(244,63,94,0.6), var(--red));     box-shadow: 0 0 8px rgba(244,63,94,0.6);  }
+.bar-green { background: linear-gradient(90deg, rgba(0,232,135,0.6), var(--green));  box-shadow: 0 0 8px rgba(0,232,135,0.6);  }
+.bar-amber { background: linear-gradient(90deg, rgba(251,191,36,0.6), var(--amber)); box-shadow: 0 0 8px rgba(251,191,36,0.6); }
+.bar-red   { background: linear-gradient(90deg, rgba(244,63,94,0.6), var(--red));    box-shadow: 0 0 8px rgba(244,63,94,0.6);  }
 .bar-na    { background: rgba(255,255,255,0.1); }
 
 /* ── Sidebar input ──────────────────────────────────── */
 .input-neon {
   width: 100%;
-  background: rgba(34,211,238,0.03);
+  background: rgba(79,110,247,0.04);
   border: 1px solid rgba(255,255,255,0.08);
   color: var(--text);
   border-radius: 8px;
@@ -144,24 +143,24 @@
 }
 .input-neon::placeholder { color: rgba(148,163,184,0.3); }
 .input-neon:focus {
-  border-color: rgba(34,211,238,0.45);
-  background: rgba(34,211,238,0.06);
-  box-shadow: 0 0 0 2px rgba(34,211,238,0.1), 0 0 16px -4px rgba(34,211,238,0.2);
+  border-color: rgba(79,110,247,0.55);
+  background: rgba(79,110,247,0.08);
+  box-shadow: 0 0 0 2px rgba(79,110,247,0.12), 0 0 16px -4px rgba(79,110,247,0.25);
 }
 
-/* ── CTA button glow ─────────────────────────────────── */
+/* ── Royal blue CTA button ───────────────────────────── */
 .btn-primary {
-  background: linear-gradient(135deg, #f97316 0%, #ea580c 100%);
-  box-shadow: 0 0 20px -4px rgba(249,115,22,0.5), 0 4px 12px rgba(0,0,0,0.3);
+  background: linear-gradient(135deg, #4f6ef7 0%, #3d5af1 100%);
+  box-shadow: 0 0 22px -4px rgba(79,110,247,0.55), 0 4px 12px rgba(0,0,0,0.35);
   transition: box-shadow 0.2s, transform 0.1s, filter 0.2s;
 }
 .btn-primary:hover {
-  box-shadow: 0 0 32px -3px rgba(249,115,22,0.65), 0 4px 16px rgba(0,0,0,0.3);
-  filter: brightness(1.1);
+  box-shadow: 0 0 36px -3px rgba(79,110,247,0.70), 0 4px 16px rgba(0,0,0,0.35);
+  filter: brightness(1.12);
 }
 .btn-primary:active { transform: scale(0.98); }
 
-/* ── Monospace number display ───────────────────────── */
+/* ── Monospace ───────────────────────────────────────── */
 .mono { font-family: var(--font-mono); }
 
 /* ── Entrance animation ──────────────────────────────── */
@@ -181,53 +180,16 @@
   transition: width 1.2s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* ── Scan-line overlay (very subtle) ────────────────── */
-.scanlines {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 3px,
-    rgba(0,0,0,0.04) 3px,
-    rgba(0,0,0,0.04) 4px
-  );
-  pointer-events: none;
-}
-
-/* ── Cyan accent line ────────────────────────────────── */
-.cyan-line {
-  background: linear-gradient(90deg, var(--cyan) 0%, rgba(34,211,238,0.4) 50%, transparent 100%);
-}
-
-/* ── Section divider ─────────────────────────────────── */
-.neon-divider {
-  background: linear-gradient(90deg, var(--cyan), rgba(34,211,238,0.1) 60%, transparent);
-  height: 1px;
-}
-
-/* ── Bounce animation for AI thinking dots ──────────── */
-@keyframes neon-bounce {
-  0%, 80%, 100% { transform: scale(0.65); opacity: 0.4; }
-  40%           { transform: scale(1.15); opacity: 1; }
-}
-
-/* ── Recharts override (dark) ────────────────────────── */
-.recharts-polar-grid-angle line,
-.recharts-polar-grid-concentric path { stroke: rgba(34,211,238,0.08) !important; }
-.recharts-surface { overflow: visible; }
-
-/* ── Sidebar top accent bar ──────────────────────────── */
+/* ── Sidebar top accent ──────────────────────────────── */
 .sidebar-top-bar {
-  background: linear-gradient(90deg, var(--orange) 0%, rgba(249,115,22,0.5) 50%, transparent 100%);
+  background: linear-gradient(90deg, var(--royal) 0%, rgba(79,110,247,0.5) 50%, transparent 100%);
   height: 2px;
 }
 
-/* ── Score ring ──────────────────────────────────────── */
-@keyframes spin-in {
-  from { stroke-dashoffset: 314; }
-  to   { stroke-dashoffset: var(--target-offset); }
-}
-.ring-animate {
-  animation: spin-in 1.4s cubic-bezier(0.16,1,0.3,1) forwards;
+/* ── Bounce for AI dots ──────────────────────────────── */
+@keyframes neon-bounce {
+  0%, 80%, 100% { transform: scale(0.65); opacity: 0.4; }
+  40%           { transform: scale(1.15); opacity: 1; }
 }
 
 /* ── Pulsing dot ─────────────────────────────────────── */
@@ -236,3 +198,8 @@
   50%       { opacity: 0.4; transform: scale(0.7); }
 }
 .pulse-dot { animation: pulse-dot 1.6s ease-in-out infinite; }
+
+/* ── Recharts override ───────────────────────────────── */
+.recharts-polar-grid-angle line,
+.recharts-polar-grid-concentric path { stroke: rgba(34,211,238,0.08) !important; }
+.recharts-surface { overflow: visible; }

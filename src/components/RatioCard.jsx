@@ -90,8 +90,8 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
       {/* Action item */}
       {recommendation && (status === 'amber' || status === 'red') && (
         <div className="mt-3 pt-3 border-t border-white/[0.05] flex gap-2">
-          <span className="text-orange-400 text-xs flex-shrink-0">→</span>
-          <p className="text-orange-300/70 text-[11px] leading-relaxed">{recommendation}</p>
+          <span className="text-[11px] flex-shrink-0" style={{ color:'#6b84f8' }}>→</span>
+          <p className="text-[11px] leading-relaxed" style={{ color:'rgba(107,132,248,0.75)' }}>{recommendation}</p>
         </div>
       )}
     </div>

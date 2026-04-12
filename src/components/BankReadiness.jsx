@@ -72,7 +72,7 @@ function getCheckScore(value, check) {
 function getVerdict(score) {
   if (score >= 80) return { label: 'Strong — Likely Eligible',     color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' };
   if (score >= 60) return { label: 'Good — Eligible with Caveats', color: 'text-amber-400',   bg: 'bg-amber-500/10 border-amber-500/20'   };
-  if (score >= 40) return { label: 'Fair — Borderline Case',       color: 'text-orange-400',  bg: 'bg-orange-500/10 border-orange-500/20'  };
+  if (score >= 40) return { label: 'Fair — Borderline Case',       color: 'text-[#6b84f8]',   bg: 'border-[rgba(79,110,247,0.3)]',  bg2: 'rgba(79,110,247,0.08)'  };
   return               { label: 'Weak — Strengthen Before Applying', color: 'text-red-400',   bg: 'bg-red-500/10 border-red-500/20'       };
 }
 
@@ -113,7 +113,8 @@ export default function BankReadiness({ ratioValues }) {
         {/* Score bar */}
         <div className="h-2 bg-white/[0.06] rounded-full overflow-hidden mb-6">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-400 transition-all duration-1000"
+            className="h-full rounded-full transition-all duration-1000"
+            style={{ background:'linear-gradient(90deg, #4f6ef7, #6b84f8)', boxShadow:'0 0 12px rgba(79,110,247,0.5)' }}
             style={{ width: `${totalScore}%` }}
           />
         </div>
