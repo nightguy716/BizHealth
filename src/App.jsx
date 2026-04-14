@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 import Navbar    from './components/Navbar';
@@ -7,9 +8,23 @@ import About     from './pages/About';
 import Pricing   from './pages/Pricing';
 import Contact   from './pages/Contact';
 
+function BackendWarmup() {
+  useEffect(() => {
+    const url = import.meta.env.VITE_BACKEND_URL;
+    if (!url) return;
+    // Fire immediately on any page load
+    fetch(`${url}/ping`).catch(() => {});
+    // Then keep it warm every 10 minutes while the tab is open
+    const id = setInterval(() => fetch(`${url}/ping`).catch(() => {}), 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <BackendWarmup />
       <Navbar />
       {/* pt-14 offsets the fixed navbar height */}
       <div className="pt-14">

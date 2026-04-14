@@ -73,12 +73,6 @@ export default function App() {
   const [exporting,       setExporting]       = useState(false);
   const resultsRef = useRef(null);
 
-  // Ping backend on mount so it's warm before the user searches
-  useEffect(() => {
-    const backend = import.meta.env.VITE_BACKEND_URL;
-    if (backend) fetch(`${backend}/ping`).catch(() => {});
-  }, []);
-
   const n = key => parseFloat(inputs[key]) || 0;
 
   function handleCalculate() {
