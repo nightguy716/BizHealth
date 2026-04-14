@@ -336,10 +336,10 @@ export default function App() {
                 Financial Intelligence Platform · v3.0
               </p>
 
-              <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-2">
+              <p className="text-sm max-w-md leading-relaxed mb-2" style={{ color: 'var(--text-secondary)' }}>
                 Enter your financials, or hit <span style={{ color:'#6b84f8' }}>⚡ Demo</span> in the sidebar for instant results.
               </p>
-              <p className="text-slate-700 text-xs mb-10 mono">14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
+              <p className="mono text-[10px] mb-10" style={{ color: 'var(--text-dim)' }}>14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
 
               {/* Feature grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg mb-8">
@@ -362,7 +362,7 @@ export default function App() {
                 {[['#00e887','Healthy'],['#fbbf24','Borderline'],['#f43f5e','Critical']].map(([c,l]) => (
                   <div key={l} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ background:c, boxShadow:`0 0 6px ${c}` }} />
-                    <span className="mono text-slate-600">{l}</span>
+                    <span className="mono text-[11px]" style={{ color: 'var(--text-dim)' }}>{l}</span>
                   </div>
                 ))}
               </div>
@@ -401,7 +401,7 @@ export default function App() {
 
               <SectorComparison ratioValues={results.ratioValues} industry={industry} />
 
-              <div className="text-center text-slate-700 text-[11px] mt-8 pb-8">
+              <div className="text-center text-[11px] mt-8 pb-8" style={{ color: 'var(--text-muted)' }}>
                 BizHealth · {new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} · For informational purposes only
               </div>
             </>

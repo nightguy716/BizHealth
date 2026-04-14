@@ -1,16 +1,10 @@
-/**
- * RatioCard.jsx — Neon ghost card with animated counter and glowing value.
- * Each status (green/amber/red) has its own neon border color + glow.
- * Numbers display in JetBrains Mono with a colored text-shadow glow.
- */
-
 import { useEffect, useState } from 'react';
 
 const STATUS = {
-  green: { card: 'card-green', badge: 'badge-green', bar: 'bar-green', val: 'val-green', dot: 'bg-[#00e887]', label: 'Healthy'         },
-  amber: { card: 'card-amber', badge: 'badge-amber', bar: 'bar-amber', val: 'val-amber', dot: 'bg-[#fbbf24]', label: 'Borderline'      },
-  red:   { card: 'card-red',   badge: 'badge-red',   bar: 'bar-red',   val: 'val-red',   dot: 'bg-[#f43f5e]', label: 'Needs Attention' },
-  na:    { card: 'card-na',    badge: 'badge-na',     bar: 'bar-na',    val: 'val-na',    dot: 'bg-slate-600',  label: 'No Data'         },
+  green: { card: 'card-green', badge: 'badge-green', bar: 'bar-green', val: 'val-green', dot: '#00e887', label: 'Healthy'         },
+  amber: { card: 'card-amber', badge: 'badge-amber', bar: 'bar-amber', val: 'val-amber', dot: '#fbbf24', label: 'Borderline'      },
+  red:   { card: 'card-red',   badge: 'badge-red',   bar: 'bar-red',   val: 'val-red',   dot: '#f43f5e', label: 'Needs Attention' },
+  na:    { card: 'card-na',    badge: 'badge-na',    bar: 'bar-na',    val: 'val-na',    dot: '#546078', label: 'No Data'         },
 };
 
 function useCountUp(target, delay = 0) {
@@ -50,48 +44,56 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
       className={`ghost-card rounded-2xl p-5 animate-in ${cfg.card}`}
       style={{ animationDelay: `${delay}ms` }}
     >
-      {/* Header */}
+      {/* Header row */}
       <div className="flex items-start justify-between gap-2 mb-4">
-        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.12em] leading-snug">{name}</span>
-        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0 ${cfg.badge}`}>
-          <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot} pulse-dot`}></span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] leading-snug"
+          style={{ color: 'var(--text-secondary)' }}>
+          {name}
+        </span>
+        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full whitespace-nowrap flex-shrink-0 ${cfg.badge}`}>
+          <span className="w-1.5 h-1.5 rounded-full pulse-dot flex-shrink-0"
+            style={{ background: cfg.dot, boxShadow: `0 0 5px ${cfg.dot}` }} />
           {cfg.label}
         </span>
       </div>
 
-      {/* Neon value */}
-      <div className={`mono text-[2.6rem] font-bold tracking-tight leading-none mb-1 ${cfg.val}`}>
+      {/* Main value */}
+      <div className={`mono text-[2.5rem] font-bold tracking-tight leading-none mb-1.5 ${cfg.val}`}>
         {formatted}
       </div>
 
-      {/* Threshold label */}
-      <div className="text-[10px] text-slate-700 mono mb-3">
+      {/* Raw value */}
+      <div className="mono text-[10px] mb-4" style={{ color: 'var(--text-muted)' }}>
         {isValid ? `RAW · ${Number(value).toFixed(4)}` : 'AWAITING INPUT'}
       </div>
 
-      {/* Neon health bar */}
+      {/* Health bar */}
       <div className="mb-4">
-        <div className="h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
           <div
             className={`bar-fill ${cfg.bar}`}
             style={{ width: `${barWidth}%`, transitionDelay: `${delay + 200}ms` }}
           />
         </div>
-        <div className="flex justify-between mt-1">
-          <span className="text-[9px] text-slate-700 mono">0</span>
-          <span className="text-[9px] text-slate-700 mono">THRESHOLD</span>
-          <span className="text-[9px] text-slate-700 mono">MAX</span>
+        <div className="flex justify-between mt-1.5">
+          <span className="text-[9px] mono" style={{ color: 'var(--text-muted)' }}>0</span>
+          <span className="text-[9px] mono" style={{ color: 'var(--text-muted)' }}>THRESHOLD</span>
+          <span className="text-[9px] mono" style={{ color: 'var(--text-muted)' }}>MAX</span>
         </div>
       </div>
 
       {/* Interpretation */}
-      <p className="text-slate-500 text-[11px] leading-relaxed">{interpretation}</p>
+      <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-dim)' }}>
+        {interpretation}
+      </p>
 
-      {/* Action item */}
+      {/* Recommendation */}
       {recommendation && (status === 'amber' || status === 'red') && (
-        <div className="mt-3 pt-3 border-t border-white/[0.05] flex gap-2">
-          <span className="text-[11px] flex-shrink-0" style={{ color:'#6b84f8' }}>→</span>
-          <p className="text-[11px] leading-relaxed" style={{ color:'rgba(107,132,248,0.75)' }}>{recommendation}</p>
+        <div className="mt-3 pt-3 flex gap-2.5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
+          <span className="text-[13px] flex-shrink-0 mt-px" style={{ color: '#6b84f8' }}>→</span>
+          <p className="text-[11px] leading-relaxed" style={{ color: 'rgba(107,132,248,0.85)' }}>
+            {recommendation}
+          </p>
         </div>
       )}
     </div>
