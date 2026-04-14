@@ -651,7 +651,11 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
                 except: pass
         return None
 
+    def _is_limited(j: dict) -> bool:
+        return bool(j.get("Information") or j.get("Note"))
+
     async with httpx.AsyncClient(timeout=20) as client:
+        # Fetch all 4 in parallel — AV allows 5 req/min so this is fine
         inc_r, bal_r, cf_r, ov_r = await asyncio.gather(
             client.get(f"{AV}?function=INCOME_STATEMENT&symbol={sym}&apikey={api_key}"),
             client.get(f"{AV}?function=BALANCE_SHEET&symbol={sym}&apikey={api_key}"),
@@ -664,9 +668,12 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
     cf_j  = cf_r.json()  if cf_r.status_code == 200 else {}
     ov_j  = ov_r.json()  if ov_r.status_code == 200 else {}
 
-    # Rate-limit check
-    if inc_j.get("Information") or inc_j.get("Note"):
-        raise HTTPException(status_code=429, detail="Alpha Vantage rate limit reached (25/day). Try again tomorrow.")
+    # Rate-limit check — stop here with a clear message
+    if _is_limited(inc_j) or _is_limited(bal_j):
+        raise HTTPException(
+            status_code=429,
+            detail="Alpha Vantage daily limit reached (25 calls/day). Quota resets at midnight UTC — try again tomorrow.",
+        )
 
     inc_list = inc_j.get("annualReports") or []
     bal_list = bal_j.get("annualReports") or []
