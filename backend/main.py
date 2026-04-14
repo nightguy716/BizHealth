@@ -421,7 +421,7 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "2.0.0", "data_source": "yfinance"}
+    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.0.0", "data_source": "httpx-primary"}
 
 
 @app.get("/health")
@@ -672,25 +672,31 @@ async def get_company_yf(ticker: str):
 
     last_error = "Unknown error"
 
-    # ── 1. yfinance Python library — fast path, works for most US tickers ───
+    # ── 1. httpx quoteSummary — authenticated browser session (PRIMARY) ─────
+    #  Visits finance.yahoo.com to get real cookies + crumb, then calls the
+    #  quoteSummary API. Works from Railway IPs. yfinance is NOT used as
+    #  primary because Railway's IP causes it to hang indefinitely.
     try:
-        loop   = asyncio.get_event_loop()
-        parsed = await loop.run_in_executor(_executor, _yf_fetch_ticker, sym)
+        parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=25.0)
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
         return parsed
     except Exception as e:
         last_error = str(e)
 
-    # ── 1b. Direct httpx quoteSummary — authenticated browser session ─────
-    #  Handles tickers the yfinance library misses (e.g. RELIANCE.NS, .BO)
-    #  by using real Yahoo Finance cookies + crumb via _get_yf_session().
+    # ── 1b. yfinance library — fast timeout fallback ──────────────────────
+    #  Only tried if httpx fails. Hard 12-second timeout prevents Railway
+    #  hang when Yahoo Finance silently blocks the TCP connection.
     try:
-        parsed = await _httpx_yf_fetch(sym)
+        loop   = asyncio.get_event_loop()
+        parsed = await asyncio.wait_for(
+            loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
+            timeout=12.0
+        )
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
         return parsed
-    except Exception as e:
+    except (asyncio.TimeoutError, Exception) as e:
         last_error = str(e)
 
     # ── 2. Alpha Vantage fallback (25 calls/day) ─────────────────
