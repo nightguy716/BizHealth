@@ -142,15 +142,19 @@ function parseYFResponse(json, sym, fallbackName) {
   const inc0 = historical.income[0]  || {};
   const bal0 = historical.balance[0] || {};
 
+  // financialData module as fallback (always available, even without crumb)
+  const fd = r?.financialData || {};
+  const fdn = (k) => { const v = yfv(fd, k); return v != null ? v : null; };
+
   const raw = {
     currentAssets:      bal0.currentAssets,
     currentLiabilities: bal0.currentLiabilities,
     inventory:          bal0.inventory,
-    cash:               bal0.cash,
+    cash:               bal0.cash      ?? fdn('totalCash'),
     totalAssets:        bal0.totalAssets,
     equity:             bal0.equity,
-    totalDebt:          bal0.totalDebt,
-    revenue:            inc0.revenue,
+    totalDebt:          bal0.totalDebt ?? fdn('totalDebt'),
+    revenue:            inc0.revenue   ?? fdn('totalRevenue'),
     grossProfit:        inc0.grossProfit,
     operatingExpenses:  inc0.operatingExpenses,
     netProfit:          inc0.netProfit,

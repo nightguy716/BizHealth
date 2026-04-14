@@ -603,66 +603,243 @@ async def get_company_yf(ticker: str):
     if cached and (time.time() - cached["ts"]) < _YF_TTL:
         return cached["data"]
 
-    modules = ",".join([
-        "incomeStatementHistory", "balanceSheetHistory",
-        "cashflowStatementHistory", "defaultKeyStatistics",
-        "assetProfile", "financialData",
-    ])
-
-    async def _fetch(invalidate_session: bool = False) -> dict:
-        if invalidate_session:
-            global _yf_session_ts
-            _yf_session_ts = 0.0          # force session refresh
-
-        client, crumb = await _get_yf_session()
-
-        for base in ("https://query1.finance.yahoo.com",
-                     "https://query2.finance.yahoo.com"):
-            url = (
-                f"{base}/v10/finance/quoteSummary/{sym}"
-                f"?modules={modules}"
-                + (f"&crumb={crumb}" if crumb else "")
-            )
-            try:
-                r = await client.get(url, timeout=20)
-            except Exception as exc:
-                continue
-
-            if r.status_code == 401:
-                return None          # signal: session stale, retry
-
-            if r.status_code == 200:
-                raw_json = r.json()
-                err = (raw_json.get("quoteSummary") or {}).get("error")
-                if err:
-                    raise HTTPException(status_code=404,
-                                        detail=str(err.get("description", err)))
-                return raw_json
-
-        return None
-
+    # Primary path: yfinance library (handles auth internally)
     try:
-        raw_json = await _fetch()
-        if raw_json is None:
-            # Session was stale — rebuild and retry once
-            raw_json = await _fetch(invalidate_session=True)
-        if raw_json is None:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Yahoo Finance did not return data for {sym}. "
-                       f"The session may need time to warm up — try again in 10 s.",
-            )
+        loop   = asyncio.get_event_loop()
+        parsed = await asyncio.wait_for(
+            loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
+            timeout=35.0,
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail=f"Timeout fetching {sym} from Yahoo Finance")
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502,
-                            detail=f"Yahoo Finance request failed: {e}")
+        raise HTTPException(status_code=502, detail=str(e))
 
-    parsed = _parse_yf_response(raw_json)
     parsed["ticker"] = sym
-
     _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
     return parsed
+
+
+def _yf_fetch_ticker(sym: str) -> dict:
+    """
+    Blocking — run in executor.
+    Uses yfinance library which manages Yahoo Finance auth internally.
+    Maps DataFrame rows (financial line items) to our 14-field input format.
+    """
+    import pandas as pd
+
+    tk = yf.Ticker(sym)
+
+    inc_df: pd.DataFrame | None = None
+    bal_df: pd.DataFrame | None = None
+    cf_df:  pd.DataFrame | None = None
+    info:   dict = {}
+
+    try: inc_df = tk.financials
+    except Exception: pass
+    try: bal_df = tk.balance_sheet
+    except Exception: pass
+    try: cf_df  = tk.cashflow
+    except Exception: pass
+    try: info   = tk.info or {}
+    except Exception: pass
+
+    has_inc = inc_df is not None and not inc_df.empty
+    has_bal = bal_df is not None and not bal_df.empty
+
+    if not has_inc and not has_bal:
+        raise ValueError(f"No financial data found for {sym} — ticker may be invalid or delisted.")
+
+    # ── Field-name aliases (yfinance renames between versions) ──
+    _INC_REVENUE    = ['Total Revenue', 'Revenue', 'TotalRevenue']
+    _INC_COGS       = ['Cost Of Revenue', 'CostOfRevenue', 'Cost of Revenue']
+    _INC_GP         = ['Gross Profit', 'GrossProfit']
+    _INC_RD         = ['Research And Development', 'Research Development', 'Research & Development']
+    _INC_SGA        = ['Selling General Administrative', 'Selling General And Administrative',
+                       'Selling General And Admin', 'SG&A', 'Selling And Marketing Expense']
+    _INC_OP         = ['Operating Income', 'Operating Income Loss', 'OperatingIncome', 'EBIT']
+    _INC_PRETAX     = ['Pretax Income', 'Income Before Tax', 'PretaxIncome']
+    _INC_TAX        = ['Tax Provision', 'Income Tax Expense', 'TaxProvision']
+    _INC_NI         = ['Net Income', 'Net Income Common Stockholders', 'NetIncome',
+                       'Net Income Including Noncontrolling Interests']
+    _INC_IE         = ['Interest Expense', 'Interest Expense Non Operating',
+                       'Interest And Debt Expense', 'InterestExpense']
+    _INC_DA         = ['Reconciled Depreciation', 'Depreciation And Amortization',
+                       'Depreciation Amortization Depletion', 'Depreciation', 'D&A']
+    _INC_EBITDA     = ['EBITDA', 'Normalized EBITDA']
+    _INC_EPS        = ['Diluted EPS', 'Basic EPS', 'DilutedEPS']
+
+    _BAL_TA         = ['Total Assets', 'TotalAssets']
+    _BAL_CA         = ['Current Assets', 'Total Current Assets', 'TotalCurrentAssets']
+    _BAL_CASH       = ['Cash And Cash Equivalents', 'Cash',
+                       'Cash Cash Equivalents And Short Term Investments',
+                       'Cash And Short Term Investments']
+    _BAL_REC        = ['Receivables', 'Net Receivables', 'Accounts Receivable', 'NetReceivables']
+    _BAL_INV        = ['Inventory', 'Inventories']
+    _BAL_CL         = ['Current Liabilities', 'Total Current Liabilities', 'TotalCurrentLiabilities']
+    _BAL_LTD        = ['Long Term Debt', 'LongTermDebt', 'Long Term Debt And Capital Lease Obligation']
+    _BAL_STD        = ['Current Debt', 'Short Long Term Debt', 'Current Debt And Capital Lease Obligation',
+                       'ShortLongTermDebt']
+    _BAL_EQ         = ['Stockholders Equity', 'Common Stock Equity', 'Total Stockholder Equity',
+                       'TotalStockholderEquity', 'Stockholders Equity Net Of Treasury Stock']
+    _BAL_RE         = ['Retained Earnings', 'RetainedEarnings']
+    _BAL_PPE        = ['Net PPE', 'Property Plant Equipment Net', 'Net Property Plant And Equipment']
+    _BAL_GW         = ['Goodwill', 'GoodWill']
+    _BAL_APIC       = ['Additional Paid In Capital', 'Capital Surplus']
+
+    _CF_OPS         = ['Operating Cash Flow', 'Total Cash From Operating Activities']
+    _CF_CAPEX       = ['Capital Expenditure', 'Capital Expenditures', 'Purchase Of PPE']
+    _CF_INV         = ['Investing Cash Flow', 'Total Cash From Investing Activities']
+    _CF_FIN         = ['Financing Cash Flow', 'Total Cash From Financing Activities']
+    _CF_DA          = ['Depreciation And Amortization', 'Reconciled Depreciation', 'Depreciation']
+    _CF_SBC         = ['Stock Based Compensation', 'Share Based Compensation']
+    _CF_NI          = ['Net Income', 'Net Income From Continuing Operations']
+    _CF_WC          = ['Change In Working Capital', 'Changes In Working Capital']
+    _CF_BB          = ['Repurchase Of Capital Stock', 'Common Stock Repurchase',
+                       'Payments For Repurchase Of Common Stock']
+    _CF_DIV         = ['Cash Dividends Paid', 'Common Stock Dividend Paid', 'Dividends Paid']
+
+    def gv(df: pd.DataFrame | None, col, *label_lists) -> float | None:
+        """Get the first non-NaN value from df at column=col, trying all label aliases."""
+        if df is None or df.empty:
+            return None
+        for labels in label_lists:
+            for label in (labels if isinstance(labels, list) else [labels]):
+                if label in df.index:
+                    try:
+                        raw = df.at[label, col]
+                        if raw is not None and not (isinstance(raw, float) and math.isnan(raw)):
+                            return float(raw)
+                    except Exception:
+                        pass
+        return None
+
+    def parse_inc(col):
+        rev  = gv(inc_df, col, _INC_REVENUE)
+        cogs = gv(inc_df, col, _INC_COGS)
+        gp   = gv(inc_df, col, _INC_GP)
+        if gp is None and rev and cogs: gp = rev - cogs
+        op   = gv(inc_df, col, _INC_OP)
+        rd   = gv(inc_df, col, _INC_RD)
+        sga  = gv(inc_df, col, _INC_SGA)
+        da   = gv(inc_df, col, _INC_DA)
+        ni   = gv(inc_df, col, _INC_NI)
+        ie   = gv(inc_df, col, _INC_IE)
+        ebitda = gv(inc_df, col, _INC_EBITDA) or ((op + da) if op and da else None)
+        return {
+            "year":              str(col.year) if hasattr(col, "year") else str(col)[:4],
+            "revenue":           rev,
+            "cogs":              cogs or (rev - gp if rev and gp else None),
+            "grossProfit":       gp,
+            "rd":                rd,
+            "sga":               sga,
+            "operatingExpenses": (rd + sga) if rd and sga else None,
+            "operatingIncome":   op,
+            "preTaxIncome":      gv(inc_df, col, _INC_PRETAX),
+            "tax":               gv(inc_df, col, _INC_TAX),
+            "netProfit":         ni,
+            "interestExpense":   abs(ie) if ie else None,
+            "ebitda":            ebitda,
+            "da":                da,
+            "eps":               gv(inc_df, col, _INC_EPS),
+        }
+
+    def parse_bal(col):
+        ltd = gv(bal_df, col, _BAL_LTD)
+        std = gv(bal_df, col, _BAL_STD)
+        td  = (std or 0) + (ltd or 0)
+        return {
+            "year":               str(col.year) if hasattr(col, "year") else str(col)[:4],
+            "currentAssets":      gv(bal_df, col, _BAL_CA),
+            "cash":               gv(bal_df, col, _BAL_CASH),
+            "receivables":        gv(bal_df, col, _BAL_REC),
+            "inventory":          gv(bal_df, col, _BAL_INV),
+            "totalAssets":        gv(bal_df, col, _BAL_TA),
+            "ppe":                gv(bal_df, col, _BAL_PPE),
+            "goodwill":           gv(bal_df, col, _BAL_GW),
+            "currentLiabilities": gv(bal_df, col, _BAL_CL),
+            "ltDebt":             ltd,
+            "currentDebt":        std,
+            "totalDebt":          td if td > 0 else None,
+            "equity":             gv(bal_df, col, _BAL_EQ),
+            "retainedEarnings":   gv(bal_df, col, _BAL_RE),
+            "apic":               gv(bal_df, col, _BAL_APIC),
+        }
+
+    def parse_cf(col):
+        capex = gv(cf_df, col, _CF_CAPEX)
+        bb    = gv(cf_df, col, _CF_BB)
+        div   = gv(cf_df, col, _CF_DIV)
+        return {
+            "year":        str(col.year) if hasattr(col, "year") else str(col)[:4],
+            "netIncome":   gv(cf_df, col, _CF_NI),
+            "da":          gv(cf_df, col, _CF_DA),
+            "sbc":         gv(cf_df, col, _CF_SBC),
+            "wc":          gv(cf_df, col, _CF_WC),
+            "cfOps":       gv(cf_df, col, _CF_OPS),
+            "capex":       -abs(capex) if capex else None,
+            "cfInvesting": gv(cf_df, col, _CF_INV),
+            "buybacks":    -abs(bb)    if bb    else None,
+            "dividends":   -abs(div)   if div   else None,
+            "cfFinancing": gv(cf_df, col, _CF_FIN),
+        }
+
+    inc_cols = list(inc_df.columns[:5]) if has_inc else []
+    bal_cols = list(bal_df.columns[:5]) if has_bal else []
+    cf_cols  = list(cf_df.columns[:5])  if (cf_df is not None and not cf_df.empty) else []
+
+    historical = {
+        "income":   [parse_inc(c) for c in inc_cols],
+        "balance":  [parse_bal(c) for c in bal_cols],
+        "cashflow": [parse_cf(c)  for c in cf_cols],
+    }
+
+    inc0 = historical["income"][0]  if historical["income"]  else {}
+    bal0 = historical["balance"][0] if historical["balance"] else {}
+
+    raw_inputs = {
+        "currentAssets":      bal0.get("currentAssets"),
+        "currentLiabilities": bal0.get("currentLiabilities"),
+        "inventory":          bal0.get("inventory"),
+        "cash":               bal0.get("cash"),
+        "totalAssets":        bal0.get("totalAssets"),
+        "equity":             bal0.get("equity"),
+        "totalDebt":          bal0.get("totalDebt"),
+        "revenue":            inc0.get("revenue"),
+        "grossProfit":        inc0.get("grossProfit"),
+        "operatingExpenses":  inc0.get("operatingExpenses"),
+        "netProfit":          inc0.get("netProfit"),
+        "interestExpense":    inc0.get("interestExpense"),
+        "receivables":        bal0.get("receivables"),
+        "cogs":               inc0.get("cogs"),
+    }
+
+    data_fields = {}
+    for k, v in raw_inputs.items():
+        if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
+            data_fields[k] = str(int(abs(round(v))))
+
+    sector   = info.get("sector", "")
+    currency = info.get("currency", "USD")
+    name     = info.get("longName") or info.get("shortName") or sym
+
+    total    = len(raw_inputs)
+    filled   = len(data_fields)
+    coverage = round((filled / total) * 100) if total else 0
+
+    return {
+        "name":       name,
+        "sector":     sector,
+        "industry":   SECTOR_MAP.get(sector, "general"),
+        "currency":   currency,
+        "coverage":   coverage,
+        "filled":     filled,
+        "total":      total,
+        "data":       data_fields,
+        "historical": historical,
+    }
 
 
 # ─────────────────────────────────────────────────────────────
