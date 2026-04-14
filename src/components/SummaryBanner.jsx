@@ -41,7 +41,7 @@ function ScoreRing({ pct, verdict }) {
           style={{ fontSize: '1.75rem', color: verdict.color, textShadow: `0 0 22px ${verdict.shadow}` }}>
           {pct}
         </span>
-        <span className="mono text-[10px] mt-0.5" style={{ color: 'var(--text-muted)' }}>/100</span>
+        <span className="mono text-[10px] mt-0.5" style={{ color: '#3d5070' }}>/100</span>
       </div>
     </div>
   );
@@ -89,7 +89,7 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
             <span className="w-1.5 h-1.5 rounded-full pulse-dot flex-shrink-0"
               style={{ background: v.ring, boxShadow: `0 0 6px ${v.ring}` }} />
             <span className="mono text-[10px] font-semibold uppercase tracking-[0.14em]"
-              style={{ color: 'var(--text-muted)' }}>
+              style={{ color: '#6b82a8' }}>
               BizHealth Score · {new Date().toLocaleDateString('en-IN')}
             </span>
           </div>
@@ -102,10 +102,10 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
                 style={{ color: v.color, textShadow: `0 0 28px ${v.shadow}` }}>
                 {v.label}
               </div>
-              <div className="text-[14px] font-medium mt-1" style={{ color: 'var(--text-secondary)' }}>
+              <div className="text-[14px] font-medium mt-1" style={{ color: '#d4ddf5' }}>
                 {v.sub}
               </div>
-              <div className="mono text-[11px] mt-2" style={{ color: 'var(--text-dim)' }}>
+              <div className="mono text-[11px] mt-2" style={{ color: '#6b82a8' }}>
                 {valid} ratios computed · {green} in healthy range
               </div>
             </div>
@@ -164,7 +164,7 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
         {/* Right: radar */}
         <div className="lg:w-72 p-5 flex flex-col justify-center border-t lg:border-t-0 lg:border-l border-white/[0.06]">
           <p className="mono text-[9px] font-semibold uppercase tracking-[0.16em] mb-3 text-center"
-            style={{ color: 'var(--text-muted)' }}>
+            style={{ color: '#6b82a8' }}>
             HEALTH DIMENSIONS
           </p>
           <HealthRadar statuses={statusMap} />

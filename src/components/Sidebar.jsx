@@ -42,25 +42,11 @@ const FIELDS = [
   { key:'cogs',               label:'Cost of Goods Sold',  g:'Working Capital'},
 ];
 
-const GROUPS = ['Balance Sheet','P&L','Working Capital'];
-
-const GROUP_ICONS = {
-  'Balance Sheet': '◩',
-  'P&L':          '◈',
-  'Working Capital':'◎',
-};
-
-function SectionLabel({ icon, title }) {
-  return (
-    <div className="section-label">
-      <span className="text-[10px] font-bold tracking-[0.14em] uppercase flex items-center gap-1.5"
-        style={{ color: 'rgba(79,110,247,0.75)', fontFamily: 'var(--font-mono)' }}>
-        <span style={{ fontSize: 9 }}>{icon}</span>
-        {title}
-      </span>
-    </div>
-  );
-}
+const GROUPS = [
+  { id: 'Balance Sheet',  label: 'Balance Sheet',   color: '#4f6ef7', dot: 'rgba(79,110,247,0.8)'  },
+  { id: 'P&L',            label: 'P & L',           color: '#00e887', dot: 'rgba(0,232,135,0.8)'   },
+  { id: 'Working Capital',label: 'Working Capital', color: '#22d3ee', dot: 'rgba(34,211,238,0.8)'  },
+];
 
 export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded }) {
   const fileRef = useRef(null);
@@ -99,40 +85,43 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
   return (
     <aside className="w-full lg:w-80 flex flex-col h-screen lg:fixed lg:left-0 lg:top-0 lg:overflow-y-auto"
       style={{
-        background: 'linear-gradient(180deg, rgba(5,9,22,0.99) 0%, rgba(4,8,20,0.99) 100%)',
-        borderRight: '1px solid rgba(255,255,255,0.07)',
+        background: 'linear-gradient(180deg, #06101e 0%, #050d1a 100%)',
+        borderRight: '1px solid rgba(79,110,247,0.18)',
         scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(79,110,247,0.2) transparent',
+        scrollbarColor: 'rgba(79,110,247,0.25) transparent',
       }}>
 
-      {/* Top neon accent */}
+      {/* Top royal-blue accent bar */}
       <div className="sidebar-top-bar flex-shrink-0" />
 
-      {/* Brand */}
-      <div className="px-5 pt-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+      {/* ── Brand ───────────────────────────────────────── */}
+      <div className="px-5 pt-5 pb-4 flex-shrink-0"
+        style={{ borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
         <div className="flex items-center gap-3">
-          <Logo size={38} />
-          <div>
-            <div className="font-bold text-[18px] tracking-tight leading-none" style={{ color: '#f0f4ff' }}>
-              Biz<span style={{ color: '#6b84f8' }}>Health</span>
+          <Logo size={36} />
+          <div className="flex-1">
+            <div className="font-bold text-[18px] tracking-tight leading-none" style={{ color: '#ffffff' }}>
+              Biz<span style={{ color: '#7b95fa' }}>Health</span>
             </div>
-            <div className="mono text-[9px] font-semibold uppercase tracking-[0.16em] mt-1.5"
-              style={{ color: 'rgba(79,110,247,0.55)' }}>
+            <div className="mono text-[9px] font-semibold uppercase tracking-[0.15em] mt-1"
+              style={{ color: 'rgba(79,110,247,0.6)' }}>
               Financial Intelligence
             </div>
           </div>
-          <div className="ml-auto">
-            <span className="mono text-[9px] font-bold px-2 py-0.5 rounded-md"
-              style={{ background: 'rgba(79,110,247,0.12)', border: '1px solid rgba(79,110,247,0.22)', color: '#6b84f8' }}>
-              v3
-            </span>
-          </div>
+          <span className="mono text-[9px] font-bold px-2 py-0.5 rounded"
+            style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', color: '#7b95fa' }}>
+            v3
+          </span>
         </div>
       </div>
 
-      {/* Company Search */}
-      <div className="px-5 pt-4 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <SectionLabel icon="⊕" title="Company Lookup" />
+      {/* ── Company Search ──────────────────────────────── */}
+      <div className="px-4 pt-4 pb-4 flex-shrink-0"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-2.5"
+          style={{ color: '#9fb3d4' }}>
+          Listed Company Lookup
+        </p>
         <CompanySearch onSelect={(companyData) => {
           setInputs(p => ({ ...p, ...companyData.data }));
           if (companyData.industry && INDUSTRY_BENCHMARKS[companyData.industry]) {
@@ -145,118 +134,127 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         }} />
       </div>
 
-      {/* Industry */}
-      <div className="px-5 pt-4 pb-3 flex-shrink-0">
-        <SectionLabel icon="◈" title="Industry Sector" />
-        <select value={industry} onChange={e => setIndustry(e.target.value)} className="select-neon">
+      {/* ── Industry + Quick Fill ───────────────────────── */}
+      <div className="px-4 pt-4 pb-4 flex-shrink-0"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-2.5"
+          style={{ color: '#9fb3d4' }}>
+          Industry Sector
+        </p>
+        <select value={industry} onChange={e => setIndustry(e.target.value)} className="select-neon mb-3">
           {Object.entries(INDUSTRY_BENCHMARKS).map(([k,v]) => (
-            <option key={k} value={k} style={{ background:'#060b18', color:'#f0f4ff' }}>{v.label}</option>
+            <option key={k} value={k} style={{ background: '#06101e', color: '#e2e8f5' }}>{v.label}</option>
           ))}
         </select>
-      </div>
 
-      {/* Quick fill */}
-      <div className="px-5 pb-4 flex-shrink-0" style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-        <SectionLabel icon="⚡" title="Quick Fill" />
-        <div className="flex gap-2">
+        <div className="flex gap-2 mt-3">
           <button onClick={() => setInputs(DEMO_DATA)}
-            className="flex-1 text-[11px] font-semibold py-2 rounded-xl transition-all duration-200"
-            style={{
-              background: 'rgba(79,110,247,0.1)',
-              border: '1px solid rgba(79,110,247,0.25)',
-              color: '#8899ff',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(79,110,247,0.18)'; e.currentTarget.style.borderColor='rgba(79,110,247,0.4)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(79,110,247,0.1)'; e.currentTarget.style.borderColor='rgba(79,110,247,0.25)'; }}>
-            ⚡ Demo
+            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all"
+            style={{ background: 'rgba(79,110,247,0.14)', border: '1px solid rgba(79,110,247,0.32)', color: '#9fb3f8' }}
+            onMouseEnter={e => { e.currentTarget.style.background='rgba(79,110,247,0.24)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(79,110,247,0.14)'; }}>
+            ⚡ Demo Data
           </button>
           <button onClick={() => fileRef.current?.click()}
-            className="flex-1 text-[11px] font-semibold py-2 rounded-xl transition-all duration-200"
-            style={{
-              background: 'rgba(34,211,238,0.07)',
-              border: '1px solid rgba(34,211,238,0.2)',
-              color: '#22d3ee',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background='rgba(34,211,238,0.14)'; e.currentTarget.style.borderColor='rgba(34,211,238,0.38)'; }}
-            onMouseLeave={e => { e.currentTarget.style.background='rgba(34,211,238,0.07)'; e.currentTarget.style.borderColor='rgba(34,211,238,0.2)'; }}>
-            ↑ CSV
+            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all"
+            style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.22)', color: '#5de0f0' }}
+            onMouseEnter={e => { e.currentTarget.style.background='rgba(34,211,238,0.16)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background='rgba(34,211,238,0.08)'; }}>
+            ↑ Upload CSV
           </button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="hidden" />
         </div>
       </div>
 
-      {/* Progress */}
-      <div className="px-5 pt-3.5 pb-2 flex-shrink-0">
-        <div className="flex justify-between items-center mb-2">
-          <span className="mono text-[9px] font-semibold uppercase tracking-[0.12em]"
-            style={{ color: 'var(--text-muted)' }}>
+      {/* ── Completeness bar ────────────────────────────── */}
+      <div className="px-4 py-3 flex-shrink-0">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
             Data Completeness
           </span>
           <span className="mono text-[10px] font-bold"
-            style={{ color: pct === 100 ? '#00e887' : pct >= 60 ? '#fbbf24' : 'var(--text-dim)' }}>
-            {filled}/{FIELDS.length}
+            style={{ color: pct === 100 ? '#00e887' : pct >= 60 ? '#fbbf24' : '#9fb3d4' }}>
+            {filled} / {FIELDS.length}
           </span>
         </div>
-        <div className="h-[3px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
+        <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
           <div className="h-full rounded-full transition-all duration-500"
             style={{
               width: `${pct}%`,
-              background: pct === 100
-                ? 'linear-gradient(90deg,#00e887,#22d3ee)'
-                : 'linear-gradient(90deg,#4f6ef7,#6b84f8)',
-              boxShadow: pct === 100 ? '0 0 8px #00e887' : '0 0 8px rgba(79,110,247,0.6)',
+              background: pct === 100 ? 'linear-gradient(90deg,#00e887,#22d3ee)' : 'linear-gradient(90deg,#4f6ef7,#7b95fa)',
+              boxShadow: pct === 100 ? '0 0 8px #00e887' : '0 0 8px rgba(79,110,247,0.7)',
             }} />
         </div>
       </div>
 
-      {/* Input fields */}
-      <div className="px-5 pb-3 pt-2 flex-1">
-        {GROUPS.map(g => (
-          <div key={g} className="mb-5">
-            <SectionLabel icon={GROUP_ICONS[g]} title={g} />
-            <div className="space-y-2">
-              {FIELDS.filter(f => f.g === g).map(({ key, label }) => (
-                <div key={key}>
-                  <label className="block text-[11px] font-medium mb-1"
-                    style={{ color: inputs[key] ? 'var(--text-secondary)' : 'var(--text-dim)' }}>
-                    {label}
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none mono select-none"
-                      style={{ color: 'var(--text-muted)' }}>
-                      ₹
-                    </span>
-                    <input type="number" min="0" placeholder="0" value={inputs[key]}
-                      onChange={e => setInputs(p => ({ ...p, [key]: e.target.value }))}
-                      className="input-neon" />
-                    {inputs[key] && (
-                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pulse-dot pointer-events-none"
-                        style={{ background: '#22d3ee', boxShadow: '0 0 5px #22d3ee' }} />
-                    )}
-                  </div>
+      {/* ── Input field groups ──────────────────────────── */}
+      <div className="px-4 pb-2 flex-1 overflow-y-auto">
+        {GROUPS.map(g => {
+          const groupFields = FIELDS.filter(f => f.g === g.id);
+          const groupFilled = groupFields.filter(f => inputs[f.key] !== '').length;
+          return (
+            <div key={g.id} className="mb-4 rounded-xl overflow-hidden"
+              style={{ border: `1px solid rgba(255,255,255,0.07)`, background: 'rgba(255,255,255,0.02)' }}>
+              {/* Group header */}
+              <div className="flex items-center justify-between px-3 py-2.5"
+                style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.2)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="w-1.5 h-5 rounded-full flex-shrink-0"
+                    style={{ background: g.color, boxShadow: `0 0 8px ${g.color}` }} />
+                  <span className="text-[11px] font-semibold" style={{ color: '#ffffff' }}>
+                    {g.label}
+                  </span>
                 </div>
-              ))}
+                <span className="mono text-[9px] font-bold px-1.5 py-0.5 rounded"
+                  style={{ background: `${g.color}18`, color: g.color, border: `1px solid ${g.color}35` }}>
+                  {groupFilled}/{groupFields.length}
+                </span>
+              </div>
+
+              {/* Fields */}
+              <div className="px-3 py-2.5 space-y-2.5">
+                {groupFields.map(({ key, label }) => (
+                  <div key={key}>
+                    <label className="block text-[11px] font-medium mb-1"
+                      style={{ color: inputs[key] ? '#c8d8f0' : '#6b82a8' }}>
+                      {label}
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 mono text-[11px] pointer-events-none select-none"
+                        style={{ color: '#3d5070' }}>
+                        ₹
+                      </span>
+                      <input type="number" min="0" placeholder="0" value={inputs[key]}
+                        onChange={e => setInputs(p => ({ ...p, [key]: e.target.value }))}
+                        className="input-neon" />
+                      {inputs[key] && (
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pulse-dot pointer-events-none"
+                          style={{ background: g.color, boxShadow: `0 0 5px ${g.color}` }} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Action buttons */}
-      <div className="px-5 py-4 flex-shrink-0" style={{ borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+      {/* ── Action buttons ──────────────────────────────── */}
+      <div className="px-4 py-4 flex-shrink-0"
+        style={{ borderTop: '1px solid rgba(79,110,247,0.12)' }}>
         <button onClick={onCalculate}
-          className="btn-primary w-full text-white font-bold text-[13px] py-3.5 rounded-xl mb-2.5 flex items-center justify-center gap-2">
+          className="btn-primary w-full text-white font-bold text-[13px] py-3.5 rounded-xl mb-2 flex items-center justify-center gap-2">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
           Calculate Health Score
-          <span style={{ opacity: 0.7 }}>→</span>
         </button>
         <button onClick={onReset}
-          className="w-full text-[12px] font-medium py-2.5 rounded-xl transition-all duration-200"
-          style={{
-            background: 'rgba(255,255,255,0.04)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            color: 'var(--text-dim)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color='var(--text-secondary)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.15)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color='var(--text-dim)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.08)'; }}>
+          className="w-full py-2.5 rounded-xl text-[12px] font-medium transition-all"
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: '#6b82a8' }}
+          onMouseEnter={e => { e.currentTarget.style.color='#9fb3d4'; e.currentTarget.style.borderColor='rgba(255,255,255,0.16)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color='#6b82a8'; e.currentTarget.style.borderColor='rgba(255,255,255,0.09)'; }}>
           Reset All Fields
         </button>
       </div>

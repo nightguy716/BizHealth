@@ -17,7 +17,7 @@ export default function RatioGroup({ title, ratios, startIndex = 0 }) {
         <span className="text-lg">{m.icon}</span>
         <div className="min-w-0">
           <span className={`mono text-[11px] font-bold uppercase tracking-[0.18em] ${m.color}`}>{title}</span>
-          <span className="text-[11px] ml-3" style={{ color: 'var(--text-dim)' }}>{m.desc}</span>
+          <span className="text-[11px] ml-3" style={{ color: '#6b82a8' }}>{m.desc}</span>
         </div>
         {/* Neon divider */}
         <div className={`flex-1 h-px bg-gradient-to-r ${m.line} to-transparent ml-2`} />

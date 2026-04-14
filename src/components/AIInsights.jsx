@@ -55,9 +55,9 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
         <span className="text-violet-400 text-lg">✦</span>
         <div>
           <span className="mono text-[11px] font-bold uppercase tracking-[0.18em] text-violet-400">AI Analysis</span>
-          <span className="text-[11px] ml-3" style={{ color: 'var(--text-dim)' }}>
-            Expert insights from 14 ratio patterns
-          </span>
+      <span className="text-[11px] ml-3" style={{ color: '#6b82a8' }}>
+          Expert insights from 14 ratio patterns
+        </span>
         </div>
         <div className="flex-1 h-px ml-2" style={{ background:'linear-gradient(90deg, rgba(167,139,250,0.4), transparent)' }} />
       </div>
@@ -72,7 +72,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           <h3 className="font-semibold text-[15px] mb-2" style={{ color: 'var(--text)' }}>
             AI Financial Intelligence
           </h3>
-          <p className="text-[13px] max-w-sm mx-auto leading-relaxed mb-6" style={{ color: 'var(--text-dim)' }}>
+          <p className="text-[13px] max-w-sm mx-auto leading-relaxed mb-6" style={{ color: '#9fb3d4' }}>
             Cross-analyses all 14 ratios to identify compound risks, hidden opportunities, and a prioritised action plan — instantly.
           </p>
           <button onClick={run}
@@ -87,7 +87,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
         <div className="ghost-card rounded-2xl p-8 flex flex-col items-center gap-4"
           style={{ borderColor:'rgba(167,139,250,0.14)' }}>
           <Dots />
-          <p className="mono text-[10px]" style={{ color: 'var(--text-muted)' }}>
+          <p className="mono text-[10px]" style={{ color: '#6b82a8' }}>
             CROSS-REFERENCING 14 RATIOS · IDENTIFYING RISK PATTERNS
           </p>
         </div>
@@ -112,7 +112,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                 {ins.health_verdict?.toUpperCase()}
               </span>
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: '#d4ddf5' }}>
               {ins.executive_summary}
             </p>
           </div>
@@ -132,14 +132,14 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         style={{ background:URGENCY_CLR[r.urgency], boxShadow:`0 0 5px ${URGENCY_CLR[r.urgency]}` }} />
-                      <span className="text-[12px] font-semibold flex-1" style={{ color: 'var(--text)' }}>
+                      <span className="text-[12px] font-semibold flex-1" style={{ color: '#ffffff' }}>
                         {r.title}
                       </span>
                       <span className="mono text-[9px] font-bold" style={{ color:URGENCY_CLR[r.urgency] }}>
                         {r.urgency?.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: 'var(--text-dim)' }}>
+                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: '#9fb3d4' }}>
                       {r.description}
                     </p>
                   </div>
@@ -159,14 +159,14 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                     <div className="flex items-center gap-2 mb-1.5">
                       <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                         style={{ background:IMPACT_CLR[o.impact], boxShadow:`0 0 5px ${IMPACT_CLR[o.impact]}` }} />
-                      <span className="text-[12px] font-semibold flex-1" style={{ color: 'var(--text)' }}>
+                      <span className="text-[12px] font-semibold flex-1" style={{ color: '#ffffff' }}>
                         {o.title}
                       </span>
                       <span className="mono text-[9px] font-bold" style={{ color:IMPACT_CLR[o.impact] }}>
                         {o.impact?.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: 'var(--text-dim)' }}>
+                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: '#9fb3d4' }}>
                       {o.description}
                     </p>
                   </div>
@@ -189,15 +189,15 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                     {i+1}
                   </div>
                   <div>
-                    <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    <p className="text-[12px] leading-relaxed" style={{ color: '#d4ddf5' }}>
                       {a.action}
                     </p>
                     <div className="flex flex-wrap gap-4 mt-2">
-                      <span className="mono text-[10px]" style={{ color: 'var(--text-dim)' }}>
-                        ⏱ <span style={{ color: 'var(--text-secondary)' }}>{a.timeline}</span>
+                      <span className="mono text-[10px]" style={{ color: '#6b82a8' }}>
+                        ⏱ <span style={{ color: '#9fb3d4' }}>{a.timeline}</span>
                       </span>
-                      <span className="mono text-[10px]" style={{ color: 'var(--text-dim)' }}>
-                        → <span style={{ color: 'var(--text-secondary)' }}>{a.expected_impact}</span>
+                      <span className="mono text-[10px]" style={{ color: '#6b82a8' }}>
+                        → <span style={{ color: '#9fb3d4' }}>{a.expected_impact}</span>
                       </span>
                     </div>
                   </div>
@@ -211,7 +211,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
             <div className="mono text-[10px] font-bold text-cyan-400 uppercase tracking-widest mb-3">
               ◈ Industry Context
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: '#d4ddf5' }}>
               {ins.industry_context}
             </p>
           </div>
