@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
-const AV_KEY  = import.meta.env.VITE_AV_API_KEY;
-const AV_BASE = 'https://www.alphavantage.co/query';
 
-// ── localStorage cache (24 hr TTL) ────────────────────────
-const CACHE_KEY = 'bizhealth_company_v1';
-const CACHE_TTL = 24 * 60 * 60 * 1000;
+// ── localStorage cache (1 hr TTL — matches backend) ────────
+const CACHE_KEY = 'bizhealth_company_v2';
+const CACHE_TTL = 60 * 60 * 1000;
 
 function getCached(sym) {
   try {
@@ -20,234 +18,33 @@ function setCached(sym, data) {
   try {
     const store = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
     store[sym] = { data, ts: Date.now() };
+    // Evict oldest entries if store grows > 30 items
+    const keys = Object.keys(store);
+    if (keys.length > 30) {
+      keys.sort((a, b) => store[a].ts - store[b].ts).slice(0, 10).forEach(k => delete store[k]);
+    }
     localStorage.setItem(CACHE_KEY, JSON.stringify(store));
   } catch {}
 }
 
-// ── Ticker normalisation for Alpha Vantage ─────────────────
-function toAVTicker(raw) {
-  return raw
-    .replace(/\.NS$/i, '.BSE')   // Indian NSE  → BSE suffix AV uses
-    .replace(/\.BO$/i, '.BSE')   // Indian BSE
-    .replace(/\.L$/i,  '.LON')   // London
-    .replace(/\.PA$/i, '.PAR')   // Paris
-    .replace(/\.AS$/i, '.AMS')   // Amsterdam
-    .toUpperCase();
-}
-
-// ── Safe numeric extractor ─────────────────────────────────
-function fv(obj, ...keys) {
-  for (const k of keys) {
-    const raw = obj?.[k];
-    if (raw != null && raw !== 'None' && raw !== '-') {
-      const n = Number(raw);
-      if (!Number.isNaN(n)) return n;
-    }
-  }
-  return null;
-}
-
-// ── Sector → industry mapping ──────────────────────────────
-const SECTOR_MAP = {
-  'TECHNOLOGY':          'tech',
-  'COMMUNICATION SERVICES': 'tech',
-  'HEALTH CARE':         'healthcare',
-  'FINANCIALS':          'finance',
-  'CONSUMER STAPLES':    'retail',
-  'CONSUMER DISCRETIONARY': 'retail',
-  'INDUSTRIALS':         'manufacturing',
-  'MATERIALS':           'manufacturing',
-  'ENERGY':              'manufacturing',
-};
-
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-function isRateLimited(d) {
-  return !!(d?.Information || d?.Note);
-}
-
-// ── Main fetch ─────────────────────────────────────────────
-async function fetchCompanyData(rawTicker, fallbackName) {
-  const sym = toAVTicker(rawTicker);
+// ── Fetch via backend YF proxy ──────────────────────────────
+async function fetchCompanyData(ticker) {
+  const sym = ticker.toUpperCase().trim();
 
   const cached = getCached(sym);
   if (cached) return cached;
 
-  // Fetch income statement first
-  const incRes  = await fetch(`${AV_BASE}?function=INCOME_STATEMENT&symbol=${sym}&apikey=${AV_KEY}`);
-  const incData = await incRes.json();
+  if (!BACKEND) throw new Error('Backend URL not configured (VITE_BACKEND_URL).');
 
-  if (isRateLimited(incData)) throw new Error('API rate limit reached (25/day). Try again tomorrow or use CSV upload.');
-  const reports = incData.annualReports;
-  if (!reports?.length) throw new Error(`No financial data found for ${sym}. Try CSV upload or a different ticker.`);
-
-  await sleep(250);
-
-  // Fetch balance sheet
-  const balRes  = await fetch(`${AV_BASE}?function=BALANCE_SHEET&symbol=${sym}&apikey=${AV_KEY}`);
-  const balData = await balRes.json();
-  const balOk   = !isRateLimited(balData) && !!balData.annualReports?.length;
-
-  await sleep(250);
-
-  // Fetch cash flow statement
-  const cfRes  = await fetch(`${AV_BASE}?function=CASH_FLOW&symbol=${sym}&apikey=${AV_KEY}`);
-  const cfData = await cfRes.json();
-  const cfOk   = !isRateLimited(cfData) && !!cfData.annualReports?.length;
-
-  await sleep(250);
-
-  // Fetch overview for sector/name/currency
-  const ovRes  = await fetch(`${AV_BASE}?function=OVERVIEW&symbol=${sym}&apikey=${AV_KEY}`);
-  const ovData = await ovRes.json();
-
-  // ── Build 5-year historical dataset (newest-first from AV) ─
-  const incReports = reports.slice(0, 5);
-  const balReports = balOk ? (balData.annualReports || []).slice(0, 5) : [];
-  const cfReports  = cfOk  ? (cfData.annualReports  || []).slice(0, 5) : [];
-
-  function parseIncYear(r) {
-    const grossP   = fv(r, 'grossProfit');
-    const opIncome = fv(r, 'operatingIncome');
-    const revenue  = fv(r, 'totalRevenue');
-    const cogsRaw  = fv(r, 'costOfRevenue', 'costofGoodsAndServicesSold');
-    const rd       = fv(r, 'researchAndDevelopment');
-    const sga      = fv(r, 'sellingGeneralAndAdministrative');
-    const da       = fv(r, 'depreciationAndAmortization');
-    const ebitda   = fv(r, 'ebitda') ?? (opIncome != null && da != null ? opIncome + da : null);
-    // opExp = R&D + SGA if both known, else derive from GP - EBIT, else fallback
-    const opExp = (rd != null && sga != null)
-      ? rd + sga
-      : (grossP != null && opIncome != null ? Math.abs(grossP - opIncome) : fv(r, 'operatingExpenses'));
-    const dilutedSharesRaw = fv(r, 'weightedAverageSharesOutstandingDiluted');
-    return {
-      year:              r.fiscalDateEnding?.slice(0,4) || '',
-      revenue,
-      grossProfit:       grossP ?? (revenue && cogsRaw ? revenue - cogsRaw : null),
-      cogs:              cogsRaw ?? (revenue && grossP ? revenue - grossP : null),
-      rd,
-      sga,
-      operatingExpenses: opExp,
-      operatingIncome:   opIncome,
-      preTaxIncome:      fv(r, 'incomeBeforeTax'),
-      tax:               fv(r, 'incomeTaxExpense'),
-      netProfit:         fv(r, 'netIncome', 'netIncomeFromContinuingOperations'),
-      interestIncome:    fv(r, 'interestIncome'),
-      interestExpense:   Math.abs(fv(r, 'interestAndDebtExpense', 'interestExpense') ?? 0) || null,
-      ebitda,
-      da,
-      eps:               fv(r, 'dilutedEPS'),
-      dilutedShares:     dilutedSharesRaw != null ? dilutedSharesRaw / 1e9 : null,
-    };
+  const res = await fetch(`${BACKEND}/company/yf/${encodeURIComponent(sym)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Could not load data for ${sym} (${res.status})`);
   }
 
-  function parseBalYear(r) {
-    const ca   = fv(r, 'totalCurrentAssets');
-    const cash = fv(r, 'cashAndCashEquivalentsAtCarryingValue', 'cashAndCashEquivalents');
-    const sti  = fv(r, 'shortTermInvestments');
-    const rec  = fv(r, 'currentNetReceivables', 'netReceivables');
-    const inv  = fv(r, 'inventory');
-    let otherCA = null;
-    if (ca != null) {
-      const known = (cash ?? 0) + (sti ?? 0) + (rec ?? 0) + (inv ?? 0);
-      otherCA = ca - known;
-      if (otherCA < 0) otherCA = null;
-    }
-    return {
-      year:               r.fiscalDateEnding?.slice(0,4) || '',
-      currentAssets:      ca,
-      cash,
-      sti,
-      receivables:        rec,
-      inventory:          inv,
-      otherCurrentAssets: otherCA,
-      totalAssets:        fv(r, 'totalAssets'),
-      ppe:                fv(r, 'propertyPlantEquipmentNet'),
-      goodwill:           fv(r, 'goodwill'),
-      intangibles:        fv(r, 'intangibleAssets'),
-      otherNonCurrentAssets: fv(r, 'otherNonCurrentAssets'),
-      currentLiabilities: fv(r, 'totalCurrentLiabilities'),
-      ap:                 fv(r, 'accountsPayable'),
-      currentDebt:        fv(r, 'shortTermDebt', 'currentPortionOfLongTermDebt'),
-      deferredRevCurrent: fv(r, 'deferredRevenue', 'currentDeferredRevenue'),
-      otherCurrentLiab:   fv(r, 'otherCurrentLiabilities'),
-      ltDebt:             fv(r, 'longTermDebtNoncurrent', 'longTermDebt'),
-      otherNonCurrentLiab: fv(r, 'otherNonCurrentLiabilities'),
-      totalDebt:          fv(r, 'shortLongTermDebtTotal', 'longTermDebt', 'currentLongTermDebt'),
-      equity:             fv(r, 'totalShareholderEquity', 'totalStockholdersEquity', 'commonStockholdersEquity'),
-      apic:               fv(r, 'additionalPaidInCapital'),
-      retainedEarnings:   fv(r, 'retainedEarnings'),
-    };
-  }
-
-  function parseCfYear(r) {
-    const cfOps = fv(r, 'operatingCashflow');
-    const capex = fv(r, 'capitalExpenditures');
-    const ni    = fv(r, 'netIncome');
-    const da    = fv(r, 'depreciationDepletionAndAmortization');
-    const sbc   = fv(r, 'stockBasedCompensation');
-    const wc    = fv(r, 'changeInOperatingWorkingCapital');
-    const bb    = fv(r, 'paymentsForRepurchaseOfCommonStock');
-    const div   = fv(r, 'dividendPayout');
-    return {
-      year:        r.fiscalDateEnding?.slice(0,4) || '',
-      netIncome:   ni,
-      da,
-      sbc,
-      wc,
-      cfOps,
-      capex:       capex != null ? -Math.abs(capex) : null,
-      cfInvesting: fv(r, 'cashflowFromInvestment'),
-      buybacks:    bb  != null ? -Math.abs(bb)  : null,
-      dividends:   div != null ? -Math.abs(div) : null,
-      cfFinancing: fv(r, 'cashflowFromFinancing'),
-    };
-  }
-
-  // AV returns newest-first; keep that order (backend reverses for Excel display)
-  const historical = {
-    income:   incReports.map(parseIncYear),
-    balance:  balReports.map(parseBalYear),
-    cashflow: cfReports.map(parseCfYear),
-  };
-
-  // Most-recent year → input fields
-  const inc = historical.income[0] || {};
-  const bal = historical.balance[0] || {};
-
-  const raw = {
-    currentAssets:      bal.currentAssets,
-    currentLiabilities: bal.currentLiabilities,
-    inventory:          bal.inventory,
-    cash:               bal.cash,
-    totalAssets:        bal.totalAssets,
-    equity:             bal.equity,
-    totalDebt:          bal.totalDebt,
-    revenue:            inc.revenue,
-    grossProfit:        inc.grossProfit,
-    operatingExpenses:  inc.operatingExpenses,
-    netProfit:          inc.netProfit,
-    interestExpense:    inc.interestExpense,
-    receivables:        bal.receivables,
-    cogs:               inc.cogs,
-  };
-
-  const data = {};
-  for (const [k, v] of Object.entries(raw)) {
-    if (v != null && !Number.isNaN(v) && Math.abs(v) > 0) data[k] = String(Math.round(Math.abs(v)));
-  }
-
-  const total    = Object.keys(raw).length;
-  const filled   = Object.keys(data).length;
-  const coverage = Math.round((filled / total) * 100);
-
-  const sector   = isRateLimited(ovData) ? '' : (ovData.Sector?.toUpperCase() || '');
-  const currency = isRateLimited(ovData) ? 'USD' : (ovData.Currency || 'USD');
-  const name     = isRateLimited(ovData) ? (fallbackName || sym) : (ovData.Name || fallbackName || sym);
-
-  const result = { ticker: sym, name, sector, industry: SECTOR_MAP[sector] || 'general', currency, coverage, filled, total, data, historical };
-  setCached(sym, result);
-  return result;
+  const data = await res.json();
+  setCached(sym, data);
+  return data;
 }
 
 // ══════════════════════════════════════════════════════════
@@ -293,10 +90,9 @@ export default function CompanySearch({ onSelect }) {
     setQuery(company.name || company.ticker);
     setFetching(true);
     try {
-      if (!AV_KEY) throw new Error('VITE_AV_API_KEY not set in Vercel');
-      const d = await fetchCompanyData(company.ticker, company.name);
-      setLoaded({ ticker: d.ticker, name: d.name, currency: d.currency,
-                  coverage: d.coverage, filled: d.filled, total: d.total });
+      const d = await fetchCompanyData(company.ticker);
+      setLoaded({ ticker: d.ticker || company.ticker, name: d.name || company.name,
+                  currency: d.currency, coverage: d.coverage, filled: d.filled, total: d.total });
       onSelect(d);
     } catch (e) {
       setError(e.message || 'Could not load financials.');
@@ -305,12 +101,11 @@ export default function CompanySearch({ onSelect }) {
 
   const clear = () => { setQuery(''); setLoaded(null); setError(''); setResults([]); };
 
-  // ── No key configured ────────────────────────────────────
-  if (!AV_KEY) {
+  if (!BACKEND) {
     return (
       <div className="px-3 py-2.5 rounded-xl mono text-[10px] leading-relaxed"
         style={{ background:'rgba(251,191,36,0.06)', border:'1px solid rgba(251,191,36,0.2)', color:'rgba(251,191,36,0.8)' }}>
-        ⚠ Add <strong>VITE_AV_API_KEY</strong> to Vercel to enable company search
+        ⚠ Add <strong>VITE_BACKEND_URL</strong> to Vercel to enable company search
       </div>
     );
   }
@@ -325,7 +120,7 @@ export default function CompanySearch({ onSelect }) {
         <input type="text" value={query}
           onChange={e => { setQuery(e.target.value); setLoaded(null); setError(''); }}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="AAPL, TCS, RELIANCE…"
+          placeholder="AAPL, NVDA, TCS, RELIANCE…"
           className="w-full py-2 text-xs outline-none"
           style={{
             paddingLeft:28, paddingRight:28,

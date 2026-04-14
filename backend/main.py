@@ -16,6 +16,7 @@ import os
 import io
 import json
 import math
+import time
 import asyncio
 import requests
 from concurrent.futures import ThreadPoolExecutor
@@ -31,6 +32,216 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 _executor = ThreadPoolExecutor(max_workers=4)
+
+# ── Yahoo Finance proxy state ─────────────────────────────────
+_YF_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer":         "https://finance.yahoo.com/",
+}
+_yf_crumb_cache: dict  = {}
+_yf_data_cache:  dict  = {}   # ticker -> {"data": ..., "ts": float}
+_YF_TTL = 3600            # cache financial data for 1 hour
+
+
+async def _get_yf_crumb(client: httpx.AsyncClient) -> str:
+    """Fetch or return cached Yahoo Finance crumb."""
+    cached = _yf_crumb_cache.get("crumb")
+    if cached and time.time() - _yf_crumb_cache.get("ts", 0) < 3600:
+        return cached
+    for base in ("https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"):
+        try:
+            r = await client.get(f"{base}/v1/test/getcrumb", timeout=8)
+            crumb = r.text.strip().strip('"')
+            if crumb and crumb != "null":
+                _yf_crumb_cache["crumb"] = crumb
+                _yf_crumb_cache["ts"]    = time.time()
+                return crumb
+        except Exception:
+            pass
+    return ""
+
+
+def _yfv(obj, *keys):
+    """Extract first non-null numeric value from a YF object."""
+    for k in keys:
+        v = (obj or {}).get(k, {})
+        if isinstance(v, dict):
+            raw = v.get("raw")
+            if raw is not None:
+                try:
+                    f = float(raw)
+                    if not math.isnan(f):
+                        return f
+                except (TypeError, ValueError):
+                    pass
+        elif v is not None:
+            try:
+                f = float(v)
+                if not math.isnan(f):
+                    return f
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _parse_yf_response(data: dict) -> dict:
+    """Parse Yahoo Finance quoteSummary into our historical + inputs format."""
+    result = (data.get("quoteSummary") or {}).get("result") or [{}]
+    r = result[0] if result else {}
+
+    inc_stmts = (r.get("incomeStatementHistory") or {}).get("incomeStatementHistory") or []
+    bal_stmts = (r.get("balanceSheetHistory")     or {}).get("balanceSheetStatements") or []
+    cf_stmts  = (r.get("cashflowStatementHistory") or {}).get("cashflowStatements")    or []
+    profile   = r.get("assetProfile")             or {}
+    stats     = r.get("defaultKeyStatistics")     or {}
+
+    def parse_inc(s):
+        rev    = _yfv(s, "totalRevenue")
+        cogs   = _yfv(s, "costOfRevenue")
+        gp     = _yfv(s, "grossProfit") or (rev - cogs if rev and cogs else None)
+        op     = _yfv(s, "operatingIncome", "ebit")
+        rd     = _yfv(s, "researchDevelopment")
+        sga    = _yfv(s, "sellingGeneralAdministrative")
+        da     = _yfv(s, "depreciationAndAmortization")
+        ebitda = (op + da) if op and da else None
+        shares = _yfv(s, "dilutedAverageShares")
+        return {
+            "year":              (s.get("endDate") or {}).get("fmt", "")[:4],
+            "revenue":           rev,
+            "cogs":              cogs or (rev - gp if rev and gp else None),
+            "grossProfit":       gp,
+            "rd":                rd,
+            "sga":               sga,
+            "operatingExpenses": (rd + sga) if rd and sga else None,
+            "operatingIncome":   op,
+            "preTaxIncome":      _yfv(s, "incomeBeforeTax"),
+            "tax":               _yfv(s, "incomeTaxExpense"),
+            "netProfit":         _yfv(s, "netIncome"),
+            "interestIncome":    _yfv(s, "interestIncome"),
+            "interestExpense":   abs(_yfv(s, "interestExpense") or 0) or None,
+            "ebitda":            ebitda,
+            "da":                da,
+            "eps":               _yfv(s, "dilutedEps"),
+            "dilutedShares":     (shares / 1e9) if shares else None,
+        }
+
+    def parse_bal(s):
+        ca   = _yfv(s, "totalCurrentAssets")
+        cash = _yfv(s, "cash")
+        sti  = _yfv(s, "shortTermInvestments")
+        rec  = _yfv(s, "netReceivables")
+        inv  = _yfv(s, "inventory")
+        oCA  = None
+        if ca and cash is not None:
+            oCA = ca - (cash or 0) - (sti or 0) - (rec or 0) - (inv or 0)
+            if oCA < 0: oCA = None
+        ta   = _yfv(s, "totalAssets")
+        eq   = _yfv(s, "totalStockholderEquity")
+        return {
+            "year":               (s.get("endDate") or {}).get("fmt", "")[:4],
+            "currentAssets":      ca,
+            "cash":               cash,
+            "sti":                sti,
+            "receivables":        rec,
+            "inventory":          inv,
+            "otherCurrentAssets": oCA,
+            "totalAssets":        ta,
+            "ppe":                _yfv(s, "propertyPlantEquipment"),
+            "goodwill":           _yfv(s, "goodWill"),
+            "intangibles":        _yfv(s, "intangibleAssets"),
+            "otherNonCurrentAssets": _yfv(s, "otherAssets"),
+            "currentLiabilities": _yfv(s, "totalCurrentLiabilities"),
+            "ap":                 _yfv(s, "accountsPayable"),
+            "currentDebt":        _yfv(s, "shortLongTermDebt"),
+            "deferredRevCurrent": _yfv(s, "deferredRevenue"),
+            "otherCurrentLiab":   _yfv(s, "otherCurrentLiab"),
+            "ltDebt":             _yfv(s, "longTermDebt"),
+            "otherNonCurrentLiab":_yfv(s, "otherLiab"),
+            "totalDebt":          _yfv(s, "shortLongTermDebt", "longTermDebt"),
+            "equity":             eq,
+            "apic":               _yfv(s, "additionalPaidInCapital"),
+            "retainedEarnings":   _yfv(s, "retainedEarnings"),
+        }
+
+    def parse_cf(s):
+        ops  = _yfv(s, "totalCashFromOperatingActivities")
+        capx = _yfv(s, "capitalExpenditures")
+        ni   = _yfv(s, "netIncome")
+        da   = _yfv(s, "depreciation")
+        sbc  = _yfv(s, "stockBasedCompensation")
+        wc   = _yfv(s, "changeToWorkingCapital")
+        bb   = _yfv(s, "repurchaseOfStock")
+        div  = _yfv(s, "dividendsPaid")
+        return {
+            "year":        (s.get("endDate") or {}).get("fmt", "")[:4],
+            "netIncome":   ni,
+            "da":          da,
+            "sbc":         sbc,
+            "wc":          wc,
+            "cfOps":       ops,
+            "capex":       (-abs(capx) if capx else None),
+            "cfInvesting": _yfv(s, "totalCashFromInvestingActivities"),
+            "buybacks":    (-abs(bb) if bb else None),
+            "dividends":   (-abs(div) if div else None),
+            "cfFinancing": _yfv(s, "totalCashFromFinancingActivities"),
+        }
+
+    historical = {
+        "income":   [parse_inc(s) for s in inc_stmts[:5]],
+        "balance":  [parse_bal(s) for s in bal_stmts[:5]],
+        "cashflow": [parse_cf(s)  for s in cf_stmts[:5]],
+    }
+
+    # Most-recent year → input fields
+    inc0 = historical["income"][0]  if historical["income"]  else {}
+    bal0 = historical["balance"][0] if historical["balance"] else {}
+
+    raw_inputs = {
+        "currentAssets":      bal0.get("currentAssets"),
+        "currentLiabilities": bal0.get("currentLiabilities"),
+        "inventory":          bal0.get("inventory"),
+        "cash":               bal0.get("cash"),
+        "totalAssets":        bal0.get("totalAssets"),
+        "equity":             bal0.get("equity"),
+        "totalDebt":          bal0.get("totalDebt"),
+        "revenue":            inc0.get("revenue"),
+        "grossProfit":        inc0.get("grossProfit"),
+        "operatingExpenses":  inc0.get("operatingExpenses"),
+        "netProfit":          inc0.get("netProfit"),
+        "interestExpense":    inc0.get("interestExpense"),
+        "receivables":        bal0.get("receivables"),
+        "cogs":               inc0.get("cogs"),
+    }
+    data_fields = {}
+    for k, v in raw_inputs.items():
+        if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
+            data_fields[k] = str(int(abs(round(v))))
+
+    sector   = profile.get("sector", "")
+    currency = profile.get("financialCurrency") or profile.get("currency") or "USD"
+    name     = profile.get("longName") or profile.get("shortName") or ""
+
+    total    = len(raw_inputs)
+    filled   = len(data_fields)
+    coverage = round((filled / total) * 100) if total else 0
+
+    return {
+        "name":       name,
+        "sector":     sector,
+        "industry":   SECTOR_MAP.get(sector, "general"),
+        "currency":   currency,
+        "coverage":   coverage,
+        "filled":     filled,
+        "total":      total,
+        "data":       data_fields,
+        "historical": historical,
+    }
 
 app = FastAPI(title="BizHealth API", version="1.0.0")
 
@@ -309,6 +520,78 @@ async def get_company(ticker: str):
         "total":    total,
         "data":     mapped,
     }
+
+
+# ─────────────────────────────────────────────────────────────
+#  Yahoo Finance proxy — no API key, no rate limit
+# ─────────────────────────────────────────────────────────────
+
+@app.get("/company/yf/{ticker}")
+async def get_company_yf(ticker: str):
+    """
+    Proxy Yahoo Finance quoteSummary — returns 4-5 years of historical financials.
+    No external API key needed. Results cached for 1 hour per ticker.
+    """
+    sym = ticker.upper().strip()
+
+    # Serve from cache if still fresh
+    cached = _yf_data_cache.get(sym)
+    if cached and (time.time() - cached["ts"]) < _YF_TTL:
+        return cached["data"]
+
+    modules = ",".join([
+        "incomeStatementHistory",
+        "balanceSheetHistory",
+        "cashflowStatementHistory",
+        "defaultKeyStatistics",
+        "assetProfile",
+        "financialData",
+    ])
+
+    try:
+        async with httpx.AsyncClient(headers=_YF_HEADERS, follow_redirects=True, timeout=15) as client:
+            crumb = await _get_yf_crumb(client)
+
+            # Primary: query1
+            url = (
+                f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+                f"?modules={modules}"
+                + (f"&crumb={crumb}" if crumb else "")
+            )
+            r = await client.get(url)
+
+            # Fallback: query2
+            if r.status_code != 200:
+                url = (
+                    f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+                    f"?modules={modules}"
+                    + (f"&crumb={crumb}" if crumb else "")
+                )
+                r = await client.get(url)
+
+            if r.status_code != 200:
+                raise HTTPException(
+                    status_code=r.status_code,
+                    detail=f"Yahoo Finance returned {r.status_code} for {sym}",
+                )
+
+            raw_json = r.json()
+
+            # Check for YF-level error
+            error = (raw_json.get("quoteSummary") or {}).get("error")
+            if error:
+                raise HTTPException(status_code=404, detail=str(error))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Yahoo Finance request failed: {e}")
+
+    parsed = _parse_yf_response(raw_json)
+    parsed["ticker"] = sym
+
+    _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+    return parsed
 
 
 # ─────────────────────────────────────────────────────────────
