@@ -259,6 +259,7 @@ def _parse_yf_response(data: dict) -> dict:
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
 
+    cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
@@ -274,6 +275,9 @@ def _parse_yf_response(data: dict) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "da":                 inc0.get("da") or cf0.get("da"),
+        "accountsPayable":    bal0.get("ap"),
+        "operatingCashFlow":  cf0.get("cfOps"),
     }
     data_fields = {}
     for k, v in raw_inputs.items():
@@ -773,6 +777,7 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
 
+    cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
@@ -788,6 +793,9 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "da":                 inc0.get("da") or cf0.get("da"),
+        "accountsPayable":    bal0.get("ap"),
+        "operatingCashFlow":  cf0.get("cfOps"),
     }
 
     data_fields = {}
@@ -930,6 +938,7 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
 
+    cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
@@ -945,6 +954,9 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "da":                 inc0.get("da") or cf0.get("da"),
+        "accountsPayable":    bal0.get("ap"),
+        "operatingCashFlow":  cf0.get("cfOps"),
     }
 
     data_fields = {}
@@ -1151,6 +1163,7 @@ def _yf_fetch_ticker(sym: str) -> dict:
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
 
+    cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
@@ -1166,6 +1179,9 @@ def _yf_fetch_ticker(sym: str) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "da":                 inc0.get("da") or cf0.get("da"),
+        "accountsPayable":    bal0.get("ap"),
+        "operatingCashFlow":  cf0.get("cfOps"),
     }
 
     data_fields = {}

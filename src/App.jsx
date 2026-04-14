@@ -21,26 +21,37 @@ import {
   calcGrossMargin, calcOperatingMargin, calcNetMargin, calcROE, calcROA,
   calcAssetTurnover, calcFixedAssetTurnover, calcReceivablesDays,
   calcInventoryDays, calcDebtToEquity, calcInterestCoverage,
+  calcEbitdaMargin, calcROIC, calcEquityMultiplier, calcDebtToCapital,
+  calcNetDebtToEbitda, calcDPO, calcCCC, calcCfoToNetIncome, calcAltmanZ,
 } from './utils/calculations';
 
 import { getStatus, getBarWidth, INDUSTRY_BENCHMARKS } from './utils/benchmarks';
 import { getInterpretation }                           from './utils/interpretations';
 
 const RECOMMENDATIONS = {
-  currentRatio:        'Negotiate longer payment terms with suppliers and accelerate customer collections.',
-  quickRatio:          'Build a cash buffer equal to at least 1 month of current liabilities.',
-  cashRatio:           'Set aside a fixed % of monthly revenue into a liquid reserve account.',
-  grossMargin:         'Audit top 3 cost-of-goods categories. Renegotiate supplier contracts or review pricing.',
-  operatingMargin:     'Identify top 3 controllable overhead lines and target a 10% cut each quarter.',
-  netMargin:           'Review tax planning and discretionary expenses. Consider a pricing review.',
-  roe:                 'Re-evaluate capital allocation — are low-return investments tying up equity?',
-  roa:                 'Identify idle or underperforming assets. Consider selling or leasing them.',
-  assetTurnover:       'Grow revenue from the existing asset base before purchasing new capacity.',
-  fixedAssetTurnover:  'Check whether fixed assets are at full utilisation. Lease idle equipment.',
-  receivablesDays:     'Offer 2% discount for payments within 10 days. Enforce late-payment penalties.',
-  inventoryDays:       'Implement demand-led procurement. Clear slow-moving SKUs with a promotion.',
-  debtToEquity:        'Pause new borrowing. Allocate monthly profit to highest-interest debt first.',
-  interestCoverage:    'Refinance high-interest short-term debt to longer tenure. Improve EBIT urgently.',
+  currentRatio:           'Negotiate longer payment terms with suppliers and accelerate customer collections.',
+  quickRatio:             'Build a cash buffer equal to at least 1 month of current liabilities.',
+  cashRatio:              'Set aside a fixed % of monthly revenue into a liquid reserve account.',
+  grossMargin:            'Audit top 3 cost-of-goods categories. Renegotiate supplier contracts or review pricing.',
+  operatingMargin:        'Identify top 3 controllable overhead lines and target a 10% cut each quarter.',
+  netMargin:              'Review tax planning and discretionary expenses. Consider a pricing review.',
+  roe:                    'Re-evaluate capital allocation — are low-return investments tying up equity?',
+  roa:                    'Identify idle or underperforming assets. Consider selling or leasing them.',
+  assetTurnover:          'Grow revenue from the existing asset base before purchasing new capacity.',
+  fixedAssetTurnover:     'Check whether fixed assets are at full utilisation. Lease idle equipment.',
+  receivablesDays:        'Offer 2% discount for payments within 10 days. Enforce late-payment penalties.',
+  inventoryDays:          'Implement demand-led procurement. Clear slow-moving SKUs with a promotion.',
+  debtToEquity:           'Pause new borrowing. Allocate monthly profit to highest-interest debt first.',
+  interestCoverage:       'Refinance high-interest short-term debt to longer tenure. Improve EBIT urgently.',
+  ebitdaMargin:           'Reduce operating cost base or exit low-margin product lines to improve EBITDA quality.',
+  roic:                   'Divest non-core assets, improve operating margins, or reduce invested capital to lift ROIC above WACC.',
+  equityMultiplier:       'Deleverage by retiring debt and retaining earnings to reduce reliance on financial leverage.',
+  debtToCapital:          'Shift financing mix toward equity through retained earnings or fresh equity issuance.',
+  netDebtToEbitda:        'Target 0.5x deleveraging per year by directing FCF toward debt repayment. Avoid new M&A until below 2.5x.',
+  daysPayableOutstanding: 'Negotiate 30-60 day payment terms with key suppliers to improve working capital position.',
+  cashConversionCycle:    'Tighten DSO via early-payment incentives, reduce DIO via demand forecasting, extend DPO via supplier negotiations.',
+  cfoToNetIncome:         'Investigate the gap between reported profits and cash. Analyse receivables build-up and revenue recognition policies.',
+  altmanZ:                'Prioritise liquidity improvement, profitability recovery, and debt reduction. Consider restructuring options.',
 };
 
 const EMPTY_INPUTS = {
@@ -48,6 +59,7 @@ const EMPTY_INPUTS = {
   totalAssets:'', equity:'', totalDebt:'',
   revenue:'', grossProfit:'', operatingExpenses:'', netProfit:'', interestExpense:'',
   receivables:'', cogs:'',
+  da:'', accountsPayable:'', operatingCashFlow:'',
 };
 
 export default function App() {
@@ -71,20 +83,31 @@ export default function App() {
 
   function handleCalculate() {
     const rv = {
-      currentRatio:        calcCurrentRatio(n('currentAssets'), n('currentLiabilities')),
-      quickRatio:          calcQuickRatio(n('currentAssets'), n('inventory'), n('currentLiabilities')),
-      cashRatio:           calcCashRatio(n('cash'), n('currentLiabilities')),
-      grossMargin:         calcGrossMargin(n('grossProfit'), n('revenue')),
-      operatingMargin:     calcOperatingMargin(n('grossProfit'), n('operatingExpenses'), n('revenue')),
-      netMargin:           calcNetMargin(n('netProfit'), n('revenue')),
-      roe:                 calcROE(n('netProfit'), n('equity')),
-      roa:                 calcROA(n('netProfit'), n('totalAssets')),
-      assetTurnover:       calcAssetTurnover(n('revenue'), n('totalAssets')),
-      fixedAssetTurnover:  calcFixedAssetTurnover(n('revenue'), n('totalAssets'), n('currentAssets')),
-      receivablesDays:     calcReceivablesDays(n('receivables'), n('revenue')),
-      inventoryDays:       calcInventoryDays(n('inventory'), n('cogs')),
-      debtToEquity:        calcDebtToEquity(n('totalDebt'), n('equity')),
-      interestCoverage:    calcInterestCoverage(n('grossProfit'), n('operatingExpenses'), n('interestExpense')),
+      // ── Core 14 ──────────────────────────────────────────
+      currentRatio:           calcCurrentRatio(n('currentAssets'), n('currentLiabilities')),
+      quickRatio:             calcQuickRatio(n('currentAssets'), n('inventory'), n('currentLiabilities')),
+      cashRatio:              calcCashRatio(n('cash'), n('currentLiabilities')),
+      grossMargin:            calcGrossMargin(n('grossProfit'), n('revenue')),
+      operatingMargin:        calcOperatingMargin(n('grossProfit'), n('operatingExpenses'), n('revenue')),
+      netMargin:              calcNetMargin(n('netProfit'), n('revenue')),
+      roe:                    calcROE(n('netProfit'), n('equity')),
+      roa:                    calcROA(n('netProfit'), n('totalAssets')),
+      assetTurnover:          calcAssetTurnover(n('revenue'), n('totalAssets')),
+      fixedAssetTurnover:     calcFixedAssetTurnover(n('revenue'), n('totalAssets'), n('currentAssets')),
+      receivablesDays:        calcReceivablesDays(n('receivables'), n('revenue')),
+      inventoryDays:          calcInventoryDays(n('inventory'), n('cogs')),
+      debtToEquity:           calcDebtToEquity(n('totalDebt'), n('equity')),
+      interestCoverage:       calcInterestCoverage(n('grossProfit'), n('operatingExpenses'), n('interestExpense')),
+      // ── CFA Advanced ──────────────────────────────────────
+      ebitdaMargin:           calcEbitdaMargin(n('grossProfit'), n('operatingExpenses'), n('da'), n('revenue')),
+      roic:                   calcROIC(n('grossProfit'), n('operatingExpenses'), n('equity'), n('totalDebt'), n('cash')),
+      equityMultiplier:       calcEquityMultiplier(n('totalAssets'), n('equity')),
+      debtToCapital:          calcDebtToCapital(n('totalDebt'), n('equity')),
+      netDebtToEbitda:        calcNetDebtToEbitda(n('totalDebt'), n('cash'), n('grossProfit'), n('operatingExpenses'), n('da')),
+      daysPayableOutstanding: calcDPO(n('accountsPayable'), n('cogs')),
+      cashConversionCycle:    calcCCC(n('receivables'), n('revenue'), n('inventory'), n('cogs'), n('accountsPayable')),
+      cfoToNetIncome:         calcCfoToNetIncome(n('operatingCashFlow'), n('netProfit')),
+      altmanZ:                calcAltmanZ(n('currentAssets'), n('currentLiabilities'), n('totalAssets'), n('netProfit'), n('grossProfit'), n('operatingExpenses'), n('equity')),
     };
     const statuses = {};
     Object.keys(rv).forEach(k => { statuses[k] = getStatus(rv[k], k, industry); });
@@ -964,6 +987,21 @@ export default function App() {
     { title: 'Profitability', ratios: [card('grossMargin','Gross Margin','%'), card('operatingMargin','Operating Margin','%'), card('netMargin','Net Margin','%'), card('roe','Return on Equity','%'), card('roa','Return on Assets','%')] },
     { title: 'Efficiency',    ratios: [card('assetTurnover','Asset Turnover','x'), card('fixedAssetTurnover','Fixed Asset Turnover','x'), card('receivablesDays','Receivables Days',' days'), card('inventoryDays','Inventory Days',' days')] },
     { title: 'Leverage',      ratios: [card('debtToEquity','Debt to Equity','x'), card('interestCoverage','Interest Coverage','x')] },
+    { title: 'CFA — Advanced Profitability & Capital', ratios: [
+      card('ebitdaMargin',    'EBITDA Margin',       '%'),
+      card('roic',            'ROIC',                '%'),
+      card('equityMultiplier','Equity Multiplier',   'x'),
+    ]},
+    { title: 'CFA — Credit & Solvency', ratios: [
+      card('debtToCapital',          'Debt / Capital',            '%'),
+      card('netDebtToEbitda',        'Net Debt / EBITDA',         'x'),
+      card('altmanZ',                'Altman Z-Score',            ''),
+    ]},
+    { title: 'CFA — Working Capital & Earnings Quality', ratios: [
+      card('daysPayableOutstanding', 'Days Payable Outstanding',  ' days'),
+      card('cashConversionCycle',    'Cash Conversion Cycle',     ' days'),
+      card('cfoToNetIncome',         'CFO / Net Income',          'x'),
+    ]},
   ];
 
   const allStatuses = results ? Object.values(results.statuses) : Array(14).fill('na');

@@ -9,6 +9,8 @@ export const DEMO_DATA = {
   totalAssets:'12000000', equity:'6500000', totalDebt:'3500000',
   revenue:'24000000', grossProfit:'5400000', operatingExpenses:'2200000',
   netProfit:'1800000', interestExpense:'420000', receivables:'2800000', cogs:'18600000',
+  // CFA inputs
+  da:'480000', accountsPayable:'1400000', operatingCashFlow:'2100000',
 };
 
 const CSV_MAP = {
@@ -23,6 +25,9 @@ const CSV_MAP = {
   'finance costs':'interestExpense','receivables':'receivables',
   'accounts receivable':'receivables','debtors':'receivables',
   'cogs':'cogs','cost of goods sold':'cogs','cost of sales':'cogs',
+  'depreciation':'da','d&a':'da','depreciation and amortization':'da',
+  'accounts payable':'accountsPayable','creditors':'accountsPayable','trade payables':'accountsPayable',
+  'operating cash flow':'operatingCashFlow','cash from operations':'operatingCashFlow','cfo':'operatingCashFlow',
 };
 
 const FIELDS = [
@@ -40,12 +45,16 @@ const FIELDS = [
   { key:'interestExpense',    label:'Interest Expense',    g:'P&L'          },
   { key:'receivables',        label:'Accounts Receivable', g:'Working Capital'},
   { key:'cogs',               label:'Cost of Goods Sold',  g:'Working Capital'},
+  { key:'da',                 label:'D&A (Depreciation)',  g:'CFA Inputs'   },
+  { key:'accountsPayable',    label:'Accounts Payable',    g:'CFA Inputs'   },
+  { key:'operatingCashFlow',  label:'Operating Cash Flow', g:'CFA Inputs'   },
 ];
 
 const GROUPS = [
   { id: 'Balance Sheet',  label: 'Balance Sheet',   color: '#4f6ef7', dot: 'rgba(79,110,247,0.8)'  },
   { id: 'P&L',            label: 'P & L',           color: '#00e887', dot: 'rgba(0,232,135,0.8)'   },
   { id: 'Working Capital',label: 'Working Capital', color: '#22d3ee', dot: 'rgba(34,211,238,0.8)'  },
+  { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b', dot: 'rgba(245,158,11,0.8)'  },
 ];
 
 export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded }) {

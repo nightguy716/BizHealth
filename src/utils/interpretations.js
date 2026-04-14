@@ -76,6 +76,53 @@ export function getInterpretation(ratioKey, value, status, threshold) {
       amber: `Interest Coverage of ${v} is borderline. If earnings dip, meeting interest payments could become stressful.`,
       red:   `Interest Coverage of ${v} is below ${threshold} — your business is struggling to service its debt. Reduce borrowing or improve operating profit immediately.`,
     },
+
+    // ── CFA Advanced ───────────────────────────────────────
+    ebitdaMargin: {
+      green: `EBITDA Margin of ${v}% — strong pre-interest, pre-tax cash generation. This is the metric bankers and PE firms care most about for deal structuring.`,
+      amber: `EBITDA Margin of ${v}% is acceptable but below the ${threshold}% benchmark. Operating cost efficiency needs attention before this business is M&A-ready.`,
+      red:   `EBITDA Margin of ${v}% is weak — the business generates little cash before financing costs. This severely limits debt capacity and valuation multiples.`,
+    },
+    roic: {
+      green: `ROIC of ${v}% — the business is creating genuine economic value above its cost of capital. This is the hallmark of a high-quality compounder.`,
+      amber: `ROIC of ${v}% is near the cost of capital threshold. Value creation is marginal — focus on capital efficiency and margin improvement.`,
+      red:   `ROIC of ${v}% — the business is destroying economic value. Every dollar of capital deployed earns below the cost of that capital. Restructuring or divestment may be warranted.`,
+    },
+    equityMultiplier: {
+      green: `Equity Multiplier of ${v} — moderate financial leverage. DuPont: ROE is driven more by operational performance than debt.`,
+      amber: `Equity Multiplier of ${v} signals rising leverage. ROE is increasingly amplified by debt — which cuts both ways in downturns.`,
+      red:   `Equity Multiplier of ${v} is high — the business is heavily debt-financed. ROE may look attractive, but underlying operational returns are being masked by leverage.`,
+    },
+    debtToCapital: {
+      green: `Debt-to-Capital of ${v}% — well within investment-grade comfort zone. Financing is predominantly equity-backed.`,
+      amber: `Debt-to-Capital of ${v}% is approaching the threshold where credit agencies begin to flag leverage concerns.`,
+      red:   `Debt-to-Capital of ${v}% — the capital structure is majority debt. This is typical of leveraged buyouts but risky for organic operations.`,
+    },
+    netDebtToEbitda: {
+      green: `Net Debt/EBITDA of ${v}x — below ${threshold}x, the business can comfortably service and repay its debt within 2-3 years of EBITDA. Investment-grade territory.`,
+      amber: `Net Debt/EBITDA of ${v}x is in the "watch zone." Lenders will begin applying covenants. Focus on EBITDA growth and debt reduction simultaneously.`,
+      red:   `Net Debt/EBITDA of ${v}x is above ${threshold}x — high-yield / distressed territory. Debt repayment horizon exceeds 4 years of EBITDA. Immediate deleveraging required.`,
+    },
+    daysPayableOutstanding: {
+      green: `DPO of ${v} days — the business is efficiently using supplier credit as a low-cost funding source. Contributes positively to the Cash Conversion Cycle.`,
+      amber: `DPO of ${v} days is below optimal. There may be room to negotiate better payment terms with suppliers to improve working capital.`,
+      red:   `DPO of ${v} days is very short — the business is paying suppliers too quickly. Renegotiate terms to 30-60 days to unlock working capital.`,
+    },
+    cashConversionCycle: {
+      green: `CCC of ${v} days — excellent working capital management. Cash is cycling back quickly (or suppliers are effectively funding operations).`,
+      amber: `CCC of ${v} days is moderate. Tighten receivables collection and review inventory turns to reduce the cash-to-cash cycle.`,
+      red:   `CCC of ${v} days is long — significant capital is trapped in working capital. Accelerate collections, reduce inventory, and extend payables to free up cash.`,
+    },
+    cfoToNetIncome: {
+      green: `CFO/NI of ${v} — earnings quality is high. Cash from operations exceeds reported profit, indicating low accruals and real economic profit.`,
+      amber: `CFO/NI of ${v} is below 1. Reported profits are partly accrual-based and not fully backed by operating cash. Monitor closely.`,
+      red:   `CFO/NI of ${v} — reported earnings significantly exceed cash generation. This is a classic earnings quality red flag. Investigate revenue recognition and receivables build-up.`,
+    },
+    altmanZ: {
+      green: `Altman Z-Score of ${v} is above 2.6 — the business is in the safe zone with low probability of financial distress within 2 years.`,
+      amber: `Altman Z-Score of ${v} (1.1–2.6) is in the grey zone — some financial stress indicators present. Monitor liquidity and leverage closely.`,
+      red:   `Altman Z-Score of ${v} is below 1.1 — distress zone. Altman's model predicts a meaningful probability of financial difficulty. Address solvency and liquidity urgently.`,
+    },
   };
 
   if (!map[ratioKey]) return '';
