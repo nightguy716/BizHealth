@@ -14,6 +14,8 @@ import SectorComparison from './components/SectorComparison';
 import AIInsights       from './components/AIInsights';
 import Logo             from './components/Logo';
 
+import { SECTOR_COMPANIES, COMPARISON_RATIOS } from './data/sectorData';
+
 import {
   calcCurrentRatio, calcQuickRatio, calcCashRatio,
   calcGrossMargin, calcOperatingMargin, calcNetMargin, calcROE, calcROA,
@@ -145,6 +147,7 @@ export default function App() {
     const date = new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' });
     const co   = companyContext.name || 'Business';
     const cur  = companyContext.currency || 'USD';
+    const tick = companyContext.ticker || '';
 
     // ── Palette ───────────────────────────────────────────
     const C = {
@@ -227,7 +230,24 @@ export default function App() {
     // ── Has historical income data? ───────────────────────
     const incHist  = (historical.income  || []).filter(y => y?.revenue);
     const hasHist  = incHist.length >= 2;
-    const totalPages = hasHist ? 4 : 3;
+
+    // ── Sector peers for comparison page ──────────────────
+    const sectorPeers = (SECTOR_COMPANIES[industry] || SECTOR_COMPANIES.general).slice(0, 4);
+    const hasPeers    = sectorPeers.length > 0;
+
+    // ── DCF assumptions ───────────────────────────────────
+    const DCF_GROWTH = { tech:[0.30,0.22,0.18,0.14,0.12], healthcare:[0.12,0.10,0.09,0.08,0.07],
+      finance:[0.09,0.08,0.07,0.06,0.05], retail:[0.07,0.06,0.06,0.05,0.04],
+      manufacturing:[0.07,0.06,0.06,0.05,0.04], general:[0.10,0.08,0.07,0.06,0.05] };
+    const DCF_EM = { tech:[0.28,0.30,0.31,0.31,0.32], healthcare:[0.25,0.26,0.27,0.27,0.27],
+      finance:[0.35,0.36,0.37,0.37,0.37], retail:[0.08,0.08,0.09,0.09,0.09],
+      manufacturing:[0.16,0.17,0.17,0.18,0.18], general:[0.22,0.23,0.24,0.24,0.25] };
+    const gr = DCF_GROWTH[industry] || DCF_GROWTH.general;
+    const em = DCF_EM[industry]     || DCF_EM.general;
+    const baseRevRaw  = parseFloat(inputs.revenue) || 0;
+    const hasDCF = baseRevRaw > 0;
+
+    const totalPages = 3 + (hasHist ? 1 : 0) + (hasPeers ? 1 : 0) + (hasDCF ? 1 : 0);
 
     // ══════════════════════════════════════════════════════
     //  PAGE 1 — Executive Dashboard
@@ -610,10 +630,226 @@ export default function App() {
     }
 
     // ══════════════════════════════════════════════════════
+    //  PAGE — Sector Peer Comparison
+    // ══════════════════════════════════════════════════════
+    let currentPage = hasHist ? 4 : 3;
+
+    if (hasPeers) {
+      currentPage++;
+      pdf.addPage(); bg(); hdr();
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
+      pdf.text('BIZHEALTH  ·  PEER BENCHMARKING', M, 8);
+      pdf.text(date, W - M, 8, { align:'right' });
+
+      pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+      pdf.text(co + ' — Sector Peer Comparison', M, 27);
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
+      pdf.text(`Benchmarked vs ${industry.charAt(0).toUpperCase()+industry.slice(1)} peers  ·  FY2024 public data  ·  Indicative`, M, 33);
+
+      // Table header
+      const colW4 = [52, ...sectorPeers.map(() => (col - 52) / sectorPeers.length)];
+      const colX4 = [M];
+      colW4.slice(0,-1).forEach((w,i) => colX4.push(colX4[i] + w));
+
+      let tr = 40;
+      // Header row
+      pdf.setFillColor(10, 15, 32); pdf.rect(M, tr, col, 7, 'F');
+      pdf.setFillColor(...C.accent); pdf.rect(M, tr, col, 0.8, 'F');
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','bold'); pdf.setFontSize(6);
+      pdf.text('METRIC', colX4[0] + 2, tr + 4.8);
+      sectorPeers.forEach((p, i) => {
+        const cx = colX4[i+1] + colW4[i+1]/2;
+        pdf.setTextColor(...C.body);
+        pdf.text(p.ticker, cx, tr + 3.2, { align:'center' });
+        pdf.setTextColor(...C.muted); pdf.setFontSize(5);
+        pdf.text(p.name.length > 14 ? p.name.slice(0,13)+'…' : p.name, cx, tr + 6.4, { align:'center' });
+        pdf.setFontSize(6);
+      });
+      tr += 9;
+
+      // Add the analysed company as first column reference
+      const userLabel = tick || co.slice(0,8);
+      pdf.setFillColor(...C.surface); pdf.rect(M, tr-1, col, 6, 'F');
+      pdf.setTextColor(...C.cyan); pdf.setFont('helvetica','bold'); pdf.setFontSize(5.5);
+      pdf.text('YOUR COMPANY →', colX4[0]+2, tr+3);
+      sectorPeers.forEach((_, i) => {
+        pdf.setTextColor(40,60,100); pdf.text('─', colX4[i+1]+colW4[i+1]/2, tr+3, {align:'center'});
+      });
+      tr += 7;
+
+      COMPARISON_RATIOS.forEach(({ key, label, unit }, ri) => {
+        const userVal = results.ratioValues[key];
+        const rowBg   = ri % 2 === 0 ? [6,10,22] : [9,14,30];
+        pdf.setFillColor(...rowBg); pdf.rect(M, tr-1, col, 8, 'F');
+
+        // Label
+        pdf.setTextColor(...C.body); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
+        pdf.text(label, colX4[0]+2, tr+4);
+
+        // User value (highlighted)
+        const sc = STATUS_COLOR[results.statuses[key]] || C.muted;
+        if (userVal !== null && userVal !== undefined && !isNaN(userVal)) {
+          pdf.setFillColor(...sc.map(c=>Math.min(255,c*0.18)));
+          pdf.roundedRect(colX4[0]+36, tr+0.5, colX4[1]-colX4[0]-38, 6, 1, 1, 'F');
+          pdf.setTextColor(...sc); pdf.setFont('helvetica','bold'); pdf.setFontSize(6.5);
+          pdf.text(fmt(userVal, unit), colX4[0]+36+(colX4[1]-colX4[0]-38)/2, tr+4.5, {align:'center'});
+        } else {
+          pdf.setTextColor(...C.dim); pdf.text('—', colX4[0]+36+(colX4[1]-colX4[0]-38)/2, tr+4.5, {align:'center'});
+        }
+
+        sectorPeers.forEach((peer, i) => {
+          const pv = peer[key];
+          const cx = colX4[i+1] + colW4[i+1]/2;
+          if (pv === null || pv === undefined) {
+            pdf.setTextColor(...C.dim); pdf.setFont('helvetica','normal'); pdf.setFontSize(6);
+            pdf.text('N/A', cx, tr+4.5, { align:'center' });
+          } else {
+            // Compare to user: better/worse
+            const lowerBetter = ['receivablesDays','inventoryDays','debtToEquity'].includes(key);
+            let indicator = null;
+            if (userVal !== null && !isNaN(userVal)) {
+              const diff = Math.abs(userVal - pv) / (pv || 1);
+              if (diff < 0.05) indicator = C.amber;
+              else if (lowerBetter ? userVal <= pv : userVal >= pv) indicator = C.green;
+              else indicator = C.dim;
+            }
+            pdf.setTextColor(...(indicator || C.muted));
+            pdf.setFont('helvetica', indicator === C.green ? 'bold' : 'normal');
+            pdf.setFontSize(6.5);
+            pdf.text(fmt(pv, unit), cx, tr+4.5, { align:'center' });
+          }
+        });
+        tr += 9;
+      });
+
+      // Legend
+      tr += 4;
+      pdf.setTextColor(...C.green);  pdf.setFont('helvetica','bold'); pdf.setFontSize(5.5);
+      pdf.text('Bold green = you are ahead of this peer', M, tr);
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal');
+      pdf.text('  ·  N/A = not applicable for this business type  ·  Data: public annual reports FY2024', M+70, tr);
+
+      footer(currentPage, totalPages);
+    }
+
+    // ══════════════════════════════════════════════════════
+    //  PAGE — DCF Valuation Snapshot
+    // ══════════════════════════════════════════════════════
+    if (hasDCF) {
+      currentPage++;
+      pdf.addPage(); bg(); hdr();
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
+      pdf.text('BIZHEALTH  ·  DCF VALUATION', M, 8);
+      pdf.text(date, W - M, 8, { align:'right' });
+
+      pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
+      pdf.text(co + ' — DCF Valuation Snapshot', M, 27);
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(7.5);
+      pdf.text('5-Year Unlevered DCF  ·  WACC 10%  ·  Terminal Growth 4%  ·  Blue = assumptions', M, 33);
+
+      const wacc = 0.10; const tgr = 0.04;
+      const projYrs = [1,2,3,4,5].map(i => (new Date().getFullYear() + i) + 'E');
+
+      // Build projections
+      let baseR = baseRevRaw / 1e6; // in millions
+      const revP = gr.map(g => { baseR = +(baseR * (1+g)).toFixed(1); return baseR; });
+      const ebitdaP = revP.map((r,i) => +(r * em[i]).toFixed(1));
+      const daP     = revP.map(r => +(r * 0.02).toFixed(1));
+      const capexP  = revP.map(r => +(r * 0.04).toFixed(1));
+      const nwcP    = revP.map(r => +(r * 0.02).toFixed(1));
+      const ebitP   = ebitdaP.map((e,i) => +(e - daP[i]).toFixed(1));
+      const taxP    = ebitP.map(e => +(e * 0.21).toFixed(1));
+      const nopatP  = ebitP.map((e,i) => +(e - taxP[i]).toFixed(1));
+      const ufcfP   = nopatP.map((n,i) => +(n + daP[i] - capexP[i] - nwcP[i]).toFixed(1));
+      const disc    = [1,2,3,4,5].map(i => +(1/(1+wacc)**i).toFixed(4));
+      const pvP     = ufcfP.map((u,i) => +(u * disc[i]).toFixed(1));
+      const tv      = +((ufcfP[4]*(1+tgr))/(wacc-tgr)).toFixed(1);
+      const pvTv    = +(tv * disc[4]).toFixed(1);
+      const sumPv   = +(pvP.reduce((a,b)=>a+b,0)).toFixed(1);
+      const ev      = +(sumPv + pvTv).toFixed(1);
+
+      const YCW = (col - 46) / 5;  // year column width
+      const YX  = [M+46, M+46+YCW, M+46+2*YCW, M+46+3*YCW, M+46+4*YCW];
+
+      let dr = 40;
+      // Year header
+      pdf.setFillColor(...C.border); pdf.rect(M, dr, col, 7, 'F');
+      pdf.setFillColor(...C.accent); pdf.rect(M, dr, 2, 7, 'F');
+      pdf.setTextColor(...C.muted); pdf.setFont('helvetica','bold'); pdf.setFontSize(6);
+      pdf.text('($mm)', M+4, dr+4.8);
+      projYrs.forEach((yr,i) => {
+        pdf.setTextColor(...C.body); pdf.text(yr, YX[i]+YCW/2, dr+4.8, {align:'center'});
+      });
+      dr += 9;
+
+      const drow = (label, vals, bold, color, isBlue) => {
+        const rBg = bold ? [12,18,40] : [6,10,22];
+        pdf.setFillColor(...rBg); pdf.rect(M, dr-1, col, 7, 'F');
+        if (bold) { pdf.setFillColor(...C.accent); pdf.rect(M, dr-1, 1.5, 7, 'F'); }
+        pdf.setTextColor(color || (bold ? C.white : C.body));
+        pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setFontSize(bold ? 7 : 6.5);
+        pdf.text(label, M+4, dr+3.8);
+        vals.forEach((v,i) => {
+          const tc = isBlue ? [100,140,220] : (color || (bold ? C.white : C.body));
+          pdf.setTextColor(...tc);
+          pdf.setFont('helvetica', (bold || isBlue) ? 'bold' : 'normal');
+          pdf.text(v !== null && v !== undefined ? String(v) : '—', YX[i]+YCW/2, dr+3.8, {align:'center'});
+        });
+        dr += 8;
+      };
+
+      pdf.setTextColor(...C.cyan); pdf.setFont('helvetica','bold'); pdf.setFontSize(6);
+      pdf.text('ASSUMPTIONS', M, dr+3); dr += 7;
+      drow('  Revenue Growth Rate', gr.map(g=>(g*100).toFixed(0)+'%'), false, C.muted, true);
+      drow('  EBITDA Margin',       em.map(e=>(e*100).toFixed(0)+'%'), false, C.muted, true);
+      drow('  WACC / TGR',         projYrs.map(()=>'10% / 4%'), false, C.muted, true);
+      dr += 3;
+
+      pdf.setTextColor(...C.cyan); pdf.setFont('helvetica','bold'); pdf.setFontSize(6);
+      pdf.text('PROJECTED FINANCIALS', M, dr+3); dr += 7;
+      drow('  Revenue ($mm)',        revP,    true);
+      drow('  EBITDA ($mm)',         ebitdaP, false);
+      drow('  EBIT ($mm)',           ebitP,   false);
+      drow('  NOPAT ($mm)',          nopatP,  false);
+      drow('  Unlevered FCF ($mm)',  ufcfP,   true, C.accent);
+      drow('  Discount Factor',      disc,    false, C.muted);
+      drow('  PV of FCF ($mm)',      pvP,     false, C.green);
+      dr += 3;
+
+      // Valuation summary box
+      pdf.setFillColor(...C.surface); pdf.roundedRect(M, dr, col, 38, 2, 2, 'F');
+      pdf.setDrawColor(...C.accent); pdf.setLineWidth(0.5); pdf.roundedRect(M, dr, col, 38, 2, 2, 'S');
+      pdf.setTextColor(...C.accent); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+      pdf.text('VALUATION SUMMARY', M+5, dr+7);
+
+      const summRows = [
+        ['Sum of PV (FCFs)',          '$' + sumPv.toLocaleString() + 'mm', C.body],
+        ['Terminal Value (Gordon)',    '$' + tv.toLocaleString() + 'mm',   C.muted],
+        ['PV of Terminal Value',       '$' + pvTv.toLocaleString() + 'mm', C.muted],
+        ['Enterprise Value (DCF)',     '$' + ev.toLocaleString() + 'mm',   C.cyan],
+      ];
+      summRows.forEach(([lbl, val, clr], i) => {
+        const sy = dr + 13 + i * 7;
+        pdf.setFillColor(12, 18, 40); pdf.rect(M+3, sy-2, col-6, 6, 'F');
+        pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(7);
+        pdf.text(lbl, M+6, sy+2);
+        pdf.setTextColor(...clr); pdf.setFont('helvetica','bold');
+        pdf.text(val, M+col-4, sy+2, {align:'right'});
+      });
+
+      dr += 44;
+      pdf.setTextColor(...C.dim); pdf.setFont('helvetica','normal'); pdf.setFontSize(5.5);
+      const dcfNote = 'DCF based on user-provided revenue; projections use industry-standard growth and margin assumptions. This is a directional estimate, not investment advice.';
+      pdf.text(pdf.splitTextToSize(dcfNote, col), M, dr);
+
+      footer(currentPage, totalPages);
+    }
+
+    // ══════════════════════════════════════════════════════
     //  PAGE 4 (or 3) — AI Insights
     // ══════════════════════════════════════════════════════
     pdf.addPage(); bg(); hdr();
-    const pgNum = hasHist ? 4 : 3;
+    const pgNum = currentPage + 1;
     pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
     pdf.text('BIZHEALTH  ·  AI INSIGHTS', M, 8);
     pdf.text(date, W - M, 8, { align:'right' });
