@@ -2,8 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
-// ── localStorage cache (1 hr TTL — matches backend) ────────
-const CACHE_KEY = 'bizhealth_company_v2';
+// ── localStorage cache (1 hr TTL) ───────────────────────────
+const CACHE_KEY = 'bizhealth_company_v3';
 const CACHE_TTL = 60 * 60 * 1000;
 
 function getCached(sym) {
@@ -18,7 +18,6 @@ function setCached(sym, data) {
   try {
     const store = JSON.parse(localStorage.getItem(CACHE_KEY) || '{}');
     store[sym] = { data, ts: Date.now() };
-    // Evict oldest entries if store grows > 30 items
     const keys = Object.keys(store);
     if (keys.length > 30) {
       keys.sort((a, b) => store[a].ts - store[b].ts).slice(0, 10).forEach(k => delete store[k]);
@@ -27,27 +26,226 @@ function setCached(sym, data) {
   } catch {}
 }
 
-// ── Fetch via backend YF proxy ──────────────────────────────
-async function fetchCompanyData(ticker) {
+// ── Yahoo Finance sector → industry mapping ─────────────────
+const SECTOR_MAP = {
+  'Technology':             'tech',
+  'Communication Services': 'tech',
+  'Healthcare':             'healthcare',
+  'Financial Services':     'finance',
+  'Consumer Defensive':     'retail',
+  'Consumer Cyclical':      'retail',
+  'Industrials':            'manufacturing',
+  'Basic Materials':        'manufacturing',
+  'Energy':                 'manufacturing',
+};
+
+// ── Safe numeric extractor for YF objects ───────────────────
+function yfv(obj, ...keys) {
+  for (const k of keys) {
+    const v = (obj || {})[k];
+    if (v !== null && v !== undefined) {
+      const raw = (typeof v === 'object' && v !== null) ? v.raw : v;
+      const n = Number(raw);
+      if (!isNaN(n)) return n;
+    }
+  }
+  return null;
+}
+
+// ── Parse YF quoteSummary JSON → our data shape ─────────────
+function parseYFResponse(json, sym, fallbackName) {
+  const r       = ((json?.quoteSummary?.result) || [{}])[0] || {};
+  const incList = r?.incomeStatementHistory?.incomeStatementHistory || [];
+  const balList = r?.balanceSheetHistory?.balanceSheetStatements   || [];
+  const cfList  = r?.cashflowStatementHistory?.cashflowStatements  || [];
+  const profile = r?.assetProfile      || {};
+  const fdData  = r?.financialData     || {};
+
+  const parseInc = s => {
+    const rev  = yfv(s, 'totalRevenue');
+    const cogs = yfv(s, 'costOfRevenue');
+    const gp   = yfv(s, 'grossProfit') ?? (rev != null && cogs != null ? rev - cogs : null);
+    const op   = yfv(s, 'operatingIncome', 'ebit');
+    const rd   = yfv(s, 'researchDevelopment');
+    const sga  = yfv(s, 'sellingGeneralAdministrative');
+    const da   = yfv(s, 'depreciationAndAmortization');
+    const ie   = yfv(s, 'interestExpense');
+    return {
+      year:              (s?.endDate?.fmt || '').slice(0, 4),
+      revenue:           rev,
+      cogs:              cogs ?? (rev != null && gp != null ? rev - gp : null),
+      grossProfit:       gp,
+      rd, sga,
+      operatingExpenses: (rd != null && sga != null) ? rd + sga : null,
+      operatingIncome:   op,
+      preTaxIncome:      yfv(s, 'incomeBeforeTax'),
+      tax:               yfv(s, 'incomeTaxExpense'),
+      netProfit:         yfv(s, 'netIncome'),
+      interestExpense:   ie != null ? Math.abs(ie) : null,
+      ebitda:            (op != null && da != null) ? op + da : null,
+      da,
+      eps:               yfv(s, 'dilutedEps'),
+    };
+  };
+
+  const parseBal = s => {
+    const ltd = yfv(s, 'longTermDebt');
+    const std = yfv(s, 'shortLongTermDebt');
+    const td  = (std ?? 0) + (ltd ?? 0);
+    return {
+      year:               (s?.endDate?.fmt || '').slice(0, 4),
+      currentAssets:      yfv(s, 'totalCurrentAssets'),
+      cash:               yfv(s, 'cash'),
+      sti:                yfv(s, 'shortTermInvestments'),
+      receivables:        yfv(s, 'netReceivables'),
+      inventory:          yfv(s, 'inventory'),
+      totalAssets:        yfv(s, 'totalAssets'),
+      ppe:                yfv(s, 'propertyPlantEquipment'),
+      goodwill:           yfv(s, 'goodWill'),
+      intangibles:        yfv(s, 'intangibleAssets'),
+      currentLiabilities: yfv(s, 'totalCurrentLiabilities'),
+      ap:                 yfv(s, 'accountsPayable'),
+      currentDebt:        std,
+      ltDebt:             ltd,
+      totalDebt:          td > 0 ? td : null,
+      equity:             yfv(s, 'totalStockholderEquity'),
+      apic:               yfv(s, 'additionalPaidInCapital'),
+      retainedEarnings:   yfv(s, 'retainedEarnings'),
+    };
+  };
+
+  const parseCf = s => {
+    const capex = yfv(s, 'capitalExpenditures');
+    const bb    = yfv(s, 'repurchaseOfStock');
+    const div   = yfv(s, 'dividendsPaid');
+    return {
+      year:        (s?.endDate?.fmt || '').slice(0, 4),
+      netIncome:   yfv(s, 'netIncome'),
+      da:          yfv(s, 'depreciation'),
+      sbc:         yfv(s, 'stockBasedCompensation'),
+      wc:          yfv(s, 'changeToWorkingCapital'),
+      cfOps:       yfv(s, 'totalCashFromOperatingActivities'),
+      capex:       capex != null ? -Math.abs(capex) : null,
+      cfInvesting: yfv(s, 'totalCashFromInvestingActivities'),
+      buybacks:    bb  != null ? -Math.abs(bb)  : null,
+      dividends:   div != null ? -Math.abs(div) : null,
+      cfFinancing: yfv(s, 'totalCashFromFinancingActivities'),
+    };
+  };
+
+  const historical = {
+    income:   incList.slice(0, 5).map(parseInc),
+    balance:  balList.slice(0, 5).map(parseBal),
+    cashflow: cfList.slice(0, 5).map(parseCf),
+  };
+
+  const inc0 = historical.income[0]  || {};
+  const bal0 = historical.balance[0] || {};
+
+  const raw = {
+    currentAssets:      bal0.currentAssets,
+    currentLiabilities: bal0.currentLiabilities,
+    inventory:          bal0.inventory,
+    cash:               bal0.cash,
+    totalAssets:        bal0.totalAssets,
+    equity:             bal0.equity,
+    totalDebt:          bal0.totalDebt,
+    revenue:            inc0.revenue,
+    grossProfit:        inc0.grossProfit,
+    operatingExpenses:  inc0.operatingExpenses,
+    netProfit:          inc0.netProfit,
+    interestExpense:    inc0.interestExpense,
+    receivables:        bal0.receivables,
+    cogs:               inc0.cogs,
+  };
+
+  const data = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v != null && !isNaN(v) && Math.abs(v) > 0) data[k] = String(Math.round(Math.abs(v)));
+  }
+
+  const total    = Object.keys(raw).length;
+  const filled   = Object.keys(data).length;
+  const coverage = Math.round((filled / total) * 100);
+
+  const sector   = profile.sector   || '';
+  const currency = profile.financialCurrency || profile.currency || 'USD';
+  const name     = profile.longName || profile.shortName || fallbackName || sym;
+
+  return { ticker: sym, name, sector, industry: SECTOR_MAP[sector] || 'general',
+           currency, coverage, filled, total, data, historical };
+}
+
+// ── Core fetch — browser → Yahoo Finance directly ───────────
+// The browser has real YF cookies so the crumb endpoint works
+// and server-side IP blocks don't apply.
+async function fetchFromYF(sym, fallbackName) {
+  const modules = [
+    'incomeStatementHistory', 'balanceSheetHistory',
+    'cashflowStatementHistory', 'defaultKeyStatistics',
+    'assetProfile', 'financialData',
+  ].join(',');
+
+  // ① Try to get a crumb — browser cookie will be sent automatically
+  let crumb = '';
+  try {
+    for (const base of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
+      const cr = await fetch(`${base}/v1/test/getcrumb`, {
+        credentials: 'include',
+        headers: { Accept: 'text/plain, */*' },
+      });
+      if (cr.ok) {
+        const t = (await cr.text()).trim().replace(/"/g, '');
+        if (t && t !== 'null') { crumb = t; break; }
+      }
+    }
+  } catch {}
+
+  // ② Fetch quoteSummary
+  const qUrl = (base) =>
+    `${base}/v10/finance/quoteSummary/${encodeURIComponent(sym)}` +
+    `?modules=${encodeURIComponent(modules)}` +
+    (crumb ? `&crumb=${encodeURIComponent(crumb)}` : '');
+
+  let res;
+  for (const base of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
+    try {
+      res = await fetch(qUrl(base), {
+        credentials: 'include',
+        headers: { Accept: 'application/json, */*' },
+      });
+      if (res.ok) break;
+    } catch {}
+  }
+
+  if (!res || !res.ok) {
+    const status = res?.status ?? 'network error';
+    throw new Error(
+      `Yahoo Finance returned ${status} for ${sym}. ` +
+      `Try visiting https://finance.yahoo.com first, then retry.`
+    );
+  }
+
+  const json = await res.json();
+  const err  = json?.quoteSummary?.error;
+  if (err) throw new Error(err.description || err.code || 'No data found');
+
+  return parseYFResponse(json, sym, fallbackName);
+}
+
+// ── Main fetch with cache ────────────────────────────────────
+async function fetchCompanyData(ticker, fallbackName) {
   const sym = ticker.toUpperCase().trim();
 
   const cached = getCached(sym);
   if (cached) return cached;
 
-  if (!BACKEND) throw new Error('Backend URL not configured (VITE_BACKEND_URL).');
-
-  const res = await fetch(`${BACKEND}/company/yf/${encodeURIComponent(sym)}`);
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `Could not load data for ${sym} (${res.status})`);
-  }
-
-  const data = await res.json();
+  const data = await fetchFromYF(sym, fallbackName);
   setCached(sym, data);
   return data;
 }
 
-// ══════════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 export default function CompanySearch({ onSelect }) {
   const [query,    setQuery]   = useState('');
   const [results,  setResults] = useState([]);
@@ -90,9 +288,9 @@ export default function CompanySearch({ onSelect }) {
     setQuery(company.name || company.ticker);
     setFetching(true);
     try {
-      const d = await fetchCompanyData(company.ticker);
-      setLoaded({ ticker: d.ticker || company.ticker, name: d.name || company.name,
-                  currency: d.currency, coverage: d.coverage, filled: d.filled, total: d.total });
+      const d = await fetchCompanyData(company.ticker, company.name);
+      setLoaded({ ticker: d.ticker, name: d.name, currency: d.currency,
+                  coverage: d.coverage, filled: d.filled, total: d.total });
       onSelect(d);
     } catch (e) {
       setError(e.message || 'Could not load financials.');
@@ -113,7 +311,6 @@ export default function CompanySearch({ onSelect }) {
   return (
     <div ref={containerRef} className="relative">
 
-      {/* Search input */}
       <div className="relative">
         <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
           style={{ color:'rgba(34,211,238,0.45)', fontSize:14 }}>⌕</span>
@@ -144,7 +341,6 @@ export default function CompanySearch({ onSelect }) {
         </span>
       </div>
 
-      {/* Dropdown */}
       {open && results.length > 0 && (
         <div className="absolute z-50 left-0 right-0 mt-1.5 rounded-xl overflow-hidden"
           style={{ top:'100%', background:'rgba(4,9,22,0.98)', border:'1px solid rgba(34,211,238,0.14)', backdropFilter:'blur(24px)', boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }}>
@@ -168,7 +364,6 @@ export default function CompanySearch({ onSelect }) {
         </div>
       )}
 
-      {/* Loaded chip */}
       {loaded && !fetching && (
         <div className="mt-2 rounded-xl overflow-hidden" style={{ border:'1px solid rgba(0,232,135,0.22)' }}>
           <div className="flex items-center gap-2 px-3 py-1.5" style={{ background:'rgba(0,232,135,0.07)' }}>
