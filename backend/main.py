@@ -672,31 +672,36 @@ async def get_company_yf(ticker: str):
 
     last_error = "Unknown error"
 
-    # ── 1. httpx quoteSummary — authenticated browser session (PRIMARY) ─────
-    #  Visits finance.yahoo.com to get real cookies + crumb, then calls the
-    #  quoteSummary API. Works from Railway IPs. yfinance is NOT used as
-    #  primary because Railway's IP causes it to hang indefinitely.
+    # ── 1. yfinance + authenticated session ──────────────────────────────
+    #  Get real Yahoo Finance cookies from our persistent httpx session
+    #  (it visits finance.yahoo.com to obtain them), then transfer them
+    #  into a requests.Session for yfinance.  This lets yfinance access
+    #  balance sheet / cash flow endpoints that now require auth.
     try:
-        parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=25.0)
-        parsed["ticker"] = sym
-        _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
-        return parsed
-    except Exception as e:
-        last_error = str(e)
-
-    # ── 1b. yfinance library — fast timeout fallback ──────────────────────
-    #  Only tried if httpx fails. Hard 12-second timeout prevents Railway
-    #  hang when Yahoo Finance silently blocks the TCP connection.
-    try:
+        httpx_client, crumb = await _get_yf_session()
+        yf_sess = requests.Session()
+        yf_sess.headers.update(_YF_API_HEADERS)
+        # Transfer real cookies from httpx → requests
+        for name, value in dict(httpx_client.cookies).items():
+            yf_sess.cookies.set(name, value, domain=".yahoo.com")
         loop   = asyncio.get_event_loop()
         parsed = await asyncio.wait_for(
-            loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
-            timeout=12.0
+            loop.run_in_executor(_executor, _yf_fetch_ticker, sym, yf_sess),
+            timeout=20.0
         )
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
         return parsed
     except (asyncio.TimeoutError, Exception) as e:
+        last_error = str(e)
+
+    # ── 1b. httpx quoteSummary fallback ──────────────────────────────────
+    try:
+        parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=20.0)
+        parsed["ticker"] = sym
+        _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+        return parsed
+    except Exception as e:
         last_error = str(e)
 
     # ── 2. Alpha Vantage fallback (25 calls/day) ─────────────────
@@ -1066,12 +1071,12 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
     }
 
 
-def _yf_fetch_ticker(sym: str) -> dict:
+def _yf_fetch_ticker(sym: str, session=None) -> dict:
     """
     Blocking — run in executor.
-    Uses yfinance with a browser-like shared session so Yahoo Finance's
-    servers don't reject cloud-IP requests (fixes .NS / .BO tickers and
-    cold fetches on Railway).  Falls back to a fresh session on retry.
+    Accepts an optional requests.Session with real Yahoo Finance cookies
+    (transferred from _get_yf_session) so balance sheet / cashflow
+    endpoints that now require auth return full data.
     """
     import pandas as pd
 
@@ -1080,10 +1085,7 @@ def _yf_fetch_ticker(sym: str) -> dict:
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    # Use yfinance's own session management — do NOT pass a custom session.
-    # A fake session (headers only, no real YF cookies) causes silent empty
-    # DataFrames for many tickers. Let yfinance handle auth internally.
-    tk = yf.Ticker(sym)
+    tk = yf.Ticker(sym, session=session) if session else yf.Ticker(sym)
 
     try: inc_df = tk.financials
     except Exception: pass
