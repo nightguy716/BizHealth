@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
 // ── localStorage cache (1 hr TTL) ───────────────────────────
-const CACHE_KEY = 'bizhealth_company_v3';
+const CACHE_KEY = 'bizhealth_company_v4';
 const CACHE_TTL = 60 * 60 * 1000;
 
 function getCached(sym) {
