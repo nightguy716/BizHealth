@@ -1074,48 +1074,19 @@ def _yf_fetch_ticker(sym: str) -> dict:
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    # Attempt 1: shared browser session (fast path, reuses cookies)
-    # Attempt 2: fresh session (in case shared session cookie expired)
-    sessions = [_YF_BROWSER_SESSION, requests.Session()]
-    sessions[1].headers.update(_YF_BROWSER_SESSION.headers)
+    # Use yfinance's own session management — do NOT pass a custom session.
+    # A fake session (headers only, no real YF cookies) causes silent empty
+    # DataFrames for many tickers. Let yfinance handle auth internally.
+    tk = yf.Ticker(sym)
 
-    for attempt, sess in enumerate(sessions):
-        try:
-            tk = yf.Ticker(sym, session=sess)
-            # Support both yfinance 0.2.x naming (financials/cashflow)
-            # and newer naming (income_stmt/cash_flow)
-            try:
-                inc_df = tk.financials
-                if inc_df is None or inc_df.empty:
-                    inc_df = getattr(tk, 'income_stmt', None)
-            except Exception:
-                try: inc_df = getattr(tk, 'income_stmt', None)
-                except Exception: pass
-            try: bal_df = tk.balance_sheet
-            except Exception: pass
-            try:
-                cf_df = tk.cashflow
-                if cf_df is None or cf_df.empty:
-                    cf_df = getattr(tk, 'cash_flow', None)
-            except Exception:
-                try: cf_df = getattr(tk, 'cash_flow', None)
-                except Exception: pass
-            try: info = tk.info or {}
-            except Exception: pass
-
-            if (inc_df is not None and not inc_df.empty) or \
-               (bal_df is not None and not bal_df.empty):
-                break  # got data — done
-            # Reset before next attempt
-            inc_df = bal_df = cf_df = None
-            info = {}
-            if attempt == 0:
-                time.sleep(1)
-        except Exception:
-            inc_df = bal_df = cf_df = None
-            info = {}
-            if attempt == 0:
-                time.sleep(1)
+    try: inc_df = tk.financials
+    except Exception: pass
+    try: bal_df = tk.balance_sheet
+    except Exception: pass
+    try: cf_df  = tk.cashflow
+    except Exception: pass
+    try: info   = tk.info or {}
+    except Exception: pass
 
     has_inc = inc_df is not None and not inc_df.empty
     has_bal = bal_df is not None and not bal_df.empty
