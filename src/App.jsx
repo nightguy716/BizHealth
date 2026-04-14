@@ -3,7 +3,7 @@
  * Orchestrates state, calculations, PDF export, and the full page layout.
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import jsPDF from 'jspdf';
 
 import Sidebar          from './components/Sidebar';
@@ -58,6 +58,12 @@ export default function App() {
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
   const resultsRef = useRef(null);
+
+  // Ping backend on mount so it's warm before the user searches
+  useEffect(() => {
+    const backend = import.meta.env.VITE_BACKEND_URL;
+    if (backend) fetch(`${backend}/ping`).catch(() => {});
+  }, []);
 
   const n = key => parseFloat(inputs[key]) || 0;
 
