@@ -164,6 +164,7 @@ export default function App() {
 
   function handleExportPDF() {
     if (!results) return;
+    try {
     const pdf  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W    = 210; const H = 297; const M = 14;
     const col  = W - M * 2;
@@ -809,7 +810,7 @@ export default function App() {
         const rBg = bold ? [12,18,40] : [6,10,22];
         pdf.setFillColor(...rBg); pdf.rect(M, dr-1, col, 7, 'F');
         if (bold) { pdf.setFillColor(...C.accent); pdf.rect(M, dr-1, 1.5, 7, 'F'); }
-        pdf.setTextColor(color || (bold ? C.white : C.body));
+        pdf.setTextColor(...(color || (bold ? C.white : C.body)));
         pdf.setFont('helvetica', bold ? 'bold' : 'normal'); pdf.setFontSize(bold ? 7 : 6.5);
         pdf.text(label, M+4, dr+3.8);
         vals.forEach((v,i) => {
@@ -967,6 +968,10 @@ export default function App() {
     footer(pgNum, totalPages);
 
     pdf.save(`BizHealth-${co.replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);
+    } catch (err) {
+      console.error('PDF generation failed:', err);
+      alert('PDF generation failed: ' + (err.message || err));
+    }
   }
 
   function card(key, name, unit) {

@@ -241,10 +241,6 @@ async function fetchCompanyData(ticker, fallbackName) {
       setCached(sym, data);
       return data;
     } catch (e) {
-      // Surface rate-limit clearly — no point trying the YF proxy for this
-      if (e.message.includes('daily limit') || e.message.includes('429') || e.message.includes('rate limit')) {
-        throw new Error(e.message);
-      }
       console.warn('Backend fetch failed, trying proxy:', e.message);
     }
   }

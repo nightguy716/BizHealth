@@ -627,8 +627,8 @@ async def get_company_yf(ticker: str):
             parsed["ticker"] = sym
             _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
             return parsed
-        except HTTPException:
-            raise
+        except HTTPException as e:
+            last_error = e.detail   # store, don't re-raise — let FMP try
         except Exception as e:
             last_error = str(e)
 
@@ -640,14 +640,14 @@ async def get_company_yf(ticker: str):
             parsed["ticker"] = sym
             _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
             return parsed
-        except HTTPException:
-            raise
+        except HTTPException as e:
+            last_error = e.detail   # store, don't re-raise
         except Exception as e:
             last_error = str(e)
 
     raise HTTPException(
         status_code=404,
-        detail=f"Could not load data for {sym}. {last_error}",
+        detail=f"No financial data available for {sym}. The ticker may be invalid, delisted, or not yet covered — please try a different company.",
     )
 
 
