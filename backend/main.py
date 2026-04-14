@@ -421,7 +421,7 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.0.0", "data_source": "httpx-primary"}
+    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.1.0", "data_source": "yfinance-authenticated"}
 
 
 @app.get("/health")
