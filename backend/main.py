@@ -1027,13 +1027,25 @@ def _yf_fetch_ticker(sym: str) -> dict:
     for attempt, sess in enumerate(sessions):
         try:
             tk = yf.Ticker(sym, session=sess)
-            try: inc_df = tk.financials
-            except Exception: pass
+            # Support both yfinance 0.2.x naming (financials/cashflow)
+            # and newer naming (income_stmt/cash_flow)
+            try:
+                inc_df = tk.financials
+                if inc_df is None or inc_df.empty:
+                    inc_df = getattr(tk, 'income_stmt', None)
+            except Exception:
+                try: inc_df = getattr(tk, 'income_stmt', None)
+                except Exception: pass
             try: bal_df = tk.balance_sheet
             except Exception: pass
-            try: cf_df  = tk.cashflow
-            except Exception: pass
-            try: info   = tk.info or {}
+            try:
+                cf_df = tk.cashflow
+                if cf_df is None or cf_df.empty:
+                    cf_df = getattr(tk, 'cash_flow', None)
+            except Exception:
+                try: cf_df = getattr(tk, 'cash_flow', None)
+                except Exception: pass
+            try: info = tk.info or {}
             except Exception: pass
 
             if (inc_df is not None and not inc_df.empty) or \
