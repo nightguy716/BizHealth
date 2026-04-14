@@ -363,6 +363,12 @@ def health():
 
 
 # ─────────────────────────────────────────────────────────────
+# ── Keep-alive ping (used by UptimeRobot every 5 min) ────────
+@app.get("/ping")
+async def ping():
+    return {"status": "ok"}
+
+
 #  COMPANY SEARCH  —  proxy Yahoo Finance suggest API
 # ─────────────────────────────────────────────────────────────
 @app.get("/search")
