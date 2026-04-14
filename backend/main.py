@@ -421,7 +421,7 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.1.0", "data_source": "yfinance-authenticated"}
+    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.2.0", "data_source": "yfinance-0.2.65-native-auth"}
 
 
 @app.get("/health")
@@ -672,22 +672,14 @@ async def get_company_yf(ticker: str):
 
     last_error = "Unknown error"
 
-    # ── 1. yfinance + authenticated session ──────────────────────────────
-    #  Get real Yahoo Finance cookies from our persistent httpx session
-    #  (it visits finance.yahoo.com to obtain them), then transfer them
-    #  into a requests.Session for yfinance.  This lets yfinance access
-    #  balance sheet / cash flow endpoints that now require auth.
+    # ── 1. yfinance (primary) ─────────────────────────────────────────────
+    #  yfinance 0.2.61+ manages its own cookie/crumb auth internally.
+    #  This is the most reliable approach — no custom session needed.
     try:
-        httpx_client, crumb = await _get_yf_session()
-        yf_sess = requests.Session()
-        yf_sess.headers.update(_YF_API_HEADERS)
-        # Transfer real cookies from httpx → requests
-        for name, value in dict(httpx_client.cookies).items():
-            yf_sess.cookies.set(name, value, domain=".yahoo.com")
         loop   = asyncio.get_event_loop()
         parsed = await asyncio.wait_for(
-            loop.run_in_executor(_executor, _yf_fetch_ticker, sym, yf_sess),
-            timeout=20.0
+            loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
+            timeout=25.0
         )
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
@@ -1074,9 +1066,9 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
 def _yf_fetch_ticker(sym: str, session=None) -> dict:
     """
     Blocking — run in executor.
-    Accepts an optional requests.Session with real Yahoo Finance cookies
-    (transferred from _get_yf_session) so balance sheet / cashflow
-    endpoints that now require auth return full data.
+    Uses yfinance's own internal cookie/crumb auth (0.2.61+), which is
+    more reliable than any custom session we can pass from the async layer.
+    The session param is kept for signature compatibility but ignored.
     """
     import pandas as pd
 
@@ -1085,15 +1077,31 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    tk = yf.Ticker(sym, session=session) if session else yf.Ticker(sym)
+    # Let yfinance manage its own authentication — do NOT pass a session.
+    # yfinance 0.2.61+ handles cookie/crumb internally and is more reliable.
+    tk = yf.Ticker(sym)
 
-    try: inc_df = tk.financials
-    except Exception: pass
-    try: bal_df = tk.balance_sheet
-    except Exception: pass
-    try: cf_df  = tk.cashflow
-    except Exception: pass
-    try: info   = tk.info or {}
+    # Try new canonical names first (0.2.61+), fall back to old names (0.2.54)
+    try:
+        inc_df = getattr(tk, 'income_stmt', None)
+        if inc_df is None or (hasattr(inc_df, 'empty') and inc_df.empty):
+            inc_df = tk.financials
+    except Exception:
+        pass
+
+    try:
+        bal_df = tk.balance_sheet
+    except Exception:
+        pass
+
+    try:
+        cf_df = getattr(tk, 'cash_flow', None)
+        if cf_df is None or (hasattr(cf_df, 'empty') and cf_df.empty):
+            cf_df = tk.cashflow
+    except Exception:
+        pass
+
+    try: info = tk.info or {}
     except Exception: pass
 
     has_inc = inc_df is not None and not inc_df.empty
