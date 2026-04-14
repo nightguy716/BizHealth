@@ -33,38 +33,95 @@ from pydantic import BaseModel
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
-# ── Yahoo Finance proxy state ─────────────────────────────────
-_YF_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
+# ── Yahoo Finance proxy — persistent session ──────────────────
+# Yahoo Finance blocks API calls without a valid cookie+crumb pair.
+# We bootstrap a real browser-like session once (visit homepage →
+# get cookies → get crumb), then reuse it for all ticker fetches.
+
+_YF_NAV_HEADERS = {           # used when visiting homepage
+    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection":      "keep-alive",
+    "Upgrade-Insecure-Requests": "1",
+}
+_YF_API_HEADERS = {           # used for API calls
+    "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept":          "application/json, text/plain, */*",
     "Accept-Language": "en-US,en;q=0.9",
     "Referer":         "https://finance.yahoo.com/",
+    "Origin":          "https://finance.yahoo.com",
 }
-_yf_crumb_cache: dict  = {}
-_yf_data_cache:  dict  = {}   # ticker -> {"data": ..., "ts": float}
-_YF_TTL = 3600            # cache financial data for 1 hour
+
+_yf_session_client: httpx.AsyncClient | None = None
+_yf_session_crumb:  str   = ""
+_yf_session_ts:     float = 0.0
+_yf_session_lock            = asyncio.Lock()
+_yf_data_cache: dict        = {}
+_YF_TTL      = 3600          # 1-hour cache for financial data
+_YF_SESS_TTL = 3500          # refresh session after ~1 hour
 
 
-async def _get_yf_crumb(client: httpx.AsyncClient) -> str:
-    """Fetch or return cached Yahoo Finance crumb."""
-    cached = _yf_crumb_cache.get("crumb")
-    if cached and time.time() - _yf_crumb_cache.get("ts", 0) < 3600:
-        return cached
-    for base in ("https://query1.finance.yahoo.com", "https://query2.finance.yahoo.com"):
+async def _get_yf_session() -> tuple[httpx.AsyncClient, str]:
+    """
+    Return (client, crumb). Creates/refreshes the persistent YF session when
+    needed. The session visits finance.yahoo.com first so Yahoo sets real
+    cookies; only then does the crumb endpoint return a valid token.
+    """
+    global _yf_session_client, _yf_session_crumb, _yf_session_ts
+
+    async with _yf_session_lock:
+        age = time.time() - _yf_session_ts
+        if _yf_session_client and _yf_session_crumb and age < _YF_SESS_TTL:
+            return _yf_session_client, _yf_session_crumb
+
+        # Build a new persistent client (keeps cookies across requests)
+        if _yf_session_client:
+            await _yf_session_client.aclose()
+
+        client = httpx.AsyncClient(
+            headers=_YF_NAV_HEADERS,
+            follow_redirects=True,
+            timeout=20.0,
+        )
+
+        # Step 1 — visit homepage so Yahoo sets session cookies
+        for url in ("https://finance.yahoo.com/", "https://www.yahoo.com/"):
+            try:
+                await client.get(url)
+                break
+            except Exception:
+                pass
+
+        # Step 2 — accept EU consent if redirected (GDPR pop-up)
         try:
-            r = await client.get(f"{base}/v1/test/getcrumb", timeout=8)
-            crumb = r.text.strip().strip('"')
-            if crumb and crumb != "null":
-                _yf_crumb_cache["crumb"] = crumb
-                _yf_crumb_cache["ts"]    = time.time()
-                return crumb
+            await client.post(
+                "https://consent.yahoo.com/v2/collectConsent",
+                data={"agree": ["agree", "agree"], "consentUUID": "default",
+                      "sessionId": "default", "inline": "false"},
+            )
         except Exception:
             pass
-    return ""
+
+        # Step 3 — switch to API headers and fetch crumb
+        client.headers.update(_YF_API_HEADERS)
+        crumb = ""
+        for base in ("https://query1.finance.yahoo.com",
+                     "https://query2.finance.yahoo.com"):
+            try:
+                r = await client.get(f"{base}/v1/test/getcrumb", timeout=10)
+                t = r.text.strip().strip('"')
+                if t and t not in ("null", ""):
+                    crumb = t
+                    break
+            except Exception:
+                pass
+
+        _yf_session_client = client
+        _yf_session_crumb  = crumb
+        _yf_session_ts     = time.time()
+        return client, crumb
 
 
 def _yfv(obj, *keys):
@@ -530,7 +587,8 @@ async def get_company(ticker: str):
 async def get_company_yf(ticker: str):
     """
     Proxy Yahoo Finance quoteSummary — returns 4-5 years of historical financials.
-    No external API key needed. Results cached for 1 hour per ticker.
+    Uses a persistent browser-like session (homepage visit → cookie → crumb).
+    Results cached for 1 hour per ticker.
     """
     sym = ticker.upper().strip()
 
@@ -540,52 +598,59 @@ async def get_company_yf(ticker: str):
         return cached["data"]
 
     modules = ",".join([
-        "incomeStatementHistory",
-        "balanceSheetHistory",
-        "cashflowStatementHistory",
-        "defaultKeyStatistics",
-        "assetProfile",
-        "financialData",
+        "incomeStatementHistory", "balanceSheetHistory",
+        "cashflowStatementHistory", "defaultKeyStatistics",
+        "assetProfile", "financialData",
     ])
 
-    try:
-        async with httpx.AsyncClient(headers=_YF_HEADERS, follow_redirects=True, timeout=15) as client:
-            crumb = await _get_yf_crumb(client)
+    async def _fetch(invalidate_session: bool = False) -> dict:
+        if invalidate_session:
+            global _yf_session_ts
+            _yf_session_ts = 0.0          # force session refresh
 
-            # Primary: query1
+        client, crumb = await _get_yf_session()
+
+        for base in ("https://query1.finance.yahoo.com",
+                     "https://query2.finance.yahoo.com"):
             url = (
-                f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+                f"{base}/v10/finance/quoteSummary/{sym}"
                 f"?modules={modules}"
                 + (f"&crumb={crumb}" if crumb else "")
             )
-            r = await client.get(url)
+            try:
+                r = await client.get(url, timeout=20)
+            except Exception as exc:
+                continue
 
-            # Fallback: query2
-            if r.status_code != 200:
-                url = (
-                    f"https://query2.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
-                    f"?modules={modules}"
-                    + (f"&crumb={crumb}" if crumb else "")
-                )
-                r = await client.get(url)
+            if r.status_code == 401:
+                return None          # signal: session stale, retry
 
-            if r.status_code != 200:
-                raise HTTPException(
-                    status_code=r.status_code,
-                    detail=f"Yahoo Finance returned {r.status_code} for {sym}",
-                )
+            if r.status_code == 200:
+                raw_json = r.json()
+                err = (raw_json.get("quoteSummary") or {}).get("error")
+                if err:
+                    raise HTTPException(status_code=404,
+                                        detail=str(err.get("description", err)))
+                return raw_json
 
-            raw_json = r.json()
+        return None
 
-            # Check for YF-level error
-            error = (raw_json.get("quoteSummary") or {}).get("error")
-            if error:
-                raise HTTPException(status_code=404, detail=str(error))
-
+    try:
+        raw_json = await _fetch()
+        if raw_json is None:
+            # Session was stale — rebuild and retry once
+            raw_json = await _fetch(invalidate_session=True)
+        if raw_json is None:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Yahoo Finance did not return data for {sym}. "
+                       f"The session may need time to warm up — try again in 10 s.",
+            )
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"Yahoo Finance request failed: {e}")
+        raise HTTPException(status_code=502,
+                            detail=f"Yahoo Finance request failed: {e}")
 
     parsed = _parse_yf_response(raw_json)
     parsed["ticker"] = sym

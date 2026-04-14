@@ -176,73 +176,82 @@ function parseYFResponse(json, sym, fallbackName) {
            currency, coverage, filled, total, data, historical };
 }
 
-// ── Core fetch — browser → Yahoo Finance directly ───────────
-// The browser has real YF cookies so the crumb endpoint works
-// and server-side IP blocks don't apply.
-async function fetchFromYF(sym, fallbackName) {
-  const modules = [
-    'incomeStatementHistory', 'balanceSheetHistory',
-    'cashflowStatementHistory', 'defaultKeyStatistics',
-    'assetProfile', 'financialData',
-  ].join(',');
+const MODULES = [
+  'incomeStatementHistory', 'balanceSheetHistory',
+  'cashflowStatementHistory', 'defaultKeyStatistics',
+  'assetProfile', 'financialData',
+].join(',');
 
-  // ① Try to get a crumb — browser cookie will be sent automatically
+// ── Attempt 1: backend proxy (handles session/crumb server-side) ─
+async function fetchViaBackend(sym, fallbackName) {
+  const res = await fetch(`${BACKEND}/company/yf/${encodeURIComponent(sym)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Backend returned ${res.status}`);
+  }
+  return res.json();
+}
+
+// ── Attempt 2: corsproxy.io (adds CORS headers, free, open-source) ─
+// corsproxy.io forwards the request from its own server and injects
+// Access-Control-Allow-Origin so our browser can read the response.
+async function fetchViaProxy(sym, fallbackName) {
+  const PROXY = 'https://corsproxy.io/?';
+
+  // Get crumb through proxy (YF session on proxy's server may already exist)
   let crumb = '';
   try {
-    for (const base of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
-      const cr = await fetch(`${base}/v1/test/getcrumb`, {
-        credentials: 'include',
-        headers: { Accept: 'text/plain, */*' },
-      });
-      if (cr.ok) {
-        const t = (await cr.text()).trim().replace(/"/g, '');
-        if (t && t !== 'null') { crumb = t; break; }
-      }
-    }
+    const cr = await fetch(
+      PROXY + encodeURIComponent('https://query2.finance.yahoo.com/v1/test/getcrumb'),
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (cr.ok) crumb = (await cr.text()).trim().replace(/"/g, '');
   } catch {}
 
-  // ② Fetch quoteSummary
-  const qUrl = (base) =>
-    `${base}/v10/finance/quoteSummary/${encodeURIComponent(sym)}` +
-    `?modules=${encodeURIComponent(modules)}` +
+  const yfUrl =
+    `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(sym)}` +
+    `?modules=${encodeURIComponent(MODULES)}` +
     (crumb ? `&crumb=${encodeURIComponent(crumb)}` : '');
 
-  let res;
-  for (const base of ['https://query1.finance.yahoo.com', 'https://query2.finance.yahoo.com']) {
-    try {
-      res = await fetch(qUrl(base), {
-        credentials: 'include',
-        headers: { Accept: 'application/json, */*' },
-      });
-      if (res.ok) break;
-    } catch {}
-  }
+  const res = await fetch(PROXY + encodeURIComponent(yfUrl),
+    { signal: AbortSignal.timeout(15000) });
 
-  if (!res || !res.ok) {
-    const status = res?.status ?? 'network error';
-    throw new Error(
-      `Yahoo Finance returned ${status} for ${sym}. ` +
-      `Try visiting https://finance.yahoo.com first, then retry.`
-    );
-  }
-
+  if (!res.ok) throw new Error(`Proxy returned ${res.status} for ${sym}`);
   const json = await res.json();
   const err  = json?.quoteSummary?.error;
-  if (err) throw new Error(err.description || err.code || 'No data found');
-
+  if (err) throw new Error(err.description || err.code || 'No data');
   return parseYFResponse(json, sym, fallbackName);
 }
 
-// ── Main fetch with cache ────────────────────────────────────
+// ── Main fetch: backend → proxy → error ─────────────────────
 async function fetchCompanyData(ticker, fallbackName) {
   const sym = ticker.toUpperCase().trim();
 
   const cached = getCached(sym);
   if (cached) return cached;
 
-  const data = await fetchFromYF(sym, fallbackName);
-  setCached(sym, data);
-  return data;
+  // Try backend first
+  if (BACKEND) {
+    try {
+      const data = await fetchViaBackend(sym, fallbackName);
+      setCached(sym, data);
+      return data;
+    } catch (e) {
+      console.warn('Backend YF fetch failed, trying proxy:', e.message);
+    }
+  }
+
+  // Fall back to corsproxy.io
+  try {
+    const data = await fetchViaProxy(sym, fallbackName);
+    setCached(sym, data);
+    return data;
+  } catch (e) {
+    throw new Error(
+      `Could not load data for ${sym}. ` +
+      `Yahoo Finance may be temporarily unavailable — please try again in a few seconds.`
+    );
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
