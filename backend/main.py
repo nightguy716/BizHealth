@@ -603,23 +603,197 @@ async def get_company_yf(ticker: str):
     if cached and (time.time() - cached["ts"]) < _YF_TTL:
         return cached["data"]
 
-    # Primary path: yfinance library (handles auth internally)
-    try:
-        loop   = asyncio.get_event_loop()
-        parsed = await asyncio.wait_for(
-            loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
-            timeout=35.0,
-        )
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail=f"Timeout fetching {sym} from Yahoo Finance")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=502, detail=str(e))
+    fmp_key = os.environ.get("FMP_API_KEY", "")
+
+    if fmp_key:
+        # ── Primary: Financial Modeling Prep (server-safe, 250 calls/day free) ──
+        try:
+            parsed = await _fmp_fetch(sym, fmp_key)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=502, detail=str(e))
+    else:
+        # ── Fallback: yfinance (may be blocked by Yahoo Finance from cloud IPs) ──
+        try:
+            loop   = asyncio.get_event_loop()
+            parsed = await asyncio.wait_for(
+                loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
+                timeout=35.0,
+            )
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail=f"Timeout fetching {sym}")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "FMP_API_KEY is not set in Railway environment variables. "
+                    "Get a free key at financialmodelingprep.com and add it to Railway → Variables."
+                ),
+            )
 
     parsed["ticker"] = sym
     _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
     return parsed
+
+
+async def _fmp_fetch(sym: str, api_key: str) -> dict:
+    """Fetch 5-year financials from Financial Modeling Prep (works from server IPs)."""
+    FMP = "https://financialmodelingprep.com/api/v3"
+
+    async with httpx.AsyncClient(timeout=20) as client:
+        inc_r, bal_r, cf_r, prof_r = await asyncio.gather(
+            client.get(f"{FMP}/income-statement/{sym}?limit=5&apikey={api_key}"),
+            client.get(f"{FMP}/balance-sheet-statement/{sym}?limit=5&apikey={api_key}"),
+            client.get(f"{FMP}/cash-flow-statement/{sym}?limit=5&apikey={api_key}"),
+            client.get(f"{FMP}/profile/{sym}?apikey={api_key}"),
+        )
+
+    def _j(r): return r.json() if r.status_code == 200 else []
+
+    inc_list  = _j(inc_r)
+    bal_list  = _j(bal_r)
+    cf_list   = _j(cf_r)
+    prof_list = _j(prof_r)
+
+    if not inc_list or not isinstance(inc_list, list) or "Error Message" in str(inc_list):
+        raise HTTPException(status_code=404, detail=f"No FMP data found for {sym}. Check the ticker or API key.")
+
+    def fv(d, *keys):
+        for k in keys:
+            v = d.get(k)
+            if v is not None:
+                try:
+                    f = float(v)
+                    if not math.isnan(f): return f
+                except: pass
+        return None
+
+    def parse_inc(d):
+        rev  = fv(d, "revenue")
+        cogs = fv(d, "costOfRevenue")
+        gp   = fv(d, "grossProfit")
+        rd   = fv(d, "researchAndDevelopmentExpenses")
+        sga  = fv(d, "sellingGeneralAndAdministrativeExpenses")
+        op   = fv(d, "operatingIncome")
+        ie   = fv(d, "interestExpense")
+        da   = fv(d, "depreciationAndAmortization")
+        ni   = fv(d, "netIncome")
+        return {
+            "year":              d.get("calendarYear", d.get("date", "")[:4]),
+            "revenue":           rev,
+            "cogs":              cogs,
+            "grossProfit":       gp,
+            "rd":                rd,
+            "sga":               sga,
+            "operatingExpenses": fv(d, "operatingExpenses") or ((rd+sga) if rd and sga else None),
+            "operatingIncome":   op,
+            "preTaxIncome":      fv(d, "incomeBeforeTax"),
+            "tax":               fv(d, "incomeTaxExpense"),
+            "netProfit":         ni,
+            "interestExpense":   abs(ie) if ie else None,
+            "ebitda":            fv(d, "ebitda") or ((op+da) if op and da else None),
+            "da":                da,
+            "eps":               fv(d, "epsDiluted", "eps"),
+            "dilutedShares":     (fv(d, "weightedAverageShsOutDil") or 0) / 1e9 or None,
+        }
+
+    def parse_bal(d):
+        ltd = fv(d, "longTermDebt")
+        std = fv(d, "shortTermDebt")
+        td  = fv(d, "totalDebt") or ((std or 0) + (ltd or 0)) or None
+        return {
+            "year":               d.get("calendarYear", d.get("date", "")[:4]),
+            "currentAssets":      fv(d, "totalCurrentAssets"),
+            "cash":               fv(d, "cashAndCashEquivalents"),
+            "sti":                fv(d, "shortTermInvestments"),
+            "receivables":        fv(d, "netReceivables"),
+            "inventory":          fv(d, "inventory"),
+            "totalAssets":        fv(d, "totalAssets"),
+            "ppe":                fv(d, "propertyPlantEquipmentNet"),
+            "goodwill":           fv(d, "goodwill"),
+            "intangibles":        fv(d, "intangibleAssets"),
+            "currentLiabilities": fv(d, "totalCurrentLiabilities"),
+            "ap":                 fv(d, "accountPayables"),
+            "currentDebt":        std,
+            "ltDebt":             ltd,
+            "totalDebt":          td,
+            "equity":             fv(d, "totalStockholdersEquity", "totalEquity"),
+            "apic":               fv(d, "commonStock"),
+            "retainedEarnings":   fv(d, "retainedEarnings"),
+        }
+
+    def parse_cf(d):
+        capex = fv(d, "capitalExpenditure", "investmentsInPropertyPlantAndEquipment")
+        bb    = fv(d, "commonStockRepurchased")
+        div   = fv(d, "dividendsPaid")
+        return {
+            "year":        d.get("calendarYear", d.get("date", "")[:4]),
+            "netIncome":   fv(d, "netIncome"),
+            "da":          fv(d, "depreciationAndAmortization"),
+            "sbc":         fv(d, "stockBasedCompensation"),
+            "wc":          fv(d, "changeInWorkingCapital"),
+            "cfOps":       fv(d, "operatingCashFlow", "netCashProvidedByOperatingActivities"),
+            "capex":       (-abs(capex) if capex else None),
+            "cfInvesting": fv(d, "netCashUsedForInvestingActivites"),
+            "cfFinancing": fv(d, "netCashUsedProvidedByFinancingActivities"),
+            "buybacks":    (-abs(bb)  if bb  else None),
+            "dividends":   (-abs(div) if div else None),
+        }
+
+    historical = {
+        "income":   [parse_inc(d) for d in inc_list[:5]],
+        "balance":  [parse_bal(d) for d in bal_list[:5]],
+        "cashflow": [parse_cf(d)  for d in cf_list[:5]],
+    }
+
+    inc0 = historical["income"][0]  if historical["income"]  else {}
+    bal0 = historical["balance"][0] if historical["balance"] else {}
+
+    raw_inputs = {
+        "currentAssets":      bal0.get("currentAssets"),
+        "currentLiabilities": bal0.get("currentLiabilities"),
+        "inventory":          bal0.get("inventory"),
+        "cash":               bal0.get("cash"),
+        "totalAssets":        bal0.get("totalAssets"),
+        "equity":             bal0.get("equity"),
+        "totalDebt":          bal0.get("totalDebt"),
+        "revenue":            inc0.get("revenue"),
+        "grossProfit":        inc0.get("grossProfit"),
+        "operatingExpenses":  inc0.get("operatingExpenses"),
+        "netProfit":          inc0.get("netProfit"),
+        "interestExpense":    inc0.get("interestExpense"),
+        "receivables":        bal0.get("receivables"),
+        "cogs":               inc0.get("cogs"),
+    }
+
+    data_fields = {}
+    for k, v in raw_inputs.items():
+        if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
+            data_fields[k] = str(int(abs(round(v))))
+
+    prof  = prof_list[0] if prof_list and isinstance(prof_list, list) else {}
+    sector   = prof.get("sector", "")
+    currency = prof.get("currency", "USD")
+    name     = prof.get("companyName", sym)
+
+    total    = len(raw_inputs)
+    filled   = len(data_fields)
+    coverage = round((filled / total) * 100) if total else 0
+
+    return {
+        "name":       name,
+        "sector":     sector,
+        "industry":   SECTOR_MAP.get(sector, "general"),
+        "currency":   currency,
+        "coverage":   coverage,
+        "filled":     filled,
+        "total":      total,
+        "data":       data_fields,
+        "historical": historical,
+    }
 
 
 def _yf_fetch_ticker(sym: str) -> dict:
