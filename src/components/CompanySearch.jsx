@@ -252,8 +252,8 @@ async function fetchCompanyData(ticker, fallbackName) {
     return data;
   } catch (e) {
     throw new Error(
-      `Could not load data for ${sym}. ` +
-      `Yahoo Finance may be temporarily unavailable — please try again in a few seconds.`
+      `Could not load "${sym}". ` +
+      `Try again in a few seconds — or check the ticker is correct (e.g. use RELIANCE.NS for Indian stocks).`
     );
   }
 }

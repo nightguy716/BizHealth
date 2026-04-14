@@ -990,31 +990,53 @@ def _yf_fetch_ticker(sym: str) -> dict:
     """
     Blocking — run in executor.
     Uses yfinance library which manages Yahoo Finance auth internally.
-    Maps DataFrame rows (financial line items) to our 14-field input format.
+    Retries up to 3 times with backoff to handle transient IP-level blocks
+    that Railway receives for cold (uncached) ticker fetches.
     """
     import pandas as pd
-
-    tk = yf.Ticker(sym)
 
     inc_df: pd.DataFrame | None = None
     bal_df: pd.DataFrame | None = None
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    try: inc_df = tk.financials
-    except Exception: pass
-    try: bal_df = tk.balance_sheet
-    except Exception: pass
-    try: cf_df  = tk.cashflow
-    except Exception: pass
-    try: info   = tk.info or {}
-    except Exception: pass
+    last_exc: Exception = ValueError(f"No financial data found for {sym}")
+
+    for attempt in range(3):
+        try:
+            tk = yf.Ticker(sym)
+            try: inc_df = tk.financials
+            except Exception: pass
+            try: bal_df = tk.balance_sheet
+            except Exception: pass
+            try: cf_df  = tk.cashflow
+            except Exception: pass
+            try: info   = tk.info or {}
+            except Exception: pass
+
+            has_inc = inc_df is not None and not inc_df.empty
+            has_bal = bal_df is not None and not bal_df.empty
+
+            if has_inc or has_bal:
+                break   # data obtained — exit retry loop
+            # Empty data on this attempt; reset and try again
+            inc_df = bal_df = cf_df = None
+            info = {}
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(1.5 * (attempt + 1))
 
     has_inc = inc_df is not None and not inc_df.empty
     has_bal = bal_df is not None and not bal_df.empty
 
     if not has_inc and not has_bal:
-        raise ValueError(f"No financial data found for {sym} — ticker may be invalid or delisted.")
+        raise ValueError(
+            f"No financial data found for {sym} after 3 attempts. "
+            "The ticker may be invalid, delisted, or Yahoo Finance is temporarily unavailable for this symbol."
+        )
 
     # ── Field-name aliases (yfinance renames between versions) ──
     _INC_REVENUE    = ['Total Revenue', 'Revenue', 'TotalRevenue']
