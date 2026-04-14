@@ -323,6 +323,50 @@ def _parse_yf_response(data: dict) -> dict:
         "historical": historical,
     }
 
+
+# ─────────────────────────────────────────────────────────────
+#  Direct Yahoo Finance quoteSummary fetch via browser session
+#  Uses the persistent httpx client + crumb (handles .NS / .BO)
+# ─────────────────────────────────────────────────────────────
+_MODULES = (
+    "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory,"
+    "defaultKeyStatistics,assetProfile,financialData"
+)
+
+async def _httpx_yf_fetch(sym: str) -> dict:
+    """
+    Fetch Yahoo Finance quoteSummary using the persistent browser session
+    (real cookies + crumb).  More reliable than the yfinance library for
+    international tickers (.NS, .BO) on cloud server IPs.
+    """
+    client, crumb = await _get_yf_session()
+    url = (
+        f"https://query1.finance.yahoo.com/v10/finance/quoteSummary/{sym}"
+        f"?modules={_MODULES}"
+        + (f"&crumb={crumb}" if crumb else "")
+    )
+    try:
+        r = await client.get(url, timeout=20)
+    except Exception:
+        # Try query2 if query1 fails
+        url2 = url.replace("query1", "query2")
+        r = await client.get(url2, timeout=20)
+
+    if r.status_code != 200:
+        raise ValueError(f"Yahoo Finance returned {r.status_code} for {sym}")
+
+    data = r.json()
+    err  = (data.get("quoteSummary") or {}).get("error")
+    if err:
+        raise ValueError(f"Yahoo Finance error for {sym}: {err}")
+
+    result = (data.get("quoteSummary") or {}).get("result") or []
+    if not result:
+        raise ValueError(f"No quoteSummary result for {sym}")
+
+    return _parse_yf_response(data)
+
+
 app = FastAPI(title="BizHealth API", version="1.0.0")
 
 app.add_middleware(
@@ -628,10 +672,21 @@ async def get_company_yf(ticker: str):
 
     last_error = "Unknown error"
 
-    # ── 1. yfinance Python library — no API key, no rate limit ───
+    # ── 1. yfinance Python library — fast path, works for most US tickers ───
     try:
         loop   = asyncio.get_event_loop()
         parsed = await loop.run_in_executor(_executor, _yf_fetch_ticker, sym)
+        parsed["ticker"] = sym
+        _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+        return parsed
+    except Exception as e:
+        last_error = str(e)
+
+    # ── 1b. Direct httpx quoteSummary — authenticated browser session ─────
+    #  Handles tickers the yfinance library misses (e.g. RELIANCE.NS, .BO)
+    #  by using real Yahoo Finance cookies + crumb via _get_yf_session().
+    try:
+        parsed = await _httpx_yf_fetch(sym)
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
         return parsed
