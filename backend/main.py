@@ -31,6 +31,25 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+# ── Shared requests session for yfinance — browser-like headers ──────────────
+# Without this, Yahoo Finance's servers detect the bare Python requests agent
+# and block cloud IPs (especially for non-US tickers like .NS, .BO).
+_YF_BROWSER_SESSION = requests.Session()
+_YF_BROWSER_SESSION.headers.update({
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept":          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Referer":         "https://finance.yahoo.com/",
+    "Origin":          "https://finance.yahoo.com",
+    "DNT":             "1",
+    "Connection":      "keep-alive",
+})
+
 _executor = ThreadPoolExecutor(max_workers=4)
 
 # ── Yahoo Finance proxy — persistent session ──────────────────
@@ -989,9 +1008,9 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
 def _yf_fetch_ticker(sym: str) -> dict:
     """
     Blocking — run in executor.
-    Uses yfinance library which manages Yahoo Finance auth internally.
-    Retries up to 3 times with backoff to handle transient IP-level blocks
-    that Railway receives for cold (uncached) ticker fetches.
+    Uses yfinance with a browser-like shared session so Yahoo Finance's
+    servers don't reject cloud-IP requests (fixes .NS / .BO tickers and
+    cold fetches on Railway).  Falls back to a fresh session on retry.
     """
     import pandas as pd
 
@@ -1000,11 +1019,14 @@ def _yf_fetch_ticker(sym: str) -> dict:
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    last_exc: Exception = ValueError(f"No financial data found for {sym}")
+    # Attempt 1: shared browser session (fast path, reuses cookies)
+    # Attempt 2: fresh session (in case shared session cookie expired)
+    sessions = [_YF_BROWSER_SESSION, requests.Session()]
+    sessions[1].headers.update(_YF_BROWSER_SESSION.headers)
 
-    for attempt in range(3):
+    for attempt, sess in enumerate(sessions):
         try:
-            tk = yf.Ticker(sym)
+            tk = yf.Ticker(sym, session=sess)
             try: inc_df = tk.financials
             except Exception: pass
             try: bal_df = tk.balance_sheet
@@ -1014,28 +1036,27 @@ def _yf_fetch_ticker(sym: str) -> dict:
             try: info   = tk.info or {}
             except Exception: pass
 
-            has_inc = inc_df is not None and not inc_df.empty
-            has_bal = bal_df is not None and not bal_df.empty
-
-            if has_inc or has_bal:
-                break   # data obtained — exit retry loop
-            # Empty data on this attempt; reset and try again
+            if (inc_df is not None and not inc_df.empty) or \
+               (bal_df is not None and not bal_df.empty):
+                break  # got data — done
+            # Reset before next attempt
             inc_df = bal_df = cf_df = None
             info = {}
-            if attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
-        except Exception as e:
-            last_exc = e
-            if attempt < 2:
-                time.sleep(1.5 * (attempt + 1))
+            if attempt == 0:
+                time.sleep(1)
+        except Exception:
+            inc_df = bal_df = cf_df = None
+            info = {}
+            if attempt == 0:
+                time.sleep(1)
 
     has_inc = inc_df is not None and not inc_df.empty
     has_bal = bal_df is not None and not bal_df.empty
 
     if not has_inc and not has_bal:
         raise ValueError(
-            f"No financial data found for {sym} after 3 attempts. "
-            "The ticker may be invalid, delisted, or Yahoo Finance is temporarily unavailable for this symbol."
+            f"No financial data found for {sym}. "
+            "The ticker may be invalid, delisted, or not supported by Yahoo Finance."
         )
 
     # ── Field-name aliases (yfinance renames between versions) ──
