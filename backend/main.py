@@ -592,9 +592,9 @@ async def get_company(ticker: str):
 @app.get("/company/yf/{ticker}")
 async def get_company_yf(ticker: str):
     """
-    Proxy Yahoo Finance quoteSummary — returns 4-5 years of historical financials.
-    Uses a persistent browser-like session (homepage visit → cookie → crumb).
-    Results cached for 1 hour per ticker.
+    Fetch financials for a listed company.
+    Priority: yfinance (no key, no rate limit) → Alpha Vantage → FMP
+    Results cached 1 hour per ticker.
     """
     sym = ticker.upper().strip()
 
@@ -603,38 +603,48 @@ async def get_company_yf(ticker: str):
     if cached and (time.time() - cached["ts"]) < _YF_TTL:
         return cached["data"]
 
-    av_key  = os.environ.get("AV_API_KEY",  "")
-    fmp_key = os.environ.get("FMP_API_KEY", "")
+    last_error = "Unknown error"
 
+    # ── 1. yfinance Python library — no API key, no rate limit ───
+    try:
+        loop   = asyncio.get_event_loop()
+        parsed = await loop.run_in_executor(_executor, _yf_fetch_ticker, sym)
+        parsed["ticker"] = sym
+        _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+        return parsed
+    except Exception as e:
+        last_error = str(e)
+
+    # ── 2. Alpha Vantage fallback (25 calls/day) ─────────────────
+    av_key = os.environ.get("AV_API_KEY", "")
     if av_key:
-        # ── Primary: Alpha Vantage — server-safe, user already has a key ──
         try:
             parsed = await _av_fetch(sym, av_key)
+            parsed["ticker"] = sym
+            _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+            return parsed
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=502, detail=str(e))
-    elif fmp_key:
-        # ── Secondary: Financial Modeling Prep ──
+            last_error = str(e)
+
+    # ── 3. FMP fallback ───────────────────────────────────────────
+    fmp_key = os.environ.get("FMP_API_KEY", "")
+    if fmp_key:
         try:
             parsed = await _fmp_fetch(sym, fmp_key)
+            parsed["ticker"] = sym
+            _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+            return parsed
         except HTTPException:
             raise
         except Exception as e:
-            raise HTTPException(status_code=502, detail=str(e))
-    else:
-        raise HTTPException(
-            status_code=503,
-            detail=(
-                "No API key configured. "
-                "Add AV_API_KEY (Alpha Vantage) to Railway → Variables. "
-                "Copy the value from your VITE_AV_API_KEY in Vercel."
-            ),
-        )
+            last_error = str(e)
 
-    parsed["ticker"] = sym
-    _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
-    return parsed
+    raise HTTPException(
+        status_code=404,
+        detail=f"Could not load data for {sym}. {last_error}",
+    )
 
 
 async def _av_fetch(sym: str, api_key: str) -> dict:
