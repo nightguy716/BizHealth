@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const LINKS = [
   { to: '/',          label: 'Home'      },
@@ -83,10 +84,40 @@ function UserMenu({ user, onSignOut }) {
   );
 }
 
+function ThemeToggle() {
+  const { isDark, toggle } = useTheme();
+  return (
+    <button onClick={toggle} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      className="w-8 h-8 rounded-lg flex items-center justify-center transition-all flex-shrink-0"
+      style={{
+        background: 'var(--surface)',
+        border: '1px solid var(--border)',
+        color: 'var(--text-4)',
+      }}
+      onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(79,110,247,0.4)'; e.currentTarget.style.color = 'var(--royal)'; }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-4)'; }}>
+      {isDark ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
 export default function Navbar() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const { user, loading, signOut } = useAuth();
+  const { isDark } = useTheme();
   const navigate = useNavigate();
 
   async function handleSignOut() {
@@ -97,9 +128,11 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50"
       style={{
-        background: 'rgba(3,7,17,0.92)',
-        borderBottom: '1px solid rgba(79,110,247,0.12)',
-        backdropFilter: 'blur(16px)',
+        background: isDark ? 'rgba(2,7,20,0.92)' : 'rgba(240,244,255,0.92)',
+        borderBottom: '1px solid var(--border)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        transition: 'background 0.25s, border-color 0.25s',
       }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
 
@@ -109,7 +142,7 @@ export default function Navbar() {
             style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)' }}>
             <span className="text-white font-black text-xs">B</span>
           </div>
-          <span className="font-bold text-sm tracking-wide" style={{ color: '#f1f5f9' }}>
+          <span className="font-bold text-sm tracking-wide" style={{ color: 'var(--text-1)' }}>
             BizHealth
           </span>
           <span className="mono text-[9px] px-1.5 py-0.5 rounded"
@@ -126,8 +159,8 @@ export default function Navbar() {
               <Link key={to} to={to}
                 className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                 style={{
-                  color:      active ? '#f1f5f9' : '#64748b',
-                  background: active ? 'rgba(79,110,247,0.12)' : 'transparent',
+                  color:      active ? 'var(--text-1)' : 'var(--text-4)',
+                  background: active ? 'rgba(79,110,247,0.1)' : 'transparent',
                   borderBottom: active ? '1px solid rgba(79,110,247,0.4)' : '1px solid transparent',
                 }}>
                 {label}
@@ -136,19 +169,20 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Right side: auth state */}
-        <div className="hidden md:flex items-center gap-3">
+        {/* Right side: theme toggle + auth */}
+        <div className="hidden md:flex items-center gap-2">
+          <ThemeToggle />
           {loading ? (
-            <div className="w-5 h-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+            <div className="w-5 h-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin ml-1" />
           ) : user ? (
             <UserMenu user={user} onSignOut={handleSignOut} />
           ) : (
             <>
               <Link to="/auth"
                 className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
-                style={{ color: '#94a3b8' }}
-                onMouseEnter={e => e.currentTarget.style.color = '#f1f5f9'}
-                onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                style={{ color: 'var(--text-4)' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-1)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-4)'}>
                 Sign In
               </Link>
               <Link to="/auth"
@@ -160,9 +194,12 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Mobile hamburger */}
+        {/* Mobile: theme toggle + hamburger */}
+        <div className="md:hidden flex items-center gap-2">
+          <ThemeToggle />
+        </div>
         <button className="md:hidden p-2 rounded-lg" onClick={() => setOpen(o => !o)}
-          style={{ color: '#64748b' }}>
+          style={{ color: 'var(--text-4)' }}>
           <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
             {open
               ? <path d="M3 3l12 12M15 3L3 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -175,13 +212,13 @@ export default function Navbar() {
       {/* Mobile menu */}
       {open && (
         <div className="md:hidden px-4 pb-4 space-y-1"
-          style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+          style={{ borderTop: '1px solid var(--border)' }}>
           {LINKS.map(({ to, label }) => (
             <Link key={to} to={to}
               onClick={() => setOpen(false)}
               className="block px-3 py-2 rounded-lg text-sm transition-all"
               style={{
-                color:      pathname === to ? '#f1f5f9' : '#64748b',
+                color:      pathname === to ? 'var(--text-1)' : 'var(--text-4)',
                 background: pathname === to ? 'rgba(79,110,247,0.1)' : 'transparent',
               }}>
               {label}
@@ -191,7 +228,7 @@ export default function Navbar() {
             <>
               <Link to="/profile" onClick={() => setOpen(false)}
                 className="block px-3 py-2 rounded-lg text-sm transition-all"
-                style={{ color: '#94a3b8' }}>
+                style={{ color: 'var(--text-3)' }}>
                 My Profile
               </Link>
               <button onClick={() => { setOpen(false); handleSignOut(); }}

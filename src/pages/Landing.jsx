@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
-/* ── tiny animated counter ── */
+/* ── Animated counter ─────────────────────────────────────── */
 function CountUp({ end, suffix = '', duration = 1800 }) {
   const [val, setVal] = useState(0);
   const ref = useRef(null);
@@ -25,140 +25,124 @@ function CountUp({ end, suffix = '', duration = 1800 }) {
   return <span ref={ref}>{val}{suffix}</span>;
 }
 
-/* ── mock terminal card shown in hero ── */
+/* ── Terminal preview card ────────────────────────────────── */
 function TerminalCard() {
   const rows = [
-    { label: 'Current Ratio',      val: '2.45×',  status: 'green'  },
-    { label: 'EBITDA Margin',       val: '34.7%',  status: 'green'  },
-    { label: 'Debt / Equity',       val: '0.82×',  status: 'amber'  },
-    { label: 'ROIC',                val: '28.1%',  status: 'green'  },
-    { label: 'Net Debt / EBITDA',   val: '1.14×',  status: 'green'  },
-    { label: 'Altman Z-Score',      val: '4.33',   status: 'green'  },
-    { label: 'Interest Coverage',   val: '9.2×',   status: 'green'  },
-    { label: 'Cash Conv. Cycle',    val: '127d',   status: 'amber'  },
+    { label: 'Current Ratio',    val: '2.45×', status: 'green' },
+    { label: 'EBITDA Margin',    val: '34.7%', status: 'green' },
+    { label: 'Debt / Equity',    val: '0.82×', status: 'amber' },
+    { label: 'ROIC',             val: '28.1%', status: 'green' },
+    { label: 'Net Debt/EBITDA',  val: '1.14×', status: 'green' },
+    { label: 'Altman Z-Score',   val: '4.33',  status: 'green' },
+    { label: 'Interest Coverage',val: '9.2×',  status: 'green' },
+    { label: 'Cash Conv. Cycle', val: '127d',  status: 'amber' },
   ];
-  const color = { green: '#00e887', amber: '#fbbf24', red: '#f43f5e' };
-
+  const clr = { green: '#00e887', amber: '#fbbf24', red: '#f43f5e' };
   return (
-    <div className="rounded-xl overflow-hidden"
+    <div className="rounded-2xl overflow-hidden w-full"
       style={{
-        background: 'rgba(4,9,26,0.95)',
-        border: '1px solid rgba(79,110,247,0.25)',
-        boxShadow: '0 0 60px rgba(79,110,247,0.15), 0 24px 80px rgba(0,0,0,0.6)',
+        background: 'rgba(4,9,26,0.97)',
+        border: '1px solid rgba(79,110,247,0.22)',
+        boxShadow: '0 0 0 1px rgba(79,110,247,0.08), 0 24px 80px rgba(0,0,0,0.55), 0 0 60px rgba(79,110,247,0.1)',
         fontFamily: "'JetBrains Mono', monospace",
-        fontSize: 12,
       }}>
-      {/* title bar */}
-      <div className="flex items-center gap-1.5 px-4 py-2.5"
-        style={{ background: 'rgba(79,110,247,0.06)', borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
-        <span className="w-3 h-3 rounded-full" style={{ background: '#f43f5e' }} />
-        <span className="w-3 h-3 rounded-full" style={{ background: '#fbbf24' }} />
-        <span className="w-3 h-3 rounded-full" style={{ background: '#00e887' }} />
-        <span className="ml-3" style={{ color: '#4f6ef7' }}>AAPL · Apple Inc · Technology · USD</span>
-        <span className="ml-auto px-2 py-0.5 rounded text-[10px]"
-          style={{ background: 'rgba(0,232,135,0.1)', color: '#00e887', border: '1px solid rgba(0,232,135,0.2)' }}>
+      {/* Window chrome */}
+      <div className="flex items-center gap-2 px-4 py-3"
+        style={{ background: 'rgba(79,110,247,0.07)', borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#f43f5e' }} />
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#fbbf24' }} />
+        <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#00e887' }} />
+        <span className="ml-3 text-[11px]" style={{ color: '#4f6ef7' }}>AAPL · Apple Inc · Technology · USD</span>
+        <span className="ml-auto text-[10px] px-2 py-0.5 rounded-md font-semibold"
+          style={{ background: 'rgba(0,232,135,0.12)', color: '#00e887', border: '1px solid rgba(0,232,135,0.25)' }}>
           ● HEALTHY
         </span>
       </div>
-      {/* rows */}
-      <div className="p-4 space-y-2">
+      {/* Rows */}
+      <div className="p-4 space-y-2.5">
         {rows.map(r => (
-          <div key={r.label} className="flex items-center justify-between">
-            <span style={{ color: '#6b82a8' }}>{r.label}</span>
-            <div className="flex items-center gap-3">
-              <div className="w-20 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
-                <div className="h-full rounded-full"
-                  style={{ width: r.status === 'green' ? '72%' : r.status === 'amber' ? '45%' : '20%',
-                    background: color[r.status] }} />
-              </div>
-              <span style={{ color: '#f1f5f9', minWidth: 48, textAlign: 'right' }}>{r.val}</span>
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color[r.status] }} />
+          <div key={r.label} className="flex items-center justify-between gap-3">
+            <span className="text-[11px]" style={{ color: '#6b82a8', minWidth: 120 }}>{r.label}</span>
+            <div className="flex-1 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}>
+              <div className="h-full rounded-full transition-all"
+                style={{ width: r.status === 'green' ? '72%' : '42%', background: clr[r.status], opacity: 0.7 }} />
             </div>
+            <span className="text-[11px] font-bold" style={{ color: '#f1f5f9', minWidth: 44, textAlign: 'right' }}>{r.val}</span>
+            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: clr[r.status], boxShadow: `0 0 6px ${clr[r.status]}` }} />
           </div>
         ))}
       </div>
-      {/* footer */}
-      <div className="px-4 py-2.5 flex items-center justify-between"
+      {/* Footer score */}
+      <div className="px-4 py-3 flex items-center justify-between"
         style={{ borderTop: '1px solid rgba(79,110,247,0.1)', background: 'rgba(79,110,247,0.03)' }}>
-        <span style={{ color: '#3d5070' }}>Overall Score</span>
-        <span className="font-bold text-sm" style={{ color: '#00e887' }}>87 / 100</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] uppercase tracking-widest" style={{ color: '#334155' }}>Overall Score</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="w-28 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.06)' }}>
+            <div className="h-full rounded-full" style={{ width: '87%', background: 'linear-gradient(90deg,#00c874,#00e887)', boxShadow: '0 0 8px rgba(0,232,135,0.5)' }} />
+          </div>
+          <span className="text-sm font-black" style={{ color: '#00e887' }}>87 / 100</span>
+        </div>
       </div>
     </div>
   );
 }
 
+/* ── Feature data ─────────────────────────────────────────── */
 const FEATURES = [
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
-      </svg>
-    ),
-    title: 'One-Click Company Lookup',
-    body: 'Type any ticker — AAPL, RELIANCE.NS, TSLA. Financial statements load automatically. No manual entry, no CSV uploads.',
+    icon: '⌕',
+    title: 'One-Click Lookup',
+    body: 'Type any ticker — AAPL, RELIANCE.NS, TSLA. Statements load automatically from Yahoo Finance. No CSV uploads.',
+    accent: '#4f6ef7',
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/>
-      </svg>
-    ),
+    icon: '◈',
     title: '23 CFA-Level Ratios',
-    body: 'Liquidity, profitability, efficiency, leverage — plus ROIC, Altman Z-Score, EBITDA margin, DPO, and full cash conversion cycle.',
+    body: 'Liquidity, profitability, leverage, efficiency. Plus ROIC, Altman Z-Score, EBITDA margin, DPO, and full cash conversion cycle.',
+    accent: '#22d3ee',
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-    ),
-    title: 'IB-Style Excel Export',
-    body: 'Multi-sheet workbook: Income Statement, Balance Sheet, Cash Flow, Ratio Summary, DCF Model — colour-coded exactly like Wall Street templates.',
+    icon: '⬡',
+    title: 'DuPont & DCF',
+    body: '3/5-factor DuPont decomposition of ROE. 5-year unlevered DCF with sensitivity grid across WACC and terminal growth.',
+    accent: '#a78bfa',
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M9.663 17h4.673M12 3v1m6.364 1.636-.707.707M21 12h-1M4 12H3m3.343-5.657-.707-.707m2.828 9.9a5 5 0 1 1 7.072 0l-.548.547A3.374 3.374 0 0 0 14 18.469V19a2 2 0 1 1-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-      </svg>
-    ),
-    title: 'AI-Powered Insights',
-    body: 'Claude Haiku analyses your ratios and generates plain-English commentary — strengths, risks, and specific actionable recommendations.',
+    icon: '⚑',
+    title: 'Earnings Quality',
+    body: 'Beneish M-Score, accruals ratio, CFO/Net Income flags — the same signals that predicted Enron before it collapsed.',
+    accent: '#f43f5e',
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M2 20h20M6 20V10l6-6 6 6v10M10 20v-5h4v5"/>
-      </svg>
-    ),
-    title: 'Sector Peer Comparison',
-    body: 'See how a company stacks up against sector peers across margin, return, and leverage metrics. Built-in benchmark database for 12 industries.',
+    icon: '⊞',
+    title: 'IB-Style Excel',
+    body: 'Multi-sheet workbook: Income Statement, Balance Sheet, Cash Flow, Ratio Summary, DCF. Colour-coded like Wall Street templates.',
+    accent: '#00e887',
   },
   {
-    icon: (
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>
-      </svg>
-    ),
-    title: 'Detailed PDF Reports',
-    body: 'Export a multi-page PDF with ratio charts, AI commentary, DCF summary, and sector comparisons — ready to share with clients or management.',
+    icon: '◎',
+    title: 'AI Insights',
+    body: 'Claude Haiku reads your ratios and writes plain-English commentary — risks, opportunities, and specific actions.',
+    accent: '#fbbf24',
   },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Enter a Ticker', body: 'Type any listed company ticker. Data pulls automatically from Yahoo Finance.' },
-  { n: '02', title: 'Instant Analysis', body: '23 ratios calculated in real time. Health status colour-coded. AI commentary generated.' },
-  { n: '03', title: 'Export & Share', body: 'Download an IB-style Excel model or a detailed PDF report in one click.' },
+  { n: '01', title: 'Enter a Ticker', body: 'Type any listed company. Data pulls from Yahoo Finance automatically.' },
+  { n: '02', title: 'Instant Analysis', body: '23 ratios, health scores, and AI commentary generated in seconds.' },
+  { n: '03', title: 'Export & Share',   body: 'Download IB-style Excel or a detailed PDF report in one click.' },
 ];
 
 const STATS = [
-  { value: 23,  suffix: '',   label: 'Financial Ratios'   },
-  { value: 12,  suffix: '+',  label: 'Industry Benchmarks'},
-  { value: 5,   suffix: 'yr', label: 'DCF Projection'     },
-  { value: 100, suffix: '%',  label: 'Free to Start'      },
+  { value: 23,  suffix: '',   label: 'Financial Ratios'    },
+  { value: 12,  suffix: '+',  label: 'Industry Benchmarks' },
+  { value: 5,   suffix: 'yr', label: 'Historical Data'     },
+  { value: 100, suffix: '%',  label: 'Free to Start'       },
 ];
 
+/* ── Landing ──────────────────────────────────────────────── */
 export default function Landing() {
   const [email,     setEmail]     = useState('');
   const [submitted, setSubmitted] = useState(false);
@@ -166,7 +150,6 @@ export default function Landing() {
   const [wlBusy,    setWlBusy]    = useState(false);
   const [wlCount,   setWlCount]   = useState(null);
 
-  // Fetch live waitlist count on mount
   useEffect(() => {
     if (!supabase) return;
     supabase.from('waitlist_count').select('total').single()
@@ -177,203 +160,204 @@ export default function Landing() {
   const handleWaitlist = async (e) => {
     e.preventDefault();
     if (!email) return;
-    setWlError('');
-    setWlBusy(true);
+    setWlError(''); setWlBusy(true);
     try {
       if (supabase) {
         const { error } = await supabase
           .from('waitlist')
           .insert({ email: email.trim().toLowerCase(), source: 'landing' });
-        if (error) {
-          if (error.code === '23505') {
-            // Already on the list — still show success
-          } else {
-            throw error;
-          }
-        }
+        if (error && error.code !== '23505') throw error;
         setWlCount(c => (c ?? 0) + 1);
       }
       setSubmitted(true);
-    } catch (err) {
-      setWlError('Something went wrong. Please try again.');
-    } finally {
-      setWlBusy(false);
-    }
+    } catch { setWlError('Something went wrong. Please try again.'); }
+    finally  { setWlBusy(false); }
   };
 
   return (
-    <div className="min-h-screen page-bg" style={{ color: '#d4ddf5' }}>
+    <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
 
-      {/* ── HERO ──────────────────────────────────────────── */}
-      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-16 overflow-hidden">
+      {/* ══ HERO ══════════════════════════════════════════════ */}
+      <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 pb-20 overflow-hidden">
 
-        {/* background glow */}
-        <div className="absolute inset-0 pointer-events-none" style={{
-          background: 'radial-gradient(ellipse 70% 50% at 50% 0%, rgba(79,110,247,0.12) 0%, transparent 70%)',
-        }} />
-
-        {/* eyebrow */}
-        <div className="flex items-center gap-2 mb-6 px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)' }}>
-          <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#4f6ef7' }} />
-          <span className="text-xs font-medium tracking-widest uppercase" style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
-            Financial Intelligence Platform
-          </span>
+        {/* Glow blobs */}
+        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+          <div style={{
+            position: 'absolute', top: '-10%', left: '50%', transform: 'translateX(-50%)',
+            width: 800, height: 600, borderRadius: '50%',
+            background: 'radial-gradient(ellipse,rgba(79,110,247,0.13) 0%,transparent 65%)',
+          }} />
+          <div style={{
+            position: 'absolute', bottom: '5%', right: '-5%',
+            width: 400, height: 400, borderRadius: '50%',
+            background: 'radial-gradient(ellipse,rgba(34,211,238,0.07) 0%,transparent 65%)',
+          }} />
         </div>
 
-        {/* headline */}
-        <h1 className="text-center font-black mb-6 max-w-3xl"
-          style={{ fontSize: 'clamp(2.4rem, 5vw, 4rem)', lineHeight: 1.1, color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+        {/* Eyebrow badge */}
+        <div className="flex items-center gap-2 mb-7 px-4 py-1.5 rounded-full relative z-10"
+          style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.22)' }}>
+          <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#4f6ef7' }} />
+          <span className="eyebrow">Financial Intelligence Platform · Beta</span>
+        </div>
+
+        {/* Headline */}
+        <h1 className="heading-xl text-center max-w-3xl mb-5 relative z-10">
           Institutional-grade analysis.{' '}
-          <span style={{
-            background: 'linear-gradient(135deg, #4f6ef7 0%, #22d3ee 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
-            In seconds.
-          </span>
+          <span className="shimmer-text">In seconds.</span>
         </h1>
 
-        {/* sub */}
-        <p className="text-center max-w-xl mb-10 leading-relaxed"
-          style={{ color: '#9fb3d4', fontSize: '1.05rem' }}>
-          Search any listed company. Get 23 CFA-level ratios, AI-powered insights,
-          a 5-year DCF model, and an IB-style Excel export — the workflow that used
-          to take a full analyst day, now in one click.
+        {/* Sub */}
+        <p className="text-center max-w-xl mb-10 leading-relaxed relative z-10"
+          style={{ color: 'var(--text-3)', fontSize: '1.05rem' }}>
+          Search any listed company. Get 23 CFA-level ratios, AI commentary, a 5-year
+          DCF model, and an IB-style Excel export — the workflow that used to take a
+          full analyst day, now in one click.
         </p>
 
         {/* CTAs */}
-        <div className="flex flex-wrap gap-3 justify-center mb-16">
+        <div className="flex flex-wrap gap-3 justify-center mb-14 relative z-10">
           <Link to="/dashboard"
-            className="px-7 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90 active:scale-95"
-            style={{ background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)', color: '#fff',
-              boxShadow: '0 0 24px rgba(79,110,247,0.4)' }}>
+            className="btn-primary px-7 py-3 rounded-xl font-semibold text-sm text-white transition-all">
             Launch Dashboard →
           </Link>
-          <a href="#how-it-works"
-            className="px-7 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-80"
-            style={{ background: 'rgba(79,110,247,0.08)', color: '#9fb3d4',
-              border: '1px solid rgba(79,110,247,0.2)' }}>
-            See How It Works
+          <a href="#features"
+            className="px-7 py-3 rounded-xl font-semibold text-sm transition-all"
+            style={{
+              background: 'var(--surface)',
+              color: 'var(--text-3)',
+              border: '1px solid var(--border)',
+            }}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(79,110,247,0.4)'}
+            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+            See Features
           </a>
         </div>
 
-        {/* terminal preview */}
-        <div className="w-full max-w-lg">
+        {/* Terminal preview */}
+        <div className="w-full max-w-lg relative z-10">
           <TerminalCard />
+        </div>
+
+        {/* Scroll hint */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 opacity-30">
+          <span className="mono text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-4)' }}>Scroll</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ color: 'var(--text-4)' }}>
+            <path d="M2 4l5 5 5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </div>
       </section>
 
-      {/* ── STATS BAR ─────────────────────────────────────── */}
-      <section className="py-12 px-6"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.1)', borderBottom: '1px solid rgba(79,110,247,0.1)',
-          background: 'rgba(79,110,247,0.03)' }}>
+      {/* ══ STATS BAR ════════════════════════════════════════ */}
+      <section className="py-14 px-6" style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
         <div className="max-w-4xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {STATS.map(s => (
             <div key={s.label}>
-              <div className="text-4xl font-black mb-1"
-                style={{ fontFamily: 'JetBrains Mono, monospace', color: '#f1f5f9' }}>
+              <div className="text-4xl font-black mb-1.5 mono" style={{ color: 'var(--text-1)' }}>
                 <CountUp end={s.value} suffix={s.suffix} />
               </div>
-              <div className="text-xs font-medium uppercase tracking-widest" style={{ color: '#6b82a8' }}>
-                {s.label}
-              </div>
+              <div className="eyebrow" style={{ color: 'var(--text-4)' }}>{s.label}</div>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── FEATURES ──────────────────────────────────────── */}
-      <section className="py-24 px-6">
+      {/* ══ FEATURES ════════════════════════════════════════ */}
+      <section id="features" className="py-28 px-6">
         <div className="max-w-5xl mx-auto">
-          <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
-            WHAT YOU GET
-          </p>
-          <h2 className="text-center font-black mb-4"
-            style={{ fontSize: 'clamp(1.8rem,3vw,2.5rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
-            Everything a finance professional needs
-          </h2>
-          <p className="text-center mb-14 max-w-lg mx-auto" style={{ color: '#9fb3d4' }}>
-            Built for investment bankers, management consultants, equity analysts,
-            and CFOs who need answers fast.
-          </p>
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="text-center mb-16">
+            <p className="eyebrow mb-3">What You Get</p>
+            <h2 className="heading-lg mb-4">Everything a finance professional needs</h2>
+            <p className="subheading max-w-lg mx-auto">
+              Built for investment bankers, consultants, equity analysts, and CFOs
+              who need institutional-grade answers fast.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {FEATURES.map(f => (
-              <div key={f.title} className="p-6 rounded-xl transition-all hover:border-opacity-40"
-                style={{
-                  background: 'rgba(255,255,255,0.025)',
-                  border: '1px solid rgba(79,110,247,0.12)',
-                }}>
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center mb-4"
-                  style={{ background: 'rgba(79,110,247,0.1)', color: '#4f6ef7' }}>
-                  {f.icon}
+              <div key={f.title} className="feature-card group">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 text-xl"
+                  style={{ background: `${f.accent}14`, border: `1px solid ${f.accent}28` }}>
+                  <span style={{ color: f.accent }}>{f.icon}</span>
                 </div>
-                <h3 className="font-bold mb-2" style={{ color: '#f1f5f9', fontSize: '0.95rem' }}>{f.title}</h3>
-                <p className="text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>{f.body}</p>
+                <h3 className="font-bold mb-2 text-sm" style={{ color: 'var(--text-1)' }}>{f.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>{f.body}</p>
+                <div className="mt-4 h-px rounded-full transition-all duration-300"
+                  style={{ background: `linear-gradient(90deg,${f.accent}40,transparent)`, opacity: 0.6 }} />
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── HOW IT WORKS ─────────────────────────────────── */}
-      <section id="how-it-works" className="py-24 px-6"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+      {/* ══ HOW IT WORKS ════════════════════════════════════ */}
+      <section id="how-it-works" className="py-28 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-4xl mx-auto">
-          <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
-            HOW IT WORKS
-          </p>
-          <h2 className="text-center font-black mb-14"
-            style={{ fontSize: 'clamp(1.8rem,3vw,2.5rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
-            Three steps. Zero friction.
-          </h2>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="text-center mb-16">
+            <p className="eyebrow mb-3">How It Works</p>
+            <h2 className="heading-lg">Three steps. Zero friction.</h2>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 relative">
+            {/* Connecting line */}
+            <div className="hidden md:block absolute top-7 left-1/3 right-1/3 h-px"
+              style={{ background: 'linear-gradient(90deg,transparent,rgba(79,110,247,0.3),transparent)' }} />
+
             {STEPS.map((s, i) => (
-              <div key={s.n} className="relative">
-                {i < STEPS.length - 1 && (
-                  <div className="hidden md:block absolute top-7 left-full w-full h-px"
-                    style={{ background: 'linear-gradient(90deg,rgba(79,110,247,0.3),transparent)', zIndex: 0 }} />
-                )}
-                <div className="relative z-10">
-                  <div className="text-4xl font-black mb-4"
-                    style={{ fontFamily: 'JetBrains Mono, monospace',
-                      color: 'rgba(79,110,247,0.25)', letterSpacing: '-0.02em' }}>
-                    {s.n}
-                  </div>
-                  <h3 className="font-bold mb-2" style={{ color: '#f1f5f9' }}>{s.title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>{s.body}</p>
+              <div key={s.n} className="relative text-center md:text-left">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl mb-5"
+                  style={{
+                    background: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    boxShadow: 'var(--shadow-card)',
+                  }}>
+                  <span className="mono font-black text-lg" style={{ color: 'var(--royal)' }}>{s.n}</span>
                 </div>
+                <h3 className="font-bold mb-2" style={{ color: 'var(--text-1)', fontSize: '1rem' }}>{s.title}</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>{s.body}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ── WAITLIST ─────────────────────────────────────── */}
-      <section className="py-24 px-6"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
-        <div className="max-w-xl mx-auto text-center">
-          <p className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
-            EARLY ACCESS
-          </p>
-          <h2 className="font-black mb-4"
-            style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
-            Be first when Pro launches
-          </h2>
-          <p className="mb-6" style={{ color: '#9fb3d4', fontSize: '0.95rem' }}>
+      {/* ══ SOCIAL PROOF ════════════════════════════════════ */}
+      <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div className="max-w-4xl mx-auto">
+          <p className="eyebrow text-center mb-10">Built for</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { role: 'CFA Candidates',        icon: '📊', desc: 'Apply theory to real data'        },
+              { role: 'Management Consultants', icon: '💼', desc: 'Quick due diligence in minutes'   },
+              { role: 'Equity Analysts',        icon: '📈', desc: 'Ratio screens in seconds'         },
+              { role: 'CFOs & Finance Teams',   icon: '🏢', desc: 'Track your own company health'    },
+            ].map(p => (
+              <div key={p.role} className="p-5 rounded-2xl text-center"
+                style={{ background: 'var(--bg-3)', border: '1px solid var(--border)' }}>
+                <div className="text-2xl mb-2">{p.icon}</div>
+                <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-1)' }}>{p.role}</p>
+                <p className="text-xs" style={{ color: 'var(--text-4)' }}>{p.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ══ WAITLIST ════════════════════════════════════════ */}
+      <section className="py-28 px-6" style={{ borderTop: '1px solid var(--border)' }}>
+        <div className="max-w-lg mx-auto text-center">
+          <p className="eyebrow mb-3">Early Access</p>
+          <h2 className="heading-lg mb-4">Be first when Pro launches</h2>
+          <p className="subheading mb-7">
             Pro brings watchlists, shareable reports, unlimited AI analyses, and
-            priority data. Join the waitlist — Charter Members lock in the lowest
-            price forever.
+            priority data. Charter Members lock in the lowest price forever.
           </p>
 
-          {/* Live counter */}
           {wlCount !== null && wlCount > 0 && (
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
-              style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.18)' }}>
-              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#4f6ef7' }} />
+              style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)' }}>
+              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#4f6ef7' }} />
               <span className="mono text-xs font-semibold" style={{ color: '#4f6ef7' }}>
                 {wlCount} {wlCount === 1 ? 'person' : 'people'} already on the list
               </span>
@@ -381,103 +365,88 @@ export default function Landing() {
           )}
 
           {submitted ? (
-            <div className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl"
-              style={{ background: 'rgba(0,232,135,0.08)', border: '1px solid rgba(0,232,135,0.2)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e887" strokeWidth="2">
+            <div className="flex items-center justify-center gap-2 px-6 py-4 rounded-2xl"
+              style={{ background: 'rgba(0,232,135,0.07)', border: '1px solid rgba(0,232,135,0.22)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00e887" strokeWidth="2.5">
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
-              <span style={{ color: '#00e887', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
+              <span className="mono text-sm font-semibold" style={{ color: '#00e887' }}>
                 You're on the list — we'll be in touch.
               </span>
             </div>
           ) : (
             <>
               <form onSubmit={handleWaitlist} className="flex gap-2">
-                <input
-                  type="email"
-                  required
-                  placeholder="your@email.com"
+                <input type="email" required placeholder="your@email.com"
                   value={email}
                   onChange={e => { setEmail(e.target.value); setWlError(''); }}
-                  className="flex-1 px-4 py-3 rounded-lg text-sm outline-none transition-all"
+                  className="flex-1 px-4 py-3 rounded-xl text-sm outline-none transition-all"
                   style={{
-                    background: 'rgba(255,255,255,0.04)',
-                    border: `1px solid ${wlError ? 'rgba(244,63,94,0.4)' : 'rgba(79,110,247,0.2)'}`,
-                    color: '#f1f5f9',
-                    fontFamily: 'JetBrains Mono, monospace',
+                    background: 'var(--surface)',
+                    border: `1px solid ${wlError ? 'rgba(244,63,94,0.4)' : 'var(--border)'}`,
+                    color: 'var(--text-1)',
+                    fontFamily: 'var(--font-mono)',
                   }}
-                  onFocus={e => e.target.style.borderColor = 'rgba(79,110,247,0.5)'}
-                  onBlur={e  => e.target.style.borderColor = wlError ? 'rgba(244,63,94,0.4)' : 'rgba(79,110,247,0.2)'}
+                  onFocus={e => e.target.style.borderColor = 'rgba(79,110,247,0.55)'}
+                  onBlur={e  => e.target.style.borderColor = wlError ? 'rgba(244,63,94,0.4)' : 'var(--border)'}
                 />
                 <button type="submit" disabled={wlBusy}
-                  className="px-5 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90 whitespace-nowrap"
-                  style={{
-                    background: wlBusy ? 'rgba(79,110,247,0.5)' : '#4f6ef7',
-                    color: '#fff',
-                    cursor: wlBusy ? 'not-allowed' : 'pointer',
-                  }}>
+                  className="btn-primary px-5 py-3 rounded-xl font-semibold text-sm text-white whitespace-nowrap transition-all"
+                  style={{ opacity: wlBusy ? 0.6 : 1, cursor: wlBusy ? 'not-allowed' : 'pointer' }}>
                   {wlBusy ? '…' : 'Join Waitlist'}
                 </button>
               </form>
-              {wlError && (
-                <p className="mt-2 text-xs" style={{ color: '#f43f5e' }}>{wlError}</p>
-              )}
+              {wlError && <p className="mt-2 text-xs" style={{ color: '#f43f5e' }}>{wlError}</p>}
             </>
           )}
 
-          <p className="mt-4 text-xs" style={{ color: '#3d5070' }}>
+          <p className="mt-4 text-xs" style={{ color: 'var(--text-5)' }}>
             No spam. No nonsense. Unsubscribe any time.
           </p>
         </div>
       </section>
 
-      {/* ── BOTTOM CTA ───────────────────────────────────── */}
-      <section className="py-24 px-6"
-        style={{
-          borderTop: '1px solid rgba(79,110,247,0.08)',
-          background: 'linear-gradient(180deg, transparent 0%, rgba(79,110,247,0.04) 100%)',
-        }}>
+      {/* ══ BOTTOM CTA ══════════════════════════════════════ */}
+      <section className="py-28 px-6"
+        style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}>
         <div className="max-w-2xl mx-auto text-center">
-          <h2 className="font-black mb-4"
-            style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+          <h2 className="heading-lg mb-4">
             Start your analysis now —{' '}
-            <span style={{ color: '#4f6ef7' }}>free.</span>
+            <span style={{ color: 'var(--royal)' }}>free.</span>
           </h2>
-          <p className="mb-8" style={{ color: '#9fb3d4' }}>
+          <p className="subheading mb-8">
             No account required. Search a ticker and get a full financial health
             report in under 10 seconds.
           </p>
           <Link to="/dashboard"
-            className="inline-block px-10 py-4 rounded-lg font-bold text-sm transition-all hover:opacity-90 active:scale-95"
-            style={{
-              background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)',
-              color: '#fff',
-              boxShadow: '0 0 40px rgba(79,110,247,0.35)',
-            }}>
+            className="btn-primary inline-block px-10 py-4 rounded-xl font-bold text-sm text-white transition-all">
             Launch Dashboard →
           </Link>
         </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────── */}
-      <footer className="py-10 px-6"
-        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      {/* ══ FOOTER ══════════════════════════════════════════ */}
+      <footer className="py-10 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center"
+            <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
               style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)' }}>
               <span className="text-white font-black text-[10px]">B</span>
             </div>
-            <span className="font-bold text-sm" style={{ color: '#f1f5f9' }}>BizHealth</span>
-            <span className="text-xs" style={{ color: '#3d5070' }}>· Financial Intelligence</span>
+            <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>BizHealth</span>
+            <span className="text-xs" style={{ color: 'var(--text-5)' }}>· Financial Intelligence</span>
           </div>
           <div className="flex items-center gap-6">
-            {[['Dashboard', '/dashboard'], ['Pricing', '/pricing'], ['About', '/about'], ['Contact', '/contact']].map(([l, h]) => (
-              <Link key={l} to={h} className="text-xs transition-colors hover:opacity-80"
-                style={{ color: '#6b82a8' }}>{l}</Link>
+            {[['Dashboard','/dashboard'],['Pricing','/pricing'],['About','/about'],['Contact','/contact']].map(([l,h]) => (
+              <Link key={l} to={h} className="text-xs transition-colors"
+                style={{ color: 'var(--text-4)' }}
+                onMouseEnter={e => e.currentTarget.style.color = 'var(--text-2)'}
+                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-4)'}>
+                {l}
+              </Link>
             ))}
           </div>
-          <p className="text-xs" style={{ color: '#3d5070', fontFamily: 'JetBrains Mono, monospace' }}>
+          <p className="mono text-xs" style={{ color: 'var(--text-5)' }}>
             © 2026 BizHealth · Beta
           </p>
         </div>
