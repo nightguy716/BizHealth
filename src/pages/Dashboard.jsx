@@ -13,6 +13,8 @@ import RatioTableView   from '../components/RatioTableView';
 import HistoricalCharts from '../components/HistoricalCharts';
 import DuPontTree       from '../components/DuPontTree';
 import EarningsQuality  from '../components/EarningsQuality';
+import ValuationLab        from '../components/ValuationLab';
+import ScenarioComparison  from '../components/ScenarioComparison';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
@@ -1216,6 +1218,19 @@ export default function App() {
                 ratioValues={results.ratioValues}
                 inputs={inputs}
                 historical={historical}
+              />
+
+              {/* ── Valuation Lab (Sensitivity + What-If) ── */}
+              <ValuationLab
+                inputs={inputs}
+                industry={industry}
+                ratioValues={results.ratioValues}
+              />
+
+              {/* ── Scenario comparison (Bear / Base / Bull) ── */}
+              <ScenarioComparison
+                inputs={inputs}
+                ratioValues={results.ratioValues}
               />
 
               <AIInsights
