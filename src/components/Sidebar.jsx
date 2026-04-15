@@ -57,7 +57,7 @@ const GROUPS = [
   { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b', dot: 'rgba(245,158,11,0.8)'  },
 ];
 
-export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded, collapsed = false }) {
+export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded, collapsed = false, mobile = false, onClose }) {
   const fileRef = useRef(null);
   const filled  = Object.values(inputs).filter(v => v !== '').length;
   const pct     = Math.round((filled / FIELDS.length) * 100);
@@ -99,7 +99,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
   }
 
   return (
-    <aside className="w-full lg:w-80 flex flex-col h-screen lg:fixed lg:left-0 lg:top-0 lg:overflow-y-auto"
+    <aside className={`flex flex-col ${mobile ? 'w-full h-full' : 'w-full lg:w-80 h-screen lg:fixed lg:left-0 lg:top-0 lg:overflow-y-auto'}`}
       style={{
         background: 'linear-gradient(180deg, #06101e 0%, #050d1a 100%)',
         borderRight: '1px solid rgba(79,110,247,0.18)',
@@ -125,10 +125,22 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
               Financial Intelligence
             </div>
           </div>
-          <span className="mono text-[9px] font-bold px-2 py-0.5 rounded"
-            style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', color: '#7b95fa' }}>
-            v3
-          </span>
+          {mobile && onClose ? (
+            <button onClick={onClose}
+              className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
+              style={{ background: 'rgba(255,255,255,0.06)', color: '#6b82a8' }}
+              onMouseEnter={e => e.currentTarget.style.color = '#f43f5e'}
+              onMouseLeave={e => e.currentTarget.style.color = '#6b82a8'}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M18 6L6 18M6 6l12 12"/>
+              </svg>
+            </button>
+          ) : (
+            <span className="mono text-[9px] font-bold px-2 py-0.5 rounded"
+              style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', color: '#7b95fa' }}>
+              v3
+            </span>
+          )}
         </div>
       </div>
 

@@ -79,6 +79,7 @@ export default function App() {
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
   const [sidebarOpen,     setSidebarOpen]     = useState(true);
+  const [mobileOpen,      setMobileOpen]      = useState(false);
   const [viewMode,        setViewMode]        = useState('cards'); // 'cards' | 'table'
   const resultsRef = useRef(null);
 
@@ -1023,24 +1024,27 @@ export default function App() {
   const hasCompany = !!(companyContext.ticker || companyContext.name);
   const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase();
 
+  const sidebarProps = {
+    inputs, setInputs, industry, setIndustry, onReset: handleReset,
+    onCompanyLoaded: (ctx, hist) => {
+      setCompanyContext(ctx);
+      if (hist) setHistorical(hist);
+    },
+  };
+
   return (
     <div className="min-h-screen page-bg flex flex-col lg:flex-row">
 
-      {/* ── Sidebar with collapse toggle ── */}
-      <div className="relative flex-shrink-0" style={{ width: sidebarOpen ? undefined : 0 }}>
+      {/* ══ DESKTOP sidebar ══════════════════════════════════ */}
+      <div className="relative flex-shrink-0 hidden lg:block" style={{ width: sidebarOpen ? undefined : 0 }}>
         <Sidebar
-          inputs={inputs} setInputs={setInputs}
-          industry={industry} setIndustry={setIndustry}
-          onCalculate={handleCalculate} onReset={handleReset}
+          {...sidebarProps}
+          onCalculate={handleCalculate}
           collapsed={!sidebarOpen}
-          onCompanyLoaded={(ctx, hist) => {
-            setCompanyContext(ctx);
-            if (hist) setHistorical(hist);
-          }}
         />
       </div>
 
-      {/* ── Collapse / Expand toggle button ── */}
+      {/* ── Desktop collapse / expand toggle ── */}
       <button
         onClick={() => setSidebarOpen(o => !o)}
         className="hidden lg:flex fixed top-20 z-40 items-center justify-center w-5 h-10 rounded-r-lg transition-all hover:opacity-90"
@@ -1059,6 +1063,62 @@ export default function App() {
         </svg>
       </button>
 
+      {/* ══ MOBILE bottom-sheet drawer ═══════════════════════ */}
+      <div className={`lg:hidden fixed inset-0 z-50 ${mobileOpen ? 'pointer-events-auto' : 'pointer-events-none'}`}>
+        {/* Backdrop */}
+        <div
+          className="absolute inset-0 transition-opacity duration-300"
+          style={{
+            background: 'rgba(2,7,20,0.8)',
+            backdropFilter: 'blur(4px)',
+            opacity: mobileOpen ? 1 : 0,
+          }}
+          onClick={() => setMobileOpen(false)}
+        />
+        {/* Drawer slides up from bottom */}
+        <div
+          className="absolute bottom-0 left-0 right-0 rounded-t-2xl overflow-hidden flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+          style={{
+            height: '88vh',
+            transform: mobileOpen ? 'translateY(0)' : 'translateY(100%)',
+            background: 'linear-gradient(180deg,#06101e 0%,#050d1a 100%)',
+            border: '1px solid rgba(79,110,247,0.2)',
+            borderBottom: 'none',
+            boxShadow: '0 -12px 48px rgba(0,0,0,0.6)',
+          }}>
+          {/* Drag handle */}
+          <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
+            <div className="w-10 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.15)' }} />
+          </div>
+          <Sidebar
+            {...sidebarProps}
+            mobile
+            onClose={() => setMobileOpen(false)}
+            onCalculate={() => { handleCalculate(); setMobileOpen(false); }}
+          />
+        </div>
+      </div>
+
+      {/* ══ MOBILE FAB ═══════════════════════════════════════ */}
+      <button
+        className="lg:hidden fixed z-40 flex items-center gap-2 font-semibold text-xs text-white transition-all"
+        style={{
+          bottom: 20,
+          right: 20,
+          background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)',
+          boxShadow: '0 4px 20px rgba(79,110,247,0.55), 0 2px 8px rgba(0,0,0,0.4)',
+          borderRadius: 14,
+          padding: '10px 16px',
+        }}
+        onClick={() => setMobileOpen(true)}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <rect x="2" y="3" width="20" height="14" rx="2"/>
+          <path d="M8 21h8M12 17v4"/>
+        </svg>
+        {calculated ? 'Edit Inputs' : 'Enter Financials'}
+      </button>
+
       <main className="flex-1 min-h-screen" style={{ marginLeft: 0 }}>
 
         {/* ── Terminal context bar ── */}
@@ -1069,8 +1129,8 @@ export default function App() {
               borderBottom: '1px solid rgba(79,110,247,0.12)',
               backdropFilter: 'blur(12px)',
             }}>
-            <div className="flex items-center gap-0 overflow-x-auto"
-              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+            <div className="flex items-center gap-0 overflow-x-auto scrollbar-none"
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, whiteSpace: 'nowrap', scrollbarWidth: 'none' }}>
               {[
                 { val: companyContext.ticker || '—',                           color: '#4f6ef7' },
                 { val: companyContext.name   || '—',                           color: '#f1f5f9' },
@@ -1095,7 +1155,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" ref={resultsRef}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pb-24 lg:pb-8" ref={resultsRef}>
 
           {/* ── Welcome state ── */}
           {!calculated && (
@@ -1106,15 +1166,34 @@ export default function App() {
                 <Logo size={80} />
               </div>
 
-              <h1 className="font-bold tracking-tight mb-1" style={{ fontSize:'2.8rem', lineHeight:1.1 }}>
+              <h1 className="font-bold tracking-tight mb-1" style={{ fontSize:'clamp(2rem,8vw,2.8rem)', lineHeight:1.1 }}>
                 <span className="text-white">Biz</span><span style={{ color:'#22d3ee', textShadow:'0 0 30px rgba(34,211,238,0.6)' }}>Health</span>
               </h1>
               <p className="mono text-[11px] font-bold uppercase tracking-widest mb-6" style={{ color:'rgba(34,211,238,0.45)' }}>
                 Financial Intelligence Platform · v3.0
               </p>
 
-              <p className="text-sm max-w-md leading-relaxed mb-2" style={{ color: '#d4ddf5' }}>
+              {/* Mobile: tap to open inputs */}
+              <div className="lg:hidden w-full max-w-sm mb-6">
+                <button
+                  onClick={() => setMobileOpen(true)}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl transition-all"
+                  style={{
+                    background: 'rgba(79,110,247,0.08)',
+                    border: '1px solid rgba(79,110,247,0.28)',
+                  }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2" strokeLinecap="round">
+                    <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+                  </svg>
+                  <span className="mono text-sm" style={{ color: '#6b82a8' }}>Search a company or enter financials…</span>
+                </button>
+              </div>
+
+              <p className="text-sm max-w-md leading-relaxed mb-2 hidden lg:block" style={{ color: '#d4ddf5' }}>
                 Enter your financials, or hit <span style={{ color:'#7b95fa' }}>⚡ Demo</span> in the sidebar for instant results.
+              </p>
+              <p className="text-sm max-w-xs leading-relaxed mb-2 lg:hidden" style={{ color: '#6b82a8' }}>
+                Tap <strong style={{ color: '#7b95fa' }}>Enter Financials</strong> below to search a company or enter your own numbers.
               </p>
               <p className="mono text-[10px] mb-10" style={{ color: '#6b82a8' }}>14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
 
