@@ -382,16 +382,55 @@ def _parse_yf_response(data: dict) -> dict:
     filled   = len(data_fields)
     coverage = round((filled / total) * 100) if total else 0
 
+    # ── Market valuation multiples ────────────────────────────
+    fd = r.get("financialData") or {}
+    def _sv(d, *keys):
+        for k in keys:
+            v = d.get(k)
+            if isinstance(v, dict):
+                v = v.get("raw")
+            if v is not None and not (isinstance(v, float) and math.isnan(v)):
+                return v
+        return None
+
+    market_data = {
+        "currentPrice":         _sv(fd,    "currentPrice"),
+        "targetMeanPrice":      _sv(fd,    "targetMeanPrice"),
+        "recommendationKey":    fd.get("recommendationKey"),
+        "numberOfAnalysts":     _sv(fd,    "numberOfAnalystOpinions"),
+        "revenueGrowthYoY":     _sv(fd,    "revenueGrowth"),
+        "earningsGrowthYoY":    _sv(fd,    "earningsGrowth"),
+        "trailingPE":           _sv(stats, "trailingPE"),
+        "forwardPE":            _sv(stats, "forwardPE"),
+        "priceToBook":          _sv(stats, "priceToBook"),
+        "priceToSales":         _sv(stats, "priceToSalesTrailing12Months"),
+        "enterpriseValue":      _sv(stats, "enterpriseValue"),
+        "evToRevenue":          _sv(stats, "enterpriseToRevenue"),
+        "evToEbitda":           _sv(stats, "enterpriseToEbitda"),
+        "pegRatio":             _sv(stats, "pegRatio"),
+        "trailingEps":          _sv(stats, "trailingEps"),
+        "forwardEps":           _sv(stats, "forwardEps"),
+        "sharesOutstanding":    _sv(stats, "sharesOutstanding"),
+        "marketCap":            _sv(stats, "marketCap"),
+        "dividendYield":        _sv(stats, "dividendYield"),
+        "payoutRatio":          _sv(stats, "payoutRatio"),
+        "beta":                 _sv(stats, "beta"),
+        "shortRatio":           _sv(stats, "shortRatio"),
+    }
+    # Remove None values to keep payload clean
+    market_data = {k: v for k, v in market_data.items() if v is not None}
+
     return {
-        "name":       name,
-        "sector":     sector,
-        "industry":   SECTOR_MAP.get(sector, "general"),
-        "currency":   currency,
-        "coverage":   coverage,
-        "filled":     filled,
-        "total":      total,
-        "data":       data_fields,
-        "historical": historical,
+        "name":        name,
+        "sector":      sector,
+        "industry":    SECTOR_MAP.get(sector, "general"),
+        "currency":    currency,
+        "coverage":    coverage,
+        "filled":      filled,
+        "total":       total,
+        "data":        data_fields,
+        "historical":  historical,
+        "market_data": market_data,
     }
 
 

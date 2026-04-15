@@ -15,6 +15,7 @@ import DuPontTree       from '../components/DuPontTree';
 import EarningsQuality  from '../components/EarningsQuality';
 import ValuationLab        from '../components/ValuationLab';
 import ScenarioComparison  from '../components/ScenarioComparison';
+import RelativeValuation   from '../components/RelativeValuation';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
@@ -73,7 +74,7 @@ export default function App() {
   const [industry,        setIndustry]        = useState('general');
   const [results,         setResults]         = useState(null);
   const [calculated,      setCalculated]      = useState(false);
-  const [companyContext,  setCompanyContext]   = useState({ name: '', ticker: '', currency: 'INR', isListed: false });
+  const [companyContext,  setCompanyContext]   = useState({ name: '', ticker: '', currency: 'INR', isListed: false, sector: '', marketData: {} });
   const [historical,      setHistorical]      = useState({ income: [], balance: [] });
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
@@ -124,7 +125,7 @@ export default function App() {
     setCalculated(false);
     setHistorical({ income: [], balance: [] });
     setAiInsights(null);
-    setCompanyContext({ name: '', ticker: '', currency: 'INR', isListed: false });
+    setCompanyContext({ name: '', ticker: '', currency: 'INR', isListed: false, sector: '', marketData: {} });
   }
 
   async function handleExportExcel() {
@@ -1231,6 +1232,13 @@ export default function App() {
               <ScenarioComparison
                 inputs={inputs}
                 ratioValues={results.ratioValues}
+              />
+
+              {/* ── Relative valuation comps ── */}
+              <RelativeValuation
+                companyContext={companyContext}
+                inputs={inputs}
+                industry={industry}
               />
 
               <AIInsights

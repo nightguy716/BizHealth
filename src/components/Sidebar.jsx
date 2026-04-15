@@ -145,7 +145,12 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
             setIndustry(companyData.industry);
           }
           onCompanyLoaded?.(
-            { name: companyData.name, ticker: companyData.ticker, currency: companyData.currency, isListed: true },
+            {
+              name: companyData.name, ticker: companyData.ticker,
+              currency: companyData.currency, isListed: true,
+              sector: companyData.sector || '',
+              marketData: companyData.market_data || {},
+            },
             companyData.historical || { income: [], balance: [], cashflow: [] }
           );
         }} />
