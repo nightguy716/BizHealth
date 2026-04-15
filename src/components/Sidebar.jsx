@@ -57,7 +57,7 @@ const GROUPS = [
   { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b', dot: 'rgba(245,158,11,0.8)'  },
 ];
 
-export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded }) {
+export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded, collapsed = false }) {
   const fileRef = useRef(null);
   const filled  = Object.values(inputs).filter(v => v !== '').length;
   const pct     = Math.round((filled / FIELDS.length) * 100);
@@ -91,6 +91,13 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
     });
   };
 
+  if (collapsed) {
+    return (
+      <aside className="hidden lg:flex flex-col items-center w-0 h-screen fixed left-0 top-0 overflow-hidden"
+        style={{ transition: 'width 0.25s ease' }} />
+    );
+  }
+
   return (
     <aside className="w-full lg:w-80 flex flex-col h-screen lg:fixed lg:left-0 lg:top-0 lg:overflow-y-auto"
       style={{
@@ -98,6 +105,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         borderRight: '1px solid rgba(79,110,247,0.18)',
         scrollbarWidth: 'thin',
         scrollbarColor: 'rgba(79,110,247,0.25) transparent',
+        transition: 'width 0.25s ease',
       }}>
 
       {/* Top royal-blue accent bar */}

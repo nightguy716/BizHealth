@@ -71,6 +71,7 @@ export default function App() {
   const [historical,      setHistorical]      = useState({ income: [], balance: [] });
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
+  const [sidebarOpen,     setSidebarOpen]     = useState(true);
   const resultsRef = useRef(null);
 
   const n = key => parseFloat(inputs[key]) || 0;
@@ -1011,20 +1012,81 @@ export default function App() {
     return Math.round((pts / (valid * 2)) * 100);
   })();
 
+  const hasCompany = !!(companyContext.ticker || companyContext.name);
+  const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase();
+
   return (
     <div className="min-h-screen page-bg flex flex-col lg:flex-row">
 
-      <Sidebar
-        inputs={inputs} setInputs={setInputs}
-        industry={industry} setIndustry={setIndustry}
-        onCalculate={handleCalculate} onReset={handleReset}
-        onCompanyLoaded={(ctx, hist) => {
-          setCompanyContext(ctx);
-          if (hist) setHistorical(hist);
-        }}
-      />
+      {/* ── Sidebar with collapse toggle ── */}
+      <div className="relative flex-shrink-0" style={{ width: sidebarOpen ? undefined : 0 }}>
+        <Sidebar
+          inputs={inputs} setInputs={setInputs}
+          industry={industry} setIndustry={setIndustry}
+          onCalculate={handleCalculate} onReset={handleReset}
+          collapsed={!sidebarOpen}
+          onCompanyLoaded={(ctx, hist) => {
+            setCompanyContext(ctx);
+            if (hist) setHistorical(hist);
+          }}
+        />
+      </div>
 
-      <main className="flex-1 lg:ml-80 min-h-screen">
+      {/* ── Collapse / Expand toggle button ── */}
+      <button
+        onClick={() => setSidebarOpen(o => !o)}
+        className="hidden lg:flex fixed top-20 z-40 items-center justify-center w-5 h-10 rounded-r-lg transition-all hover:opacity-90"
+        style={{
+          left: sidebarOpen ? '318px' : '0px',
+          background: 'rgba(79,110,247,0.9)',
+          border: '1px solid rgba(79,110,247,0.5)',
+          borderLeft: 'none',
+          transition: 'left 0.25s ease',
+        }}
+        title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+      >
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"
+          style={{ transform: sidebarOpen ? 'none' : 'rotate(180deg)', transition: 'transform 0.25s' }}>
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+
+      <main className="flex-1 min-h-screen" style={{ marginLeft: 0 }}>
+
+        {/* ── Terminal context bar ── */}
+        {hasCompany && (
+          <div className="sticky top-14 z-30 px-4 sm:px-6 lg:px-8 py-2"
+            style={{
+              background: 'rgba(3,7,17,0.95)',
+              borderBottom: '1px solid rgba(79,110,247,0.12)',
+              backdropFilter: 'blur(12px)',
+            }}>
+            <div className="flex items-center gap-0 overflow-x-auto"
+              style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, whiteSpace: 'nowrap' }}>
+              {[
+                { val: companyContext.ticker || '—',                           color: '#4f6ef7' },
+                { val: companyContext.name   || '—',                           color: '#f1f5f9' },
+                { val: (industry || 'general').toUpperCase(),                  color: '#9fb3d4' },
+                { val: companyContext.currency || 'USD',                       color: '#22d3ee' },
+                { val: today,                                                  color: '#6b82a8' },
+              ].map((item, i) => (
+                <span key={i} className="flex items-center">
+                  {i > 0 && <span style={{ color: '#3d5070', margin: '0 8px' }}>·</span>}
+                  <span style={{ color: item.color }}>{item.val}</span>
+                </span>
+              ))}
+              {calculated && results && (
+                <>
+                  <span style={{ color: '#3d5070', margin: '0 8px' }}>·</span>
+                  <span style={{ color: healthScore >= 70 ? '#00e887' : healthScore >= 40 ? '#fbbf24' : '#f43f5e' }}>
+                    SCORE {healthScore}/100
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" ref={resultsRef}>
 
           {/* ── Welcome state ── */}
