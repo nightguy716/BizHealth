@@ -108,7 +108,7 @@ const FAQS = [
   },
   {
     q: 'When will Pro and Premium launch?',
-    a: 'We\'re currently in beta. Pro and Premium are in active development — join the waitlist to be notified first and lock in early-access pricing.',
+    a: 'We\'re currently in beta. Pro and Premium are in active development — join the waitlist now to be notified first and claim Charter Member pricing ($9/mo for Pro, locked in forever).',
   },
   {
     q: 'What counts as one "AI analysis"?',
@@ -127,6 +127,9 @@ const FAQS = [
     a: 'Not yet, but it\'s on the roadmap. Get in touch via the contact page and we\'ll work something out for teams.',
   },
 ];
+
+const CHARTER_LIMIT = 50; // total Charter Member spots
+const CHARTER_CLAIMED = 0; // TODO: wire to backend when auth ships
 
 export default function Pricing() {
   const [annual,   setAnnual]   = useState(false);
@@ -184,6 +187,70 @@ export default function Pricing() {
                 2 MONTHS FREE
               </span>
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── CHARTER MEMBER BANNER ── */}
+      <section className="px-6 pb-10">
+        <div className="max-w-3xl mx-auto">
+          <div className="relative rounded-2xl px-6 py-5 overflow-hidden"
+            style={{
+              background: 'linear-gradient(135deg, rgba(79,110,247,0.1) 0%, rgba(34,211,238,0.06) 100%)',
+              border: '1px solid rgba(79,110,247,0.3)',
+            }}>
+            {/* subtle animated glow */}
+            <div className="absolute inset-0 pointer-events-none"
+              style={{ background: 'radial-gradient(ellipse 60% 80% at 0% 50%, rgba(79,110,247,0.08) 0%, transparent 70%)' }} />
+
+            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-start gap-4">
+                {/* icon */}
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="1.8">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-black" style={{ color: '#f1f5f9' }}>Charter Member Offer</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
+                        border: '1px solid rgba(251,191,36,0.25)',
+                        fontFamily: 'JetBrains Mono, monospace' }}>
+                      LIMITED
+                    </span>
+                  </div>
+                  <p className="text-xs leading-relaxed" style={{ color: '#9fb3d4' }}>
+                    First <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{CHARTER_LIMIT} members</span> lock in{' '}
+                    <span style={{ color: '#4f6ef7', fontWeight: 700 }}>Pro at $9/mo forever</span>{' '}
+                    — even when the price rises to $19. Charter pricing never expires.
+                  </p>
+                </div>
+              </div>
+
+              {/* progress + spots */}
+              <div className="flex-shrink-0 text-right">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="w-32 h-1.5 rounded-full overflow-hidden"
+                    style={{ background: 'rgba(255,255,255,0.08)' }}>
+                    <div className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${(CHARTER_CLAIMED / CHARTER_LIMIT) * 100}%`,
+                        background: 'linear-gradient(90deg, #4f6ef7, #22d3ee)',
+                      }} />
+                  </div>
+                  <span className="text-xs font-bold whitespace-nowrap"
+                    style={{ color: '#f1f5f9', fontFamily: 'JetBrains Mono, monospace' }}>
+                    {CHARTER_CLAIMED}/{CHARTER_LIMIT}
+                  </span>
+                </div>
+                <p className="text-[10px]" style={{ color: '#6b82a8' }}>
+                  {CHARTER_LIMIT - CHARTER_CLAIMED} spots remaining
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -279,18 +346,26 @@ export default function Pricing() {
                     ✓ You're on the list
                   </div>
                 ) : (
-                  <button onClick={() => handleWaitlist(tier.id)}
-                    className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
-                    style={{
-                      background: isPro
-                        ? 'linear-gradient(135deg,#4f6ef7,#3d5af1)'
-                        : 'rgba(79,110,247,0.08)',
-                      color: isPro ? '#fff' : '#9fb3d4',
-                      border: isPro ? 'none' : '1px solid rgba(79,110,247,0.2)',
-                      boxShadow: isPro ? '0 0 20px rgba(79,110,247,0.3)' : 'none',
-                    }}>
-                    {tier.cta} →
-                  </button>
+                  <>
+                    <button onClick={() => handleWaitlist(tier.id)}
+                      className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
+                      style={{
+                        background: isPro
+                          ? 'linear-gradient(135deg,#4f6ef7,#3d5af1)'
+                          : 'rgba(79,110,247,0.08)',
+                        color: isPro ? '#fff' : '#9fb3d4',
+                        border: isPro ? 'none' : '1px solid rgba(79,110,247,0.2)',
+                        boxShadow: isPro ? '0 0 20px rgba(79,110,247,0.3)' : 'none',
+                      }}>
+                      {tier.cta} →
+                    </button>
+                    {isPro && (
+                      <p className="text-center text-[10px] mt-2"
+                        style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+                        ★ Charter Members lock in $9/mo forever
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             );
