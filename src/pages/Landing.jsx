@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
 /* ── tiny animated counter ── */
 function CountUp({ end, suffix = '', duration = 1800 }) {
@@ -159,14 +160,45 @@ const STATS = [
 ];
 
 export default function Landing() {
-  const [email, setEmail] = useState('');
+  const [email,     setEmail]     = useState('');
   const [submitted, setSubmitted] = useState(false);
+  const [wlError,   setWlError]   = useState('');
+  const [wlBusy,    setWlBusy]    = useState(false);
+  const [wlCount,   setWlCount]   = useState(null);
 
-  const handleWaitlist = (e) => {
+  // Fetch live waitlist count on mount
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.from('waitlist_count').select('total').single()
+      .then(({ data }) => { if (data?.total) setWlCount(data.total); })
+      .catch(() => {});
+  }, []);
+
+  const handleWaitlist = async (e) => {
     e.preventDefault();
     if (!email) return;
-    /* TODO: wire to backend / Supabase when auth is built */
-    setSubmitted(true);
+    setWlError('');
+    setWlBusy(true);
+    try {
+      if (supabase) {
+        const { error } = await supabase
+          .from('waitlist')
+          .insert({ email: email.trim().toLowerCase(), source: 'landing' });
+        if (error) {
+          if (error.code === '23505') {
+            // Already on the list — still show success
+          } else {
+            throw error;
+          }
+        }
+        setWlCount(c => (c ?? 0) + 1);
+      }
+      setSubmitted(true);
+    } catch (err) {
+      setWlError('Something went wrong. Please try again.');
+    } finally {
+      setWlBusy(false);
+    }
   };
 
   return (
@@ -329,12 +361,24 @@ export default function Landing() {
           </p>
           <h2 className="font-black mb-4"
             style={{ fontSize: 'clamp(1.8rem,3vw,2.4rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
-            Get notified when Pro launches
+            Be first when Pro launches
           </h2>
-          <p className="mb-8" style={{ color: '#9fb3d4', fontSize: '0.95rem' }}>
-            We're building DuPont analysis, scenario modelling, sensitivity tables,
-            and Beneish M-Score. Join the waitlist and be first in line.
+          <p className="mb-6" style={{ color: '#9fb3d4', fontSize: '0.95rem' }}>
+            Pro brings watchlists, shareable reports, unlimited AI analyses, and
+            priority data. Join the waitlist — Charter Members lock in the lowest
+            price forever.
           </p>
+
+          {/* Live counter */}
+          {wlCount !== null && wlCount > 0 && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
+              style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.18)' }}>
+              <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: '#4f6ef7' }} />
+              <span className="mono text-xs font-semibold" style={{ color: '#4f6ef7' }}>
+                {wlCount} {wlCount === 1 ? 'person' : 'people'} already on the list
+              </span>
+            </div>
+          )}
 
           {submitted ? (
             <div className="flex items-center justify-center gap-2 px-6 py-4 rounded-xl"
@@ -343,33 +387,42 @@ export default function Landing() {
                 <path d="M20 6L9 17l-5-5"/>
               </svg>
               <span style={{ color: '#00e887', fontFamily: 'JetBrains Mono, monospace', fontSize: 13 }}>
-                You're on the list. We'll be in touch.
+                You're on the list — we'll be in touch.
               </span>
             </div>
           ) : (
-            <form onSubmit={handleWaitlist} className="flex gap-2">
-              <input
-                type="email"
-                required
-                placeholder="your@email.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                className="flex-1 px-4 py-3 rounded-lg text-sm outline-none transition-all"
-                style={{
-                  background: 'rgba(255,255,255,0.04)',
-                  border: '1px solid rgba(79,110,247,0.2)',
-                  color: '#f1f5f9',
-                  fontFamily: 'JetBrains Mono, monospace',
-                }}
-                onFocus={e => e.target.style.borderColor = 'rgba(79,110,247,0.5)'}
-                onBlur={e => e.target.style.borderColor = 'rgba(79,110,247,0.2)'}
-              />
-              <button type="submit"
-                className="px-5 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90 whitespace-nowrap"
-                style={{ background: '#4f6ef7', color: '#fff' }}>
-                Join Waitlist
-              </button>
-            </form>
+            <>
+              <form onSubmit={handleWaitlist} className="flex gap-2">
+                <input
+                  type="email"
+                  required
+                  placeholder="your@email.com"
+                  value={email}
+                  onChange={e => { setEmail(e.target.value); setWlError(''); }}
+                  className="flex-1 px-4 py-3 rounded-lg text-sm outline-none transition-all"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${wlError ? 'rgba(244,63,94,0.4)' : 'rgba(79,110,247,0.2)'}`,
+                    color: '#f1f5f9',
+                    fontFamily: 'JetBrains Mono, monospace',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'rgba(79,110,247,0.5)'}
+                  onBlur={e  => e.target.style.borderColor = wlError ? 'rgba(244,63,94,0.4)' : 'rgba(79,110,247,0.2)'}
+                />
+                <button type="submit" disabled={wlBusy}
+                  className="px-5 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90 whitespace-nowrap"
+                  style={{
+                    background: wlBusy ? 'rgba(79,110,247,0.5)' : '#4f6ef7',
+                    color: '#fff',
+                    cursor: wlBusy ? 'not-allowed' : 'pointer',
+                  }}>
+                  {wlBusy ? '…' : 'Join Waitlist'}
+                </button>
+              </form>
+              {wlError && (
+                <p className="mt-2 text-xs" style={{ color: '#f43f5e' }}>{wlError}</p>
+              )}
+            </>
           )}
 
           <p className="mt-4 text-xs" style={{ color: '#3d5070' }}>

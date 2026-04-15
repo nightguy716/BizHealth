@@ -1,4 +1,6 @@
 -- Run this in the Supabase SQL editor (Dashboard → SQL Editor → New query)
+-- NOTE: If you already ran this once, skip to the "waitlist" section at the bottom.
+
 
 -- 1. Profiles table (extends auth.users)
 create table if not exists public.profiles (
@@ -55,3 +57,30 @@ create policy "history_select" on public.search_history for select using (auth.u
 create policy "history_insert" on public.search_history for insert with check (auth.uid() = user_id);
 create policy "history_update" on public.search_history for update using (auth.uid() = user_id);
 create policy "history_delete" on public.search_history for delete using (auth.uid() = user_id);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- WAITLIST  (run this block separately if you already ran the schema above)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+create table if not exists public.waitlist (
+  id          bigint generated always as identity primary key,
+  email       text not null unique,
+  source      text default 'landing',   -- where they signed up from
+  created_at  timestamptz not null default now()
+);
+
+alter table public.waitlist enable row level security;
+
+-- Anyone can insert (join the waitlist without an account)
+create policy "waitlist_insert" on public.waitlist
+  for insert with check (true);
+
+-- Only authenticated users can read (so you can see the list from dashboard)
+create policy "waitlist_select" on public.waitlist
+  for select using (auth.role() = 'authenticated');
+
+-- Public count view — lets the frontend show "X people waiting" without exposing emails
+create or replace view public.waitlist_count as
+  select count(*)::int as total from public.waitlist;
+
+grant select on public.waitlist_count to anon, authenticated;
