@@ -10,6 +10,7 @@ import Sidebar          from '../components/Sidebar';
 import SummaryBanner    from '../components/SummaryBanner';
 import RatioGroup       from '../components/RatioGroup';
 import RatioTableView   from '../components/RatioTableView';
+import HistoricalCharts from '../components/HistoricalCharts';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
@@ -1195,6 +1196,14 @@ export default function App() {
                 <div className="mb-10">
                   <RatioTableView groups={GROUPS} />
                 </div>
+              )}
+
+              {/* ── Historical trend charts ── */}
+              {(historical.income?.length >= 2 || historical.balance?.length >= 2) && (
+                <HistoricalCharts
+                  historical={historical}
+                  currency={companyContext.currency || 'USD'}
+                />
               )}
 
               <AIInsights
