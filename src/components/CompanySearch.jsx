@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchCompanies } from '../data/companies.js';
+import { useAuth } from '../context/AuthContext';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
@@ -264,6 +265,7 @@ async function fetchCompanyData(ticker, fallbackName) {
 
 // ══════════════════════════════════════════════════════════════
 export default function CompanySearch({ onSelect }) {
+  const { saveSearch } = useAuth();
   const [query,    setQuery]   = useState('');
   const [results,  setResults] = useState([]);
   const [open,     setOpen]    = useState(false);
@@ -301,6 +303,8 @@ export default function CompanySearch({ onSelect }) {
       const d = await fetchCompanyData(company.ticker, company.name);
       setLoaded({ ticker: d.ticker, name: d.name, currency: d.currency,
                   coverage: d.coverage, filled: d.filled, total: d.total });
+      // Persist to user's search history if logged in
+      saveSearch(d.ticker, d.name, d.sector, d.currency, d.filled, d.total).catch(() => {});
       onSelect(d);
     } catch (e) {
       setError(e.message || 'Could not load financials.');
