@@ -9,6 +9,8 @@ import Pricing   from './pages/Pricing';
 import Contact   from './pages/Contact';
 import Auth      from './pages/Auth';
 import Profile   from './pages/Profile';
+import Blog      from './pages/Blog';
+import BlogPost  from './pages/BlogPost';
 
 function BackendWarmup() {
   useEffect(() => {
@@ -36,10 +38,12 @@ export default function App() {
           <Route path="/about"     element={<About />}     />
           <Route path="/pricing"   element={<Pricing />}   />
           <Route path="/contact"   element={<Contact />}   />
-          <Route path="/auth"      element={<Auth />}      />
-          <Route path="/profile"   element={<Profile />}   />
+          <Route path="/auth"        element={<Auth />}      />
+          <Route path="/profile"     element={<Profile />}   />
+          <Route path="/blog"        element={<Blog />}      />
+          <Route path="/blog/:slug"  element={<BlogPost />}  />
           {/* Fallback — redirect unknown paths to landing */}
-          <Route path="*"          element={<Landing />}   />
+          <Route path="*"            element={<Landing />}   />
         </Routes>
       </div>
     </BrowserRouter>
