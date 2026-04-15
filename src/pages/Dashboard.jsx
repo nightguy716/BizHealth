@@ -11,6 +11,8 @@ import SummaryBanner    from '../components/SummaryBanner';
 import RatioGroup       from '../components/RatioGroup';
 import RatioTableView   from '../components/RatioTableView';
 import HistoricalCharts from '../components/HistoricalCharts';
+import DuPontTree       from '../components/DuPontTree';
+import EarningsQuality  from '../components/EarningsQuality';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
@@ -1205,6 +1207,16 @@ export default function App() {
                   currency={companyContext.currency || 'USD'}
                 />
               )}
+
+              {/* ── DuPont decomposition tree ── */}
+              <DuPontTree ratioValues={results.ratioValues} inputs={inputs} />
+
+              {/* ── Earnings quality flags ── */}
+              <EarningsQuality
+                ratioValues={results.ratioValues}
+                inputs={inputs}
+                historical={historical}
+              />
 
               <AIInsights
                 ratioValues={results.ratioValues}
