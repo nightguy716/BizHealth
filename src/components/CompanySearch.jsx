@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { searchCompanies } from '../data/companies.js';
 
 const BACKEND = import.meta.env.VITE_BACKEND_URL;
 
@@ -266,7 +267,6 @@ export default function CompanySearch({ onSelect }) {
   const [query,    setQuery]   = useState('');
   const [results,  setResults] = useState([]);
   const [open,     setOpen]    = useState(false);
-  const [loading,  setLoading] = useState(false);
   const [fetching, setFetching]= useState(false);
   const [loaded,   setLoaded]  = useState(null);
   const [error,    setError]   = useState('');
@@ -280,22 +280,16 @@ export default function CompanySearch({ onSelect }) {
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const doSearch = useCallback(async (q) => {
-    if (!q || q.length < 2) { setResults([]); setOpen(false); return; }
-    if (!BACKEND) { setResults([]); return; }
-    setLoading(true);
-    try {
-      const res  = await fetch(`${BACKEND}/search?q=${encodeURIComponent(q)}`);
-      const data = await res.json();
-      setResults(data.results || []);
-      setOpen(true);
-    } catch { setResults([]); }
-    finally { setLoading(false); }
+  const doSearch = useCallback((q) => {
+    if (!q || q.length < 1) { setResults([]); setOpen(false); return; }
+    const hits = searchCompanies(q, 8);
+    setResults(hits);
+    setOpen(hits.length > 0);
   }, []);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(query), 380);
+    debounceRef.current = setTimeout(() => doSearch(query), 120);
     return () => clearTimeout(debounceRef.current);
   }, [query, doSearch]);
 
@@ -347,7 +341,7 @@ export default function CompanySearch({ onSelect }) {
           onBlurCapture={e =>  { e.target.style.borderColor='rgba(34,211,238,0.15)'; e.target.style.boxShadow='none'; }}
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2">
-          {(loading || fetching) ? (
+          {fetching ? (
             <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" style={{ color:'#22d3ee' }}>
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31 11"/>
             </svg>
@@ -372,7 +366,7 @@ export default function CompanySearch({ onSelect }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="text-slate-200 text-xs truncate leading-tight">{r.name}</p>
-                <p className="mono text-[10px] mt-0.5" style={{ color:'rgba(100,116,139,0.8)' }}>{r.exchange} · {r.type}</p>
+                <p className="mono text-[10px] mt-0.5" style={{ color:'rgba(100,116,139,0.8)' }}>{r.exchange}{r.sector ? ` · ${r.sector}` : ''}</p>
               </div>
               <span className="text-slate-700 text-[10px] flex-shrink-0">→</span>
             </button>
