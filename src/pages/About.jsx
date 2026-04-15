@@ -60,12 +60,12 @@ const ROADMAP = [
 const statusStyle = {
   live:    { bg: 'rgba(0,232,135,0.1)',    border: 'rgba(0,232,135,0.25)',   color: '#00e887',  dot: '#00e887',  label: 'LIVE'    },
   soon:    { bg: 'rgba(79,110,247,0.1)',   border: 'rgba(79,110,247,0.25)',  color: '#4f6ef7',  dot: '#4f6ef7',  label: 'SOON'    },
-  planned: { bg: 'rgba(107,130,168,0.08)', border: 'rgba(107,130,168,0.15)', color: '#6b82a8',  dot: '#3d5070',  label: 'PLANNED' },
+  planned: { bg: 'rgba(107,130,168,0.08)', border: 'rgba(107,130,168,0.15)', color: 'var(--text-4)',  dot: '#3d5070',  label: 'PLANNED' },
 };
 
 export default function About() {
   return (
-    <div className="min-h-screen page-bg" style={{ color: '#d4ddf5' }}>
+    <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
 
       {/* ── HERO ── */}
       <section className="relative py-28 px-6 text-center overflow-hidden">
@@ -78,10 +78,10 @@ export default function About() {
             OUR MISSION
           </p>
           <h1 className="font-black mb-6"
-            style={{ fontSize: 'clamp(2rem,4vw,3rem)', color: '#f1f5f9', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
+            style={{ fontSize: 'clamp(2rem,4vw,3rem)', color: 'var(--text-1)', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
             Democratising institutional-grade<br />financial analysis
           </h1>
-          <p className="text-base leading-relaxed" style={{ color: '#9fb3d4', maxWidth: 520, margin: '0 auto' }}>
+          <p className="text-base leading-relaxed" style={{ color: 'var(--text-3)', maxWidth: 520, margin: '0 auto' }}>
             The tools that investment banks and hedge funds use to evaluate companies
             should not cost $24,000 a year and a six-week onboarding course.
             We're changing that.
@@ -98,10 +98,10 @@ export default function About() {
               THE PROBLEM
             </p>
             <h2 className="font-black mb-5"
-              style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+              style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
               Good financial analysis is locked behind paywalls and complexity
             </h2>
-            <div className="space-y-4 text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>
+            <div className="space-y-4 text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
               <p>
                 A management consultant preparing a pitch needs current ratio, ROIC,
                 debt/equity, interest coverage, and an Altman Z-Score. Getting that
@@ -129,15 +129,15 @@ export default function About() {
             ].map(r => (
               <div key={r.label} className="flex items-center justify-between px-5 py-4 rounded-xl"
                 style={{
-                  background: r.hi ? 'rgba(79,110,247,0.08)' : 'rgba(255,255,255,0.025)',
+                  background: r.hi ? 'rgba(79,110,247,0.08)' : 'var(--surface)',
                   border: `1px solid ${r.hi ? 'rgba(79,110,247,0.25)' : 'rgba(255,255,255,0.06)'}`,
                 }}>
                 <div>
-                  <div className="text-xs font-medium mb-0.5" style={{ color: r.hi ? '#f1f5f9' : '#9fb3d4' }}>{r.label}</div>
-                  <div className="text-[11px]" style={{ color: '#6b82a8' }}>{r.sub}</div>
+                  <div className="text-xs font-medium mb-0.5" style={{ color: r.hi ? 'var(--text-1)' : 'var(--text-3)' }}>{r.label}</div>
+                  <div className="text-[11px]" style={{ color: 'var(--text-4)' }}>{r.sub}</div>
                 </div>
                 <div className="font-black text-lg"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', color: r.hi ? '#4f6ef7' : '#f1f5f9' }}>
+                  style={{ fontFamily: 'JetBrains Mono, monospace', color: r.hi ? '#4f6ef7' : 'var(--text-1)' }}>
                   {r.val}
                 </div>
               </div>
@@ -154,20 +154,20 @@ export default function About() {
             WHY BIZHEALTH
           </p>
           <h2 className="text-center font-black mb-14"
-            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             We don't just show data — we show what it means
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {DIFFERENTIATORS.map(d => (
               <div key={d.title} className="flex gap-5 p-6 rounded-xl"
-                style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(79,110,247,0.1)' }}>
+                style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
                   style={{ background: 'rgba(79,110,247,0.1)', color: '#4f6ef7' }}>
                   {d.icon}
                 </div>
                 <div>
-                  <h3 className="font-bold mb-2 text-sm" style={{ color: '#f1f5f9' }}>{d.title}</h3>
-                  <p className="text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>{d.body}</p>
+                  <h3 className="font-bold mb-2 text-sm" style={{ color: 'var(--text-1)' }}>{d.title}</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>{d.body}</p>
                 </div>
               </div>
             ))}
@@ -183,7 +183,7 @@ export default function About() {
             WHO IT'S FOR
           </p>
           <h2 className="text-center font-black mb-10"
-            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             One platform. Multiple personas.
           </h2>
           <div className="grid md:grid-cols-3 gap-5">
@@ -205,12 +205,12 @@ export default function About() {
               },
             ].map(c => (
               <div key={c.role} className="p-6 rounded-xl"
-                style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(79,110,247,0.1)' }}>
-                <h3 className="font-bold mb-0.5" style={{ color: '#f1f5f9', fontSize: '0.9rem' }}>{c.role}</h3>
+                style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
+                <h3 className="font-bold mb-0.5" style={{ color: 'var(--text-1)', fontSize: '0.9rem' }}>{c.role}</h3>
                 <p className="text-xs mb-4" style={{ color: '#4f6ef7' }}>{c.tag}</p>
                 <ul className="space-y-2">
                   {c.points.map(p => (
-                    <li key={p} className="flex items-start gap-2 text-sm" style={{ color: '#9fb3d4' }}>
+                    <li key={p} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-3)' }}>
                       <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24"
                         fill="none" stroke="#4f6ef7" strokeWidth="2.5">
                         <path d="M20 6L9 17l-5-5"/>
@@ -233,7 +233,7 @@ export default function About() {
             ROADMAP
           </p>
           <h2 className="text-center font-black mb-10"
-            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Where we're going
           </h2>
           <div className="space-y-2.5">
@@ -244,7 +244,7 @@ export default function About() {
                   style={{ background: s.bg, border: `1px solid ${s.border}` }}>
                   <div className="flex items-center gap-3">
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.dot }} />
-                    <span className="text-sm" style={{ color: item.status === 'live' ? '#d4ddf5' : '#9fb3d4' }}>
+                    <span className="text-sm" style={{ color: item.status === 'live' ? 'var(--text-2)' : 'var(--text-3)' }}>
                       {item.label}
                     </span>
                   </div>
@@ -265,10 +265,10 @@ export default function About() {
         style={{ borderTop: '1px solid rgba(79,110,247,0.08)',
           background: 'linear-gradient(180deg, transparent 0%, rgba(79,110,247,0.04) 100%)' }}>
         <h2 className="font-black mb-4"
-          style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+          style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
           Try it — no account needed.
         </h2>
-        <p className="mb-8 max-w-sm mx-auto text-sm" style={{ color: '#9fb3d4' }}>
+        <p className="mb-8 max-w-sm mx-auto text-sm" style={{ color: 'var(--text-3)' }}>
           Search any ticker and get a full institutional-grade report in seconds.
         </p>
         <div className="flex gap-3 justify-center flex-wrap">
@@ -280,7 +280,7 @@ export default function About() {
           </Link>
           <Link to="/contact"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-80"
-            style={{ background: 'rgba(79,110,247,0.08)', color: '#9fb3d4',
+            style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--text-3)',
               border: '1px solid rgba(79,110,247,0.2)' }}>
             Get in Touch
           </Link>

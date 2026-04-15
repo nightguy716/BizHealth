@@ -42,7 +42,7 @@ function Field({ label, children }) {
   return (
     <div>
       <label className="block text-[10px] font-bold tracking-widest mb-1.5 uppercase"
-        style={{ color: '#6b82a8', fontFamily: 'JetBrains Mono, monospace' }}>
+        style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>
         {label}
       </label>
       {children}
@@ -51,9 +51,9 @@ function Field({ label, children }) {
 }
 
 const inputStyle = {
-  background: 'rgba(255,255,255,0.03)',
+  background: 'var(--surface)',
   border: '1px solid rgba(79,110,247,0.15)',
-  color: '#f1f5f9',
+  color: 'var(--text-1)',
   transition: 'border-color 0.15s',
 };
 
@@ -74,7 +74,7 @@ export default function Contact() {
   const blurStyle  = e => (e.target.style.borderColor = 'rgba(79,110,247,0.15)');
 
   return (
-    <div className="min-h-screen page-bg" style={{ color: '#d4ddf5' }}>
+    <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
 
       {/* ── HERO ── */}
       <section className="relative pt-24 pb-16 px-6 text-center overflow-hidden">
@@ -87,10 +87,10 @@ export default function Contact() {
             CONTACT US
           </p>
           <h1 className="font-black mb-4"
-            style={{ fontSize: 'clamp(2rem,4vw,2.8rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(2rem,4vw,2.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Let's talk
           </h1>
-          <p className="max-w-md mx-auto text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>
+          <p className="max-w-md mx-auto text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
             Questions, feature requests, partnership inquiries, or just feedback —
             we read everything and reply within 24 hours.
           </p>
@@ -106,8 +106,8 @@ export default function Contact() {
 
             {/* contact items */}
             <div className="p-6 rounded-xl space-y-5"
-              style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(79,110,247,0.1)' }}>
-              <h3 className="text-xs font-bold tracking-widest uppercase" style={{ color: '#6b82a8', fontFamily: 'JetBrains Mono, monospace' }}>
+              style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
+              <h3 className="text-xs font-bold tracking-widest uppercase" style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>
                 REACH US
               </h3>
               {CONTACT_ITEMS.map(c => (
@@ -118,8 +118,8 @@ export default function Contact() {
                     {c.icon}
                   </div>
                   <div>
-                    <div className="text-[10px] tracking-widest uppercase mb-0.5" style={{ color: '#6b82a8', fontFamily: 'JetBrains Mono, monospace' }}>{c.label}</div>
-                    <div className="text-sm group-hover:text-blue-400 transition-colors" style={{ color: '#d4ddf5' }}>{c.value}</div>
+                    <div className="text-[10px] tracking-widest uppercase mb-0.5" style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>{c.label}</div>
+                    <div className="text-sm group-hover:text-blue-400 transition-colors" style={{ color: 'var(--text-2)' }}>{c.value}</div>
                   </div>
                 </a>
               ))}
@@ -132,17 +132,17 @@ export default function Contact() {
                 <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#00e887' }} />
                 <span className="text-xs font-bold" style={{ color: '#00e887', fontFamily: 'JetBrains Mono, monospace' }}>TYPICALLY RESPONDS</span>
               </div>
-              <p className="text-2xl font-black" style={{ color: '#f1f5f9', fontFamily: 'JetBrains Mono, monospace' }}>
+              <p className="text-2xl font-black" style={{ color: 'var(--text-1)', fontFamily: 'JetBrains Mono, monospace' }}>
                 &lt; 24 hrs
               </p>
-              <p className="text-xs mt-1" style={{ color: '#6b82a8' }}>Usually much faster</p>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-4)' }}>Usually much faster</p>
             </div>
 
             {/* quick links */}
             <div className="p-5 rounded-xl space-y-2"
-              style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(79,110,247,0.08)' }}>
+              style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.08)' }}>
               <h3 className="text-[10px] font-bold tracking-widest uppercase mb-3"
-                style={{ color: '#6b82a8', fontFamily: 'JetBrains Mono, monospace' }}>QUICK LINKS</h3>
+                style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>QUICK LINKS</h3>
               {[
                 ['Try the dashboard', '/dashboard'],
                 ['View pricing', '/pricing'],
@@ -150,7 +150,7 @@ export default function Contact() {
               ].map(([label, to]) => (
                 <Link key={label} to={to}
                   className="flex items-center justify-between py-2 text-sm transition-colors hover:opacity-80"
-                  style={{ color: '#9fb3d4', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  style={{ color: 'var(--text-3)', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
                   {label}
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -171,8 +171,8 @@ export default function Contact() {
                     <path d="M20 6L9 17l-5-5"/>
                   </svg>
                 </div>
-                <h3 className="font-bold text-lg mb-2" style={{ color: '#f1f5f9' }}>Message received</h3>
-                <p className="text-sm mb-8" style={{ color: '#9fb3d4' }}>
+                <h3 className="font-bold text-lg mb-2" style={{ color: 'var(--text-1)' }}>Message received</h3>
+                <p className="text-sm mb-8" style={{ color: 'var(--text-3)' }}>
                   We'll get back to you within 24 hours.
                 </p>
                 <button onClick={() => setStatus('')}
@@ -184,8 +184,8 @@ export default function Contact() {
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="p-8 rounded-xl space-y-5"
-                style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(79,110,247,0.12)' }}>
-                <h3 className="font-bold text-base mb-2" style={{ color: '#f1f5f9' }}>Send a message</h3>
+                style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.12)' }}>
+                <h3 className="font-bold text-base mb-2" style={{ color: 'var(--text-1)' }}>Send a message</h3>
 
                 <div className="grid sm:grid-cols-2 gap-5">
                   <Field label="Name">

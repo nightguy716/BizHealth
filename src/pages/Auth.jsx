@@ -7,7 +7,7 @@ function Field({ label, type, value, onChange, placeholder, autoComplete }) {
   return (
     <div>
       <label className="block mono text-[10px] font-semibold uppercase tracking-widest mb-1.5"
-        style={{ color: '#64748b' }}>
+        style={{ color: 'var(--text-4)' }}>
         {label}
       </label>
       <input
@@ -18,9 +18,9 @@ function Field({ label, type, value, onChange, placeholder, autoComplete }) {
         autoComplete={autoComplete}
         className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none transition-all"
         style={{
-          background: 'rgba(255,255,255,0.04)',
+          background: 'var(--surface)',
           border: '1px solid rgba(79,110,247,0.2)',
-          color: '#f1f5f9',
+          color: 'var(--text-1)',
           fontFamily: 'Inter, sans-serif',
         }}
         onFocus={e  => { e.target.style.borderColor = 'rgba(79,110,247,0.6)'; e.target.style.boxShadow = '0 0 0 3px rgba(79,110,247,0.08)'; }}
@@ -97,7 +97,7 @@ export default function Auth() {
         {/* Card */}
         <div className="rounded-2xl p-8"
           style={{
-            background: 'rgba(255,255,255,0.025)',
+            background: 'var(--surface)',
             border: '1px solid rgba(79,110,247,0.15)',
             backdropFilter: 'blur(24px)',
             boxShadow: '0 24px 64px rgba(0,0,0,0.5)',
@@ -109,13 +109,13 @@ export default function Auth() {
               style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)' }}>
               <span className="text-white font-black text-sm">B</span>
             </div>
-            <span className="font-bold text-sm" style={{ color: '#f1f5f9' }}>BizHealth</span>
+            <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>BizHealth</span>
           </Link>
 
           {/* Heading */}
           <div className="mb-6">
-            <h1 className="text-xl font-bold mb-1" style={{ color: '#f1f5f9' }}>{h}</h1>
-            <p className="text-sm" style={{ color: '#64748b' }}>{sub}</p>
+            <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--text-1)' }}>{h}</h1>
+            <p className="text-sm" style={{ color: 'var(--text-4)' }}>{sub}</p>
           </div>
 
           {/* Feedback messages */}
@@ -168,13 +168,13 @@ export default function Auth() {
           <div className="mt-5 space-y-2 text-center">
             {mode === 'login' && (
               <>
-                <p className="text-xs" style={{ color: '#475569' }}>
+                <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                   <button onClick={() => { setMode('forgot'); reset(); }}
                     className="transition-colors hover:text-blue-400" style={{ color: '#4f6ef7' }}>
                     Forgot password?
                   </button>
                 </p>
-                <p className="text-xs" style={{ color: '#475569' }}>
+                <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                   No account?{' '}
                   <button onClick={() => { setMode('signup'); reset(); }}
                     className="font-semibold transition-colors" style={{ color: '#4f6ef7' }}>
@@ -184,7 +184,7 @@ export default function Auth() {
               </>
             )}
             {mode === 'signup' && (
-              <p className="text-xs" style={{ color: '#475569' }}>
+              <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                 Already have an account?{' '}
                 <button onClick={() => { setMode('login'); reset(); }}
                   className="font-semibold transition-colors" style={{ color: '#4f6ef7' }}>
@@ -193,7 +193,7 @@ export default function Auth() {
               </p>
             )}
             {mode === 'forgot' && (
-              <p className="text-xs" style={{ color: '#475569' }}>
+              <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                 <button onClick={() => { setMode('login'); reset(); }}
                   className="transition-colors" style={{ color: '#4f6ef7' }}>
                   ← Back to sign in

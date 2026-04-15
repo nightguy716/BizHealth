@@ -5,9 +5,9 @@ import { useAuth } from '../context/AuthContext';
 function StatPill({ label, value, color = '#4f6ef7' }) {
   return (
     <div className="rounded-xl px-4 py-3 text-center"
-      style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
       <p className="mono text-lg font-bold" style={{ color }}>{value}</p>
-      <p className="mono text-[10px] uppercase tracking-widest mt-0.5" style={{ color: '#475569' }}>{label}</p>
+      <p className="mono text-[10px] uppercase tracking-widest mt-0.5" style={{ color: 'var(--text-4)' }}>{label}</p>
     </div>
   );
 }
@@ -52,7 +52,7 @@ export default function Profile() {
         {/* Header card */}
         <div className="rounded-2xl p-6"
           style={{
-            background: 'rgba(255,255,255,0.025)',
+            background: 'var(--surface)',
             border: '1px solid rgba(79,110,247,0.15)',
             backdropFilter: 'blur(16px)',
           }}>
@@ -63,8 +63,8 @@ export default function Profile() {
               {initials || '?'}
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="font-bold text-lg truncate" style={{ color: '#f1f5f9' }}>{name}</h1>
-              <p className="text-sm truncate" style={{ color: '#64748b' }}>{user.email}</p>
+              <h1 className="font-bold text-lg truncate" style={{ color: 'var(--text-1)' }}>{name}</h1>
+              <p className="text-sm truncate" style={{ color: 'var(--text-4)' }}>{user.email}</p>
               <p className="mono text-[10px] mt-0.5" style={{ color: '#334155' }}>
                 Member since {joined}
               </p>
@@ -86,16 +86,16 @@ export default function Profile() {
         {/* Search history */}
         <div className="rounded-2xl overflow-hidden"
           style={{
-            background: 'rgba(255,255,255,0.02)',
-            border: '1px solid rgba(255,255,255,0.06)',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
           }}>
           <div className="flex items-center justify-between px-5 py-4"
-            style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+            style={{ borderBottom: '1px solid var(--border)' }}>
             <div>
               <h2 className="mono text-[11px] font-bold uppercase tracking-widest" style={{ color: '#22d3ee' }}>
                 Recent Lookups
               </h2>
-              <p className="text-[11px] mt-0.5" style={{ color: '#475569' }}>
+              <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-4)' }}>
                 Last 20 companies you analysed
               </p>
             </div>
@@ -113,7 +113,7 @@ export default function Profile() {
           ) : history.length === 0 ? (
             <div className="py-14 text-center">
               <p className="text-3xl mb-3">📊</p>
-              <p className="text-sm font-medium" style={{ color: '#475569' }}>No lookups yet</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--text-4)' }}>No lookups yet</p>
               <p className="text-xs mt-1" style={{ color: '#334155' }}>
                 Search for a company on the dashboard to see history here.
               </p>
@@ -127,7 +127,7 @@ export default function Profile() {
                   <div key={h.ticker}
                     className="flex items-center gap-3 px-5 py-3 transition-colors cursor-pointer"
                     style={{ borderBottom: i < history.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.03)'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     onClick={() => navigate('/dashboard')}>
                     {/* Ticker badge */}
@@ -137,8 +137,8 @@ export default function Profile() {
                     </span>
                     {/* Name + sector */}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm truncate font-medium" style={{ color: '#cbd5e1' }}>{h.name}</p>
-                      <p className="mono text-[10px] mt-0.5" style={{ color: '#475569' }}>
+                      <p className="text-sm truncate font-medium" style={{ color: 'var(--text-2)' }}>{h.name}</p>
+                      <p className="mono text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
                         {h.sector || 'Unknown sector'} · {h.currency}
                       </p>
                     </div>
@@ -163,16 +163,16 @@ export default function Profile() {
 
         {/* Account actions */}
         <div className="rounded-2xl p-5"
-          style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <h2 className="mono text-[11px] font-bold uppercase tracking-widest mb-4" style={{ color: '#64748b' }}>
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <h2 className="mono text-[11px] font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--text-4)' }}>
             Account
           </h2>
           <div className="space-y-2">
             <div className="flex items-center justify-between py-2.5 px-3 rounded-xl"
-              style={{ background: 'rgba(255,255,255,0.02)' }}>
+              style={{ background: 'var(--surface)' }}>
               <div>
-                <p className="text-sm font-medium" style={{ color: '#cbd5e1' }}>Email</p>
-                <p className="text-xs" style={{ color: '#475569' }}>{user.email}</p>
+                <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Email</p>
+                <p className="text-xs" style={{ color: 'var(--text-4)' }}>{user.email}</p>
               </div>
               <span className="mono text-[10px] px-2 py-1 rounded"
                 style={{ background: 'rgba(79,110,247,0.08)', color: '#4f6ef7' }}>

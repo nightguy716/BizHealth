@@ -337,7 +337,7 @@ export default function CompanySearch({ onSelect }) {
             paddingLeft:28, paddingRight:28,
             background:'rgba(34,211,238,0.04)',
             border:'1px solid rgba(34,211,238,0.15)',
-            borderRadius:10, color:'#f1f5f9',
+            borderRadius:10, color:'var(--text-1)',
             fontFamily:'var(--font-mono)',
             transition:'border-color .15s, box-shadow .15s',
           }}

@@ -142,7 +142,7 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen page-bg" style={{ color: '#d4ddf5' }}>
+    <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
 
       {/* ── HERO ── */}
       <section className="relative pt-24 pb-16 px-6 text-center overflow-hidden">
@@ -155,22 +155,22 @@ export default function Pricing() {
             PRICING
           </p>
           <h1 className="font-black mb-4"
-            style={{ fontSize: 'clamp(2rem,4vw,2.8rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(2rem,4vw,2.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Start free. Scale when ready.
           </h1>
-          <p className="max-w-md mx-auto text-sm leading-relaxed mb-8" style={{ color: '#9fb3d4' }}>
+          <p className="max-w-md mx-auto text-sm leading-relaxed mb-8" style={{ color: 'var(--text-3)' }}>
             No Bloomberg subscription. No $24,000/year terminal.
             Institutional-grade analysis from $0.
           </p>
 
           {/* Monthly / Annual toggle */}
           <div className="inline-flex items-center gap-3 px-1 py-1 rounded-xl"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(79,110,247,0.15)' }}>
+            style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.15)' }}>
             <button onClick={() => setAnnual(false)}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{
                 background: !annual ? 'rgba(79,110,247,0.2)' : 'transparent',
-                color: !annual ? '#f1f5f9' : '#6b82a8',
+                color: !annual ? 'var(--text-1)' : 'var(--text-4)',
               }}>
               Monthly
             </button>
@@ -178,7 +178,7 @@ export default function Pricing() {
               className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2"
               style={{
                 background: annual ? 'rgba(79,110,247,0.2)' : 'transparent',
-                color: annual ? '#f1f5f9' : '#6b82a8',
+                color: annual ? 'var(--text-1)' : 'var(--text-4)',
               }}>
               Annual
               <span className="px-1.5 py-0.5 rounded text-[9px] font-bold"
@@ -214,7 +214,7 @@ export default function Pricing() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-black" style={{ color: '#f1f5f9' }}>Charter Member Offer</span>
+                    <span className="text-sm font-black" style={{ color: 'var(--text-1)' }}>Charter Member Offer</span>
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
                         border: '1px solid rgba(251,191,36,0.25)',
@@ -222,8 +222,8 @@ export default function Pricing() {
                       LIMITED
                     </span>
                   </div>
-                  <p className="text-xs leading-relaxed" style={{ color: '#9fb3d4' }}>
-                    First <span style={{ color: '#f1f5f9', fontWeight: 700 }}>{CHARTER_LIMIT} members</span> lock in{' '}
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-3)' }}>
+                    First <span style={{ color: 'var(--text-1)', fontWeight: 700 }}>{CHARTER_LIMIT} members</span> lock in{' '}
                     <span style={{ color: '#4f6ef7', fontWeight: 700 }}>Pro at $9/mo forever</span>{' '}
                     — even when the price rises to $19. Charter pricing never expires.
                   </p>
@@ -242,11 +242,11 @@ export default function Pricing() {
                       }} />
                   </div>
                   <span className="text-xs font-bold whitespace-nowrap"
-                    style={{ color: '#f1f5f9', fontFamily: 'JetBrains Mono, monospace' }}>
+                    style={{ color: 'var(--text-1)', fontFamily: 'JetBrains Mono, monospace' }}>
                     {CHARTER_CLAIMED}/{CHARTER_LIMIT}
                   </span>
                 </div>
-                <p className="text-[10px]" style={{ color: '#6b82a8' }}>
+                <p className="text-[10px]" style={{ color: 'var(--text-4)' }}>
                   {CHARTER_LIMIT - CHARTER_CLAIMED} spots remaining
                 </p>
               </div>
@@ -266,7 +266,7 @@ export default function Pricing() {
             return (
               <div key={tier.id} className="relative rounded-2xl p-6 flex flex-col"
                 style={{
-                  background: isPro ? 'rgba(79,110,247,0.07)' : 'rgba(255,255,255,0.025)',
+                  background: isPro ? 'rgba(79,110,247,0.07)' : 'var(--surface)',
                   border: isPro ? '1px solid rgba(79,110,247,0.35)' : '1px solid rgba(79,110,247,0.1)',
                   boxShadow: isPro ? '0 0 40px rgba(79,110,247,0.1)' : 'none',
                 }}>
@@ -285,7 +285,7 @@ export default function Pricing() {
                 {/* Name + price */}
                 <div className="mb-5">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="font-black text-lg" style={{ color: '#f1f5f9' }}>{tier.name}</h2>
+                    <h2 className="font-black text-lg" style={{ color: 'var(--text-1)' }}>{tier.name}</h2>
                     {tier.id !== 'free' && (
                       <span className="text-[10px] px-2 py-0.5 rounded font-bold"
                         style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24',
@@ -297,27 +297,27 @@ export default function Pricing() {
                   </div>
                   <div className="flex items-end gap-1.5 mb-3">
                     <span className="font-black"
-                      style={{ fontSize: '2.4rem', color: isPro ? '#4f6ef7' : '#f1f5f9',
+                      style={{ fontSize: '2.4rem', color: isPro ? '#4f6ef7' : 'var(--text-1)',
                         fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>
                       {price === 0 ? '$0' : `$${price}`}
                     </span>
                     {price > 0 && (
-                      <span className="text-xs mb-1" style={{ color: '#6b82a8' }}>
+                      <span className="text-xs mb-1" style={{ color: 'var(--text-4)' }}>
                         / mo{annual ? ' · billed annually' : ''}
                       </span>
                     )}
                     {price === 0 && (
-                      <span className="text-xs mb-1" style={{ color: '#6b82a8' }}>/ forever</span>
+                      <span className="text-xs mb-1" style={{ color: 'var(--text-4)' }}>/ forever</span>
                     )}
                   </div>
-                  <p className="text-xs leading-relaxed" style={{ color: '#9fb3d4' }}>{tier.desc}</p>
+                  <p className="text-xs leading-relaxed" style={{ color: 'var(--text-3)' }}>{tier.desc}</p>
                 </div>
 
                 {/* Features */}
                 <ul className="space-y-2.5 flex-1 mb-6">
                   {tier.features.map(f => (
                     <li key={f.label} className="flex items-center gap-2.5 text-xs"
-                      style={{ color: f.state === 'cross' ? '#3d5070' : '#d4ddf5' }}>
+                      style={{ color: f.state === 'cross' ? '#3d5070' : 'var(--text-2)' }}>
                       <span className="flex-shrink-0">
                         {f.state === 'check' && <Check />}
                         {f.state === 'cross' && <Cross />}
@@ -334,7 +334,7 @@ export default function Pricing() {
                     className="w-full py-3 rounded-xl text-sm font-semibold text-center transition-all hover:opacity-90 block"
                     style={{
                       background: 'rgba(79,110,247,0.08)',
-                      color: '#9fb3d4',
+                      color: 'var(--text-3)',
                       border: '1px solid rgba(79,110,247,0.2)',
                     }}>
                     {tier.cta} →
@@ -353,7 +353,7 @@ export default function Pricing() {
                         background: isPro
                           ? 'linear-gradient(135deg,#4f6ef7,#3d5af1)'
                           : 'rgba(79,110,247,0.08)',
-                        color: isPro ? '#fff' : '#9fb3d4',
+                        color: isPro ? '#fff' : 'var(--text-3)',
                         border: isPro ? 'none' : '1px solid rgba(79,110,247,0.2)',
                         boxShadow: isPro ? '0 0 20px rgba(79,110,247,0.3)' : 'none',
                       }}>
@@ -382,7 +382,7 @@ export default function Pricing() {
             COMPARE PLANS
           </p>
           <h2 className="text-center font-black mb-10"
-            style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Everything side by side
           </h2>
 
@@ -391,10 +391,10 @@ export default function Pricing() {
               <thead>
                 <tr style={{ borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
                   <th className="text-left py-3 pr-6 font-medium text-xs uppercase tracking-widest w-1/2"
-                    style={{ color: '#6b82a8', fontFamily: 'JetBrains Mono, monospace' }}>Feature</th>
+                    style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>Feature</th>
                   {['Free', 'Pro', 'Premium'].map(t => (
                     <th key={t} className="py-3 px-4 text-center font-bold text-sm"
-                      style={{ color: t === 'Pro' ? '#4f6ef7' : '#f1f5f9' }}>{t}</th>
+                      style={{ color: t === 'Pro' ? '#4f6ef7' : 'var(--text-1)' }}>{t}</th>
                   ))}
                 </tr>
               </thead>
@@ -419,8 +419,8 @@ export default function Pricing() {
                 ].map((row, i) => (
                   <tr key={row.label}
                     style={{ borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
-                    <td className="py-3 pr-6 text-xs" style={{ color: '#9fb3d4' }}>{row.label}</td>
+                      background: i % 2 === 0 ? 'transparent' : 'var(--surface)' }}>
+                    <td className="py-3 pr-6 text-xs" style={{ color: 'var(--text-3)' }}>{row.label}</td>
                     {[row.free, row.pro, row.premium].map((val, ci) => (
                       <td key={ci} className="py-3 px-4 text-center">
                         {val === true  && <span className="flex justify-center"><Check /></span>}
@@ -428,7 +428,7 @@ export default function Pricing() {
                         {val === 'Soon' && <span className="flex justify-center"><Soon /></span>}
                         {typeof val === 'string' && val !== 'Soon' && (
                           <span className="text-xs font-medium"
-                            style={{ color: ci === 1 ? '#4f6ef7' : '#d4ddf5',
+                            style={{ color: ci === 1 ? '#4f6ef7' : 'var(--text-2)',
                               fontFamily: 'JetBrains Mono, monospace' }}>
                             {val}
                           </span>
@@ -450,18 +450,18 @@ export default function Pricing() {
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
             style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>FAQ</p>
           <h2 className="text-center font-black mb-10"
-            style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+            style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Common questions
           </h2>
           <div className="space-y-2">
             {FAQS.map((faq, i) => (
               <div key={i} className="rounded-xl overflow-hidden"
                 style={{ border: '1px solid rgba(79,110,247,0.1)',
-                  background: openFaq === i ? 'rgba(79,110,247,0.05)' : 'rgba(255,255,255,0.02)' }}>
+                  background: openFaq === i ? 'rgba(79,110,247,0.05)' : 'var(--surface)' }}>
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between px-5 py-4 text-left transition-all">
-                  <span className="text-sm font-semibold pr-4" style={{ color: '#f1f5f9' }}>{faq.q}</span>
+                  <span className="text-sm font-semibold pr-4" style={{ color: 'var(--text-1)' }}>{faq.q}</span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
                     stroke="#4f6ef7" strokeWidth="2"
                     style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none',
@@ -470,7 +470,7 @@ export default function Pricing() {
                   </svg>
                 </button>
                 {openFaq === i && (
-                  <div className="px-5 pb-4 text-sm leading-relaxed" style={{ color: '#9fb3d4' }}>
+                  <div className="px-5 pb-4 text-sm leading-relaxed" style={{ color: 'var(--text-3)' }}>
                     {faq.a}
                   </div>
                 )}
@@ -485,10 +485,10 @@ export default function Pricing() {
         style={{ borderTop: '1px solid rgba(79,110,247,0.08)',
           background: 'linear-gradient(180deg, transparent 0%, rgba(79,110,247,0.04) 100%)' }}>
         <h2 className="font-black mb-4"
-          style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: '#f1f5f9', letterSpacing: '-0.02em' }}>
+          style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
           Start with Free. No commitment.
         </h2>
-        <p className="mb-8 max-w-sm mx-auto text-sm" style={{ color: '#9fb3d4' }}>
+        <p className="mb-8 max-w-sm mx-auto text-sm" style={{ color: 'var(--text-3)' }}>
           Full institutional-grade analysis, zero cost. Upgrade when your workflow demands it.
         </p>
         <div className="flex gap-3 justify-center flex-wrap">
@@ -500,7 +500,7 @@ export default function Pricing() {
           </Link>
           <Link to="/contact"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-80"
-            style={{ background: 'rgba(79,110,247,0.08)', color: '#9fb3d4',
+            style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--text-3)',
               border: '1px solid rgba(79,110,247,0.2)' }}>
             Enterprise enquiry
           </Link>
