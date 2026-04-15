@@ -348,26 +348,48 @@ def _parse_yf_response(data: dict) -> dict:
     # Most-recent year → input fields
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
+    cf0  = historical["cashflow"][0] if historical.get("cashflow") else {}
 
-    cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
+    # ── financialData fallback helper (works without crumb) ──
+    fd = r.get("financialData") or {}
+    def _sv(d, *keys):
+        for k in keys:
+            v = d.get(k)
+            if isinstance(v, dict):
+                v = v.get("raw")
+            if v is not None and not (isinstance(v, float) and math.isnan(v)):
+                return v
+        return None
+
+    # financialData provides reliable fallbacks even when history modules are blocked
+    fd_rev    = _sv(fd, "totalRevenue")
+    fd_cash   = _sv(fd, "totalCash")
+    fd_debt   = _sv(fd, "totalDebt")
+    fd_ocf    = _sv(fd, "operatingCashflow")
+    fd_gp     = _sv(fd, "grossProfits")
+    fd_ebitda = _sv(fd, "ebitda")
+    # Derive net profit from margin × revenue when not directly available
+    pm        = _sv(fd, "profitMargins")
+    fd_np     = (pm * fd_rev) if (pm and fd_rev) else None
+
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
         "inventory":          bal0.get("inventory"),
-        "cash":               bal0.get("cash"),
+        "cash":               bal0.get("cash")            or fd_cash,
         "totalAssets":        bal0.get("totalAssets"),
         "equity":             bal0.get("equity"),
-        "totalDebt":          bal0.get("totalDebt"),
-        "revenue":            inc0.get("revenue"),
-        "grossProfit":        inc0.get("grossProfit"),
+        "totalDebt":          bal0.get("totalDebt")       or fd_debt,
+        "revenue":            inc0.get("revenue")         or fd_rev,
+        "grossProfit":        inc0.get("grossProfit")     or fd_gp,
         "operatingExpenses":  inc0.get("operatingExpenses"),
-        "netProfit":          inc0.get("netProfit"),
+        "netProfit":          inc0.get("netProfit")       or fd_np,
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
-        "da":                 inc0.get("da") or cf0.get("da"),
+        "da":                 inc0.get("da")              or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
-        "operatingCashFlow":  cf0.get("cfOps"),
+        "operatingCashFlow":  cf0.get("cfOps")            or fd_ocf,
     }
     data_fields = {}
     for k, v in raw_inputs.items():
@@ -382,9 +404,8 @@ def _parse_yf_response(data: dict) -> dict:
     filled   = len(data_fields)
     coverage = round((filled / total) * 100) if total else 0
 
-    # ── Market valuation multiples ────────────────────────────
-    fd = r.get("financialData") or {}
-    def _sv(d, *keys):
+    # ── Market valuation multiples (reuse _sv defined above) ─
+    def _sv(d, *keys):  # noqa: F811 – redefine for clarity
         for k in keys:
             v = d.get(k)
             if isinstance(v, dict):
@@ -531,7 +552,7 @@ class AnalysisRequest(BaseModel):
 
 @app.get("/")
 def root():
-    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.2.0", "data_source": "yfinance-0.2.65-native-auth"}
+    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.3.0", "data_source": "yfinance+financialData-fallback"}
 
 
 @app.get("/health")
@@ -792,22 +813,25 @@ async def get_company_yf(ticker: str, request: Request):
 
     # ── 1. yfinance (primary) ─────────────────────────────────────────────
     #  yfinance 0.2.61+ manages its own cookie/crumb auth internally.
-    #  This is the most reliable approach — no custom session needed.
     try:
         loop   = asyncio.get_event_loop()
         parsed = await asyncio.wait_for(
             loop.run_in_executor(_executor, _yf_fetch_ticker, sym),
-            timeout=25.0
+            timeout=18.0
         )
-        parsed["ticker"] = sym
-        _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
-        return parsed
+        # Only use result if it filled a meaningful number of fields
+        if parsed.get("filled", 0) >= 4:
+            parsed["ticker"] = sym
+            _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
+            return parsed
+        # Sparse result — fall through to httpx for richer data
+        last_error = f"yfinance returned only {parsed.get('filled',0)} fields"
     except (asyncio.TimeoutError, Exception) as e:
         last_error = str(e)
 
     # ── 1b. httpx quoteSummary fallback ──────────────────────────────────
     try:
-        parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=20.0)
+        parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=15.0)
         parsed["ticker"] = sym
         _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
         return parsed
@@ -1379,24 +1403,41 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     bal0 = historical["balance"][0] if historical["balance"] else {}
 
     cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
+
+    # ── info-based fallbacks (tk.info always returns even when stmts fail) ──
+    def _iv(*keys):
+        for k in keys:
+            v = info.get(k)
+            if v is not None and not (isinstance(v, float) and math.isnan(v)):
+                return v
+        return None
+
+    inf_rev  = _iv("totalRevenue")
+    inf_cash = _iv("totalCash")
+    inf_debt = _iv("totalDebt")
+    inf_ocf  = _iv("operatingCashflow", "freeCashflow")
+    inf_gp   = _iv("grossProfits")
+    pm_info  = _iv("profitMargins")
+    inf_np   = (pm_info * inf_rev) if (pm_info and inf_rev) else None
+
     raw_inputs = {
         "currentAssets":      bal0.get("currentAssets"),
         "currentLiabilities": bal0.get("currentLiabilities"),
         "inventory":          bal0.get("inventory"),
-        "cash":               bal0.get("cash"),
+        "cash":               bal0.get("cash")         or inf_cash,
         "totalAssets":        bal0.get("totalAssets"),
         "equity":             bal0.get("equity"),
-        "totalDebt":          bal0.get("totalDebt"),
-        "revenue":            inc0.get("revenue"),
-        "grossProfit":        inc0.get("grossProfit"),
+        "totalDebt":          bal0.get("totalDebt")    or inf_debt,
+        "revenue":            inc0.get("revenue")      or inf_rev,
+        "grossProfit":        inc0.get("grossProfit")  or inf_gp,
         "operatingExpenses":  inc0.get("operatingExpenses"),
-        "netProfit":          inc0.get("netProfit"),
+        "netProfit":          inc0.get("netProfit")    or inf_np,
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
-        "da":                 inc0.get("da") or cf0.get("da"),
+        "da":                 inc0.get("da")           or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
-        "operatingCashFlow":  cf0.get("cfOps"),
+        "operatingCashFlow":  cf0.get("cfOps")         or inf_ocf,
     }
 
     data_fields = {}
