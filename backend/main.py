@@ -38,12 +38,13 @@ from pydantic import BaseModel
 #  which is fine (we don't want persistent bans, just abuse prevention)
 # ─────────────────────────────────────────────────────────────
 
-# Storage: { ip: { "analyze": [(timestamp), ...], "lookup": [...] } }
-_rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": []})
+# Storage: { ip: { "analyze": [...], "lookup": [...], "search": [...] } }
+_rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": [], "search": []})
 
 # Limits
-_AI_LIMIT_PER_DAY    = 7     # AI analysis calls per IP per day
-_LOOKUP_LIMIT_PER_HR = 30    # Company data lookups per IP per hour
+_AI_LIMIT_PER_DAY    = 7      # AI analysis calls per IP per day
+_LOOKUP_LIMIT_PER_HR = 30     # Full company data fetches per IP per hour
+_SEARCH_LIMIT_PER_HR = 300    # Autocomplete search queries per IP per hour (very cheap)
 
 def _get_ip(request: Request) -> str:
     """Extract real client IP, handling proxies (Vercel → Railway)."""
@@ -56,21 +57,26 @@ def _check_rate(ip: str, kind: str) -> None:
     """
     Raise HTTP 429 if the IP has exceeded its quota.
     kind = "analyze"  → 7 per day
-    kind = "lookup"   → 30 per hour
+    kind = "lookup"   → 30 per hour  (full quoteSummary fetches)
+    kind = "search"   → 300 per hour (lightweight autocomplete only)
     """
     now   = time.time()
     store = _rate_store[ip]
-    times = store[kind]
+    times = store.get(kind, [])
 
     if kind == "analyze":
-        window  = 86400   # 24 hours
+        window  = 86400
         limit   = _AI_LIMIT_PER_DAY
         msg     = (
             f"You've used all {_AI_LIMIT_PER_DAY} free AI analyses for today. "
             "Limit resets at midnight UTC — come back tomorrow or upgrade to Pro."
         )
+    elif kind == "search":
+        window  = 3600
+        limit   = _SEARCH_LIMIT_PER_HR
+        msg     = "Too many search queries. Please slow down."
     else:
-        window  = 3600    # 1 hour
+        window  = 3600
         limit   = _LOOKUP_LIMIT_PER_HR
         msg     = (
             f"Too many company lookups ({_LOOKUP_LIMIT_PER_HR}/hour). "
@@ -91,8 +97,9 @@ def _get_usage(ip: str) -> dict:
     """Return remaining quota for an IP — surfaced to frontend."""
     now   = time.time()
     store = _rate_store[ip]
-    ai_used     = len([t for t in store["analyze"] if now - t < 86400])
-    lookup_used = len([t for t in store["lookup"]  if now - t < 3600])
+    ai_used     = len([t for t in store.get("analyze", []) if now - t < 86400])
+    lookup_used = len([t for t in store.get("lookup",  []) if now - t < 3600])
+    search_used = len([t for t in store.get("search",  []) if now - t < 3600])
     return {
         "ai_analyses_used":      ai_used,
         "ai_analyses_remaining": max(0, _AI_LIMIT_PER_DAY - ai_used),
@@ -100,6 +107,8 @@ def _get_usage(ip: str) -> dict:
         "lookups_used":          lookup_used,
         "lookups_remaining":     max(0, _LOOKUP_LIMIT_PER_HR - lookup_used),
         "lookups_limit":         _LOOKUP_LIMIT_PER_HR,
+        "searches_used":         search_used,
+        "searches_remaining":    max(0, _SEARCH_LIMIT_PER_HR - search_used),
     }
 
 # ── Shared requests session for yfinance — browser-like headers ──────────────
@@ -577,7 +586,7 @@ async def get_usage(request: Request):
 
 @app.get("/search")
 async def search_companies(request: Request, q: str = Query(..., min_length=1)):
-    _check_rate(_get_ip(request), "lookup")
+    _check_rate(_get_ip(request), "search")
     url = (
         "https://query2.finance.yahoo.com/v1/finance/search"
         f"?q={q}&newsCount=0&quotesCount=10&enableFuzzyQuery=true"
