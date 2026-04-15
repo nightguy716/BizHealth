@@ -191,6 +191,9 @@ async function fetchViaBackend(sym, fallbackName) {
   const res = await fetch(`${BACKEND}/company/yf/${encodeURIComponent(sym)}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 429) {
+      throw new Error(err.detail || 'Too many lookups. Please wait a few minutes before trying again.');
+    }
     throw new Error(err.detail || `Backend returned ${res.status}`);
   }
   return res.json();

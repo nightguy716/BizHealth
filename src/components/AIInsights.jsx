@@ -22,12 +22,23 @@ function Dots() {
 }
 
 export default function AIInsights({ ratioValues, statuses, score, industry, companyContext = {}, onInsightsReady }) {
-  const [ins,     setIns]     = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [done,    setDone]    = useState(false);
+  const [ins,       setIns]       = useState(null);
+  const [loading,   setLoading]   = useState(false);
+  const [done,      setDone]      = useState(false);
+  const [limitMsg,  setLimitMsg]  = useState('');
+  const [remaining, setRemaining] = useState(null); // AI calls left today
+
+  // Fetch quota on mount so we can show remaining count
+  useState(() => {
+    const url = import.meta.env.VITE_BACKEND_URL;
+    if (!url) return;
+    fetch(`${url}/usage`).then(r => r.json()).then(d => {
+      setRemaining(d.ai_analyses_remaining ?? null);
+    }).catch(() => {});
+  });
 
   async function run() {
-    setLoading(true); setDone(false); setIns(null);
+    setLoading(true); setDone(false); setIns(null); setLimitMsg('');
     const url = import.meta.env.VITE_BACKEND_URL;
     if (url) {
       try {
@@ -35,13 +46,22 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           method:'POST', headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ ratios:ratioValues, statuses, industry, score, company: companyContext }),
         });
+        if (r.status === 429) {
+          const err = await r.json();
+          setLimitMsg(err.detail || 'Daily AI analysis limit reached. Try again tomorrow.');
+          setLoading(false);
+          return;
+        }
         if (r.ok) {
           const data = await r.json();
           setIns(data); onInsightsReady?.(data);
-          setLoading(false); setDone(true); return;
+          setLoading(false); setDone(true);
+          setRemaining(prev => prev !== null ? Math.max(0, prev - 1) : null);
+          return;
         }
       } catch (_) {}
     }
+    // Fallback to client-side analysis
     await new Promise(r => setTimeout(r, 1500));
     const data = analyzeFinancials(ratioValues, statuses, score, industry);
     setIns(data); onInsightsReady?.(data);
@@ -75,10 +95,24 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           <p className="text-[13px] max-w-sm mx-auto leading-relaxed mb-6" style={{ color: '#9fb3d4' }}>
             Cross-analyses all 14 ratios to identify compound risks, hidden opportunities, and a prioritised action plan — instantly.
           </p>
-          <button onClick={run}
-            className="btn-primary inline-flex items-center gap-2 text-white font-bold text-sm px-6 py-3 rounded-xl">
-            ✦ Generate Analysis
-          </button>
+
+          {limitMsg ? (
+            <div className="rounded-xl px-5 py-4 mb-4 text-sm"
+              style={{ background:'rgba(251,191,36,0.08)', border:'1px solid rgba(251,191,36,0.2)', color:'#fbbf24' }}>
+              {limitMsg}
+            </div>
+          ) : (
+            <button onClick={run}
+              className="btn-primary inline-flex items-center gap-2 text-white font-bold text-sm px-6 py-3 rounded-xl">
+              ✦ Generate Analysis
+            </button>
+          )}
+
+          {remaining !== null && !limitMsg && (
+            <p className="mt-3 text-[11px]" style={{ color:'#3d5070', fontFamily:'JetBrains Mono, monospace' }}>
+              {remaining} of 7 free analyses remaining today
+            </p>
+          )}
         </div>
       )}
 

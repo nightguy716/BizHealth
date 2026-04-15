@@ -19,6 +19,7 @@ import math
 import time
 import asyncio
 import requests
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
 import anthropic
@@ -26,10 +27,80 @@ import httpx
 import yfinance as yf
 import pandas as pd
 import xlsxwriter
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+
+# ─────────────────────────────────────────────────────────────
+#  RATE LIMITING  — in-memory, per IP
+#  No external dependency needed — resets on Railway redeploy
+#  which is fine (we don't want persistent bans, just abuse prevention)
+# ─────────────────────────────────────────────────────────────
+
+# Storage: { ip: { "analyze": [(timestamp), ...], "lookup": [...] } }
+_rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": []})
+
+# Limits
+_AI_LIMIT_PER_DAY    = 7     # AI analysis calls per IP per day
+_LOOKUP_LIMIT_PER_HR = 30    # Company data lookups per IP per hour
+
+def _get_ip(request: Request) -> str:
+    """Extract real client IP, handling proxies (Vercel → Railway)."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+def _check_rate(ip: str, kind: str) -> None:
+    """
+    Raise HTTP 429 if the IP has exceeded its quota.
+    kind = "analyze"  → 7 per day
+    kind = "lookup"   → 30 per hour
+    """
+    now   = time.time()
+    store = _rate_store[ip]
+    times = store[kind]
+
+    if kind == "analyze":
+        window  = 86400   # 24 hours
+        limit   = _AI_LIMIT_PER_DAY
+        msg     = (
+            f"You've used all {_AI_LIMIT_PER_DAY} free AI analyses for today. "
+            "Limit resets at midnight UTC — come back tomorrow or upgrade to Pro."
+        )
+    else:
+        window  = 3600    # 1 hour
+        limit   = _LOOKUP_LIMIT_PER_HR
+        msg     = (
+            f"Too many company lookups ({_LOOKUP_LIMIT_PER_HR}/hour). "
+            "Please wait a few minutes before trying again."
+        )
+
+    # Drop timestamps outside the window
+    store[kind] = [t for t in times if now - t < window]
+
+    if len(store[kind]) >= limit:
+        raise HTTPException(status_code=429, detail=msg)
+
+    # Record this call
+    store[kind].append(now)
+
+
+def _get_usage(ip: str) -> dict:
+    """Return remaining quota for an IP — surfaced to frontend."""
+    now   = time.time()
+    store = _rate_store[ip]
+    ai_used     = len([t for t in store["analyze"] if now - t < 86400])
+    lookup_used = len([t for t in store["lookup"]  if now - t < 3600])
+    return {
+        "ai_analyses_used":      ai_used,
+        "ai_analyses_remaining": max(0, _AI_LIMIT_PER_DAY - ai_used),
+        "ai_analyses_limit":     _AI_LIMIT_PER_DAY,
+        "lookups_used":          lookup_used,
+        "lookups_remaining":     max(0, _LOOKUP_LIMIT_PER_HR - lookup_used),
+        "lookups_limit":         _LOOKUP_LIMIT_PER_HR,
+    }
 
 # ── Shared requests session for yfinance — browser-like headers ──────────────
 # Without this, Yahoo Finance's servers detect the bare Python requests agent
@@ -438,8 +509,15 @@ async def ping():
 
 #  COMPANY SEARCH  —  proxy Yahoo Finance suggest API
 # ─────────────────────────────────────────────────────────────
+@app.get("/usage")
+async def get_usage(request: Request):
+    """Return remaining quota for the calling IP — polled by the frontend."""
+    return _get_usage(_get_ip(request))
+
+
 @app.get("/search")
-async def search_companies(q: str = Query(..., min_length=1)):
+async def search_companies(request: Request, q: str = Query(..., min_length=1)):
+    _check_rate(_get_ip(request), "lookup")
     url = (
         "https://query2.finance.yahoo.com/v1/finance/search"
         f"?q={q}&newsCount=0&quotesCount=10&enableFuzzyQuery=true"
@@ -657,12 +735,13 @@ async def get_company(ticker: str):
 # ─────────────────────────────────────────────────────────────
 
 @app.get("/company/yf/{ticker}")
-async def get_company_yf(ticker: str):
+async def get_company_yf(ticker: str, request: Request):
     """
     Fetch financials for a listed company.
     Priority: yfinance (no key, no rate limit) → Alpha Vantage → FMP
     Results cached 1 hour per ticker.
     """
+    _check_rate(_get_ip(request), "lookup")
     sym = ticker.upper().strip()
 
     # Serve from cache if still fresh
@@ -2152,7 +2231,8 @@ async def export_excel(req: ExcelRequest):
 
 
 @app.post("/analyze")
-async def analyze(req: AnalysisRequest):
+async def analyze(req: AnalysisRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze")
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
