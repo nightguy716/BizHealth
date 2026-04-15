@@ -588,27 +588,24 @@ async def get_usage(request: Request):
 async def search_companies(request: Request, q: str = Query(..., min_length=1)):
     _check_rate(_get_ip(request), "search")
 
-    # Use the authenticated YF session (proper browser headers + cookies)
-    # to avoid Railway IP being blocked on the search endpoint.
+    # Use browser-like API headers — YF search doesn't need cookies/crumb,
+    # just a real-looking User-Agent + Referer to avoid IP blocking.
     from urllib.parse import quote as _urlencode
-    client, crumb = await _get_yf_session()
-    url = (
-        "https://query2.finance.yahoo.com/v1/finance/search"
-        f"?q={_urlencode(q)}&newsCount=0&quotesCount=10&enableFuzzyQuery=true"
-        + (f"&crumb={crumb}" if crumb else "")
-    )
-    # Also try query1 as fallback
-    for base_url in [url, url.replace("query2", "query1")]:
+    search_headers = {**_YF_API_HEADERS}
+    data = {}
+    for base in ("https://query2.finance.yahoo.com", "https://query1.finance.yahoo.com"):
+        url = (
+            f"{base}/v1/finance/search"
+            f"?q={_urlencode(q)}&newsCount=0&quotesCount=10&enableFuzzyQuery=true"
+        )
         try:
-            r = await client.get(base_url, timeout=8)
-            if r.status_code == 200:
-                data = r.json()
-                break
+            async with httpx.AsyncClient(headers=search_headers, timeout=8, follow_redirects=True) as sc:
+                r = await sc.get(url)
+                if r.status_code == 200:
+                    data = r.json()
+                    break
         except Exception:
             continue
-    else:
-        # Both failed — return empty rather than an error so the UI doesn't break
-        return {"results": []}
 
     quotes = data.get("quotes", [])
     results = []
