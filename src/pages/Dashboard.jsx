@@ -9,6 +9,7 @@ import jsPDF from 'jspdf';
 import Sidebar          from '../components/Sidebar';
 import SummaryBanner    from '../components/SummaryBanner';
 import RatioGroup       from '../components/RatioGroup';
+import RatioTableView   from '../components/RatioTableView';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
@@ -72,6 +73,7 @@ export default function App() {
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
   const [sidebarOpen,     setSidebarOpen]     = useState(true);
+  const [viewMode,        setViewMode]        = useState('cards'); // 'cards' | 'table'
   const resultsRef = useRef(null);
 
   const n = key => parseFloat(inputs[key]) || 0;
@@ -1148,7 +1150,38 @@ export default function App() {
                 exporting={exporting}
               />
 
-              {(() => {
+              {/* ── View toggle ── */}
+              <div className="flex items-center justify-between mb-6">
+                <span className="mono text-[10px] font-bold uppercase tracking-[0.14em]"
+                  style={{ color: '#6b82a8' }}>
+                  {GROUPS.reduce((a, g) => a + g.ratios.length, 0)} RATIOS COMPUTED
+                </span>
+                <div className="flex items-center gap-1 p-1 rounded-xl"
+                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  {[
+                    { id: 'cards', icon: (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+                        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+                      </svg>), label: 'Cards' },
+                    { id: 'table', icon: (
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 10h18M3 14h18M10 3v18M3 6a3 3 0 013-3h12a3 3 0 013 3v12a3 3 0 01-3 3H6a3 3 0 01-3-3V6z"/>
+                      </svg>), label: 'Table' },
+                  ].map(({ id, icon, label }) => (
+                    <button key={id} onClick={() => setViewMode(id)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150"
+                      style={viewMode === id
+                        ? { background: 'rgba(79,110,247,0.2)', color: '#7b95fa', border: '1px solid rgba(79,110,247,0.35)' }
+                        : { background: 'transparent', color: '#6b82a8', border: '1px solid transparent' }}>
+                      {icon}{label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* ── Card view ── */}
+              {viewMode === 'cards' && (() => {
                 let idx = 0;
                 return GROUPS.map(g => {
                   const start = idx;
@@ -1156,6 +1189,13 @@ export default function App() {
                   return <RatioGroup key={g.title} title={g.title} ratios={g.ratios} startIndex={start} />;
                 });
               })()}
+
+              {/* ── Table view ── */}
+              {viewMode === 'table' && (
+                <div className="mb-10">
+                  <RatioTableView groups={GROUPS} />
+                </div>
+              )}
 
               <AIInsights
                 ratioValues={results.ratioValues}
