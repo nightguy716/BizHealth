@@ -47,7 +47,7 @@ function ScoreRing({ pct, verdict }) {
   );
 }
 
-export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, exporting }) {
+export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, exporting, onShare, shareCopied, isSharedView }) {
   const green = statuses.filter(s => s === 'green').length;
   const amber = statuses.filter(s => s === 'amber').length;
   const red   = statuses.filter(s => s === 'red').length;
@@ -121,6 +121,18 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
             ))}
           </div>
 
+          {/* Shared view banner */}
+          {isSharedView && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg text-xs"
+              style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.22)', color: '#7b95fa' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+              </svg>
+              <span>Shared analysis — <a href="/dashboard" className="underline" style={{ color: '#7b95fa' }}>run your own</a></span>
+            </div>
+          )}
+
           {/* Export buttons */}
           <div className="flex flex-wrap gap-2">
             <button onClick={onExportPDF}
@@ -158,6 +170,34 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
               )}
               {exporting ? 'Building Excel…' : 'IB Excel Export'}
             </button>
+
+            {onShare && (
+              <button onClick={onShare}
+                className="inline-flex items-center gap-2 text-[12px] font-semibold px-4 py-2.5 rounded-xl transition-all duration-200"
+                style={{
+                  background: shareCopied ? 'rgba(0,232,135,0.1)' : 'rgba(79,110,247,0.08)',
+                  border: shareCopied ? '1px solid rgba(0,232,135,0.3)' : '1px solid rgba(79,110,247,0.25)',
+                  color: shareCopied ? '#00e887' : '#7b95fa',
+                }}
+                onMouseEnter={e => { if (!shareCopied) { e.currentTarget.style.background='rgba(79,110,247,0.16)'; e.currentTarget.style.borderColor='rgba(79,110,247,0.45)'; } }}
+                onMouseLeave={e => { if (!shareCopied) { e.currentTarget.style.background='rgba(79,110,247,0.08)'; e.currentTarget.style.borderColor='rgba(79,110,247,0.25)'; } }}>
+                {shareCopied ? (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    Link Copied!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 1 1 0-2.684m0 2.684 6.632 3.316m-6.632-6 6.632-3.316m0 0a3 3 0 1 0 5.367-2.684 3 3 0 0 0-5.367 2.684zm0 9.316a3 3 0 1 0 5.368 2.684 3 3 0 0 0-5.368-2.684z"/>
+                    </svg>
+                    Share Report
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 

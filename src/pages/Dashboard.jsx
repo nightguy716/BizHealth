@@ -3,8 +3,25 @@
  * Orchestrates state, calculations, PDF export, and the full page layout.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
+
+/* ── URL share helpers ──────────────────────────────────────── */
+function encodeShare(payload) {
+  try {
+    const json = JSON.stringify(payload);
+    // URL-safe base64
+    return btoa(unescape(encodeURIComponent(json)))
+      .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch { return null; }
+}
+function decodeShare(str) {
+  try {
+    const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+    return JSON.parse(decodeURIComponent(escape(atob(b64))));
+  } catch { return null; }
+}
 
 import Sidebar          from '../components/Sidebar';
 import SummaryBanner    from '../components/SummaryBanner';
@@ -70,6 +87,9 @@ const EMPTY_INPUTS = {
 };
 
 export default function App() {
+  const location  = useLocation();
+  const navigate  = useNavigate();
+
   const [inputs,          setInputs]          = useState(EMPTY_INPUTS);
   const [industry,        setIndustry]        = useState('general');
   const [results,         setResults]         = useState(null);
@@ -81,7 +101,43 @@ export default function App() {
   const [sidebarOpen,     setSidebarOpen]     = useState(true);
   const [mobileOpen,      setMobileOpen]      = useState(false);
   const [viewMode,        setViewMode]        = useState('cards'); // 'cards' | 'table'
+  const [shareCopied,     setShareCopied]     = useState(false);
+  const [isSharedView,    setIsSharedView]    = useState(false);
   const resultsRef = useRef(null);
+
+  /* ── Load shared analysis from URL ?s= param ── */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const s = params.get('s');
+    if (!s) return;
+    const payload = decodeShare(s);
+    if (!payload) return;
+    if (payload.inputs)         setInputs(p => ({ ...EMPTY_INPUTS, ...payload.inputs }));
+    if (payload.industry)       setIndustry(payload.industry);
+    if (payload.companyContext) setCompanyContext(p => ({ ...p, ...payload.companyContext }));
+    setIsSharedView(true);
+    // auto-calculate after state settles (200ms is safe even on slow connections)
+    setTimeout(() => { calculateRef.current?.(); }, 200);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const calculateRef = useRef(null);
+  /* Keep calculateRef current after every render so the URL-load effect can call it */
+  useEffect(() => { calculateRef.current = handleCalculate; });
+
+  /* ── Share handler ── */
+  const handleShare = useCallback(() => {
+    const payload = { inputs, industry, companyContext };
+    const encoded = encodeShare(payload);
+    if (!encoded) return;
+    const url = `${window.location.origin}/dashboard?s=${encoded}`;
+    navigator.clipboard?.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    }).catch(() => {
+      // fallback: prompt
+      window.prompt('Copy this link:', url);
+    });
+  }, [inputs, industry, companyContext]);
 
   const n = key => parseFloat(inputs[key]) || 0;
 
@@ -1233,6 +1289,9 @@ export default function App() {
                 onExportPDF={handleExportPDF}
                 onExportExcel={handleExportExcel}
                 exporting={exporting}
+                onShare={handleShare}
+                shareCopied={shareCopied}
+                isSharedView={isSharedView}
               />
 
               {/* ── View toggle ── */}
