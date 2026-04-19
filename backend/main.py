@@ -25,9 +25,8 @@ from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
 import anthropic
 import httpx
-import yfinance as yf
-import pandas as pd
-import xlsxwriter
+# yfinance / pandas / xlsxwriter are imported lazily inside the functions that need them
+# so Uvicorn can bind and /health responds quickly on cold start (Railway healthchecks).
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -638,9 +637,10 @@ SECTOR_MAP = {
     "Utilities":           "general",
 }
 
-def _safe(df: pd.DataFrame, keys: list[str]):
+def _safe(df, keys: list[str]):
     """Return the first non-NaN float from df index matching any of keys."""
-    if df is None or df.empty:
+    import pandas as pd
+    if df is None or not isinstance(df, pd.DataFrame) or df.empty:
         return None
     for k in keys:
         if k in df.index:
@@ -1231,6 +1231,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     The session param is kept for signature compatibility but ignored.
     """
     import pandas as pd
+    import yfinance as yf
 
     inc_df: pd.DataFrame | None = None
     bal_df: pd.DataFrame | None = None
@@ -1657,6 +1658,7 @@ def _yoy(curr, prev):
 
 
 def build_excel(req: ExcelRequest) -> bytes:
+    import xlsxwriter
     from datetime import date
     output = io.BytesIO()
     wb = xlsxwriter.Workbook(output, {'in_memory': True, 'nan_inf_to_errors': True})
@@ -2564,6 +2566,7 @@ _META_CACHE: dict = {}
 _META_TTL = 6 * 60 * 60  # 6 hours
 
 def _fetch_meta(sym: str) -> dict:
+    import yfinance as yf
     try:
         tk   = yf.Ticker(sym)
         info = tk.info or {}
