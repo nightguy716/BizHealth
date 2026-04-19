@@ -302,8 +302,9 @@ export default function Watchlist() {
                     onSelect={c => setForm(f => ({
                       ...f,
                       ticker:       c.ticker,
-                      company_name: c.name,
-                      sector:       c.sector || f.sector,
+                      company_name: c.name     || f.company_name,
+                      sector:       c.sector   || f.sector,
+                      currency:     c.currency || f.currency,
                     }))}
                     placeholder="Search ticker or company name…"
                   />

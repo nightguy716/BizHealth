@@ -2552,3 +2552,37 @@ async def stocks_search(q: str = Query(default="", min_length=1), limit: int = Q
         elif n.startswith(q_lower): starts_n.append(s)
         elif q_lower in t or q_lower in n: contains.append(s)
     return (exact_t + exact_n + starts_t + starts_n + contains)[:limit]
+
+# -- Lightweight stock metadata (sector + currency only) ----------------------
+# Used by TickerAutocomplete to fill sector/currency after a company is selected.
+# Much faster than /company/yf/{ticker} — only fetches .info, no financials.
+
+_META_CACHE: dict = {}
+_META_TTL = 6 * 60 * 60  # 6 hours
+
+def _fetch_meta(sym: str) -> dict:
+    try:
+        tk   = yf.Ticker(sym)
+        info = tk.info or {}
+        return {
+            "sector":   info.get("sector") or info.get("industryDisp") or "",
+            "currency": info.get("currency") or info.get("financialCurrency") or "",
+            "name":     info.get("longName") or info.get("shortName") or "",
+        }
+    except Exception:
+        return {"sector": "", "currency": "", "name": ""}
+
+@app.get("/stocks/meta/{ticker}")
+async def stocks_meta(ticker: str, request: Request):
+    """Return sector + currency for a ticker. Lightweight — no financials fetched."""
+    sym = ticker.upper().strip()
+    cached = _META_CACHE.get(sym)
+    if cached and time.time() - cached["ts"] < _META_TTL:
+        return cached["data"]
+    loop   = asyncio.get_event_loop()
+    result = await asyncio.wait_for(
+        loop.run_in_executor(_executor, _fetch_meta, sym),
+        timeout=8.0,
+    )
+    _META_CACHE[sym] = {"data": result, "ts": time.time()}
+    return result

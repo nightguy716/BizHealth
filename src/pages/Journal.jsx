@@ -244,7 +244,7 @@ export default function Journal() {
                   onSelect={c => setForm(f => ({
                     ...f,
                     ticker:       c.ticker,
-                    company_name: c.name,
+                    company_name: c.name || f.company_name,
                   }))}
                   placeholder="Search ticker or company name…"
                 />

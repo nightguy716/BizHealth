@@ -3,9 +3,8 @@
  *
  * Strategy:
  *  1. Instant results from the local curated list (popular stocks, no latency).
- *  2. If local results < 3, also query the backend /stocks/search endpoint
- *     which covers all ~1800+ NSE-listed equities via NSE's public CSV.
- *  3. Merged & de-duped results shown in dropdown.
+ *  2. If local results < 3, also query /stocks/search (full NSE list, ~1800 stocks).
+ *  3. On selection, calls /stocks/meta to back-fill sector + currency automatically.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchCompanies } from '../data/companies.js';
@@ -14,15 +13,39 @@ const API = import.meta.env.VITE_API_URL
          || import.meta.env.VITE_BACKEND_URL
          || 'https://bizhealth-production.up.railway.app';
 
+// Yahoo Finance sector → friendly label mapping (same as CompanySearch)
+const SECTOR_MAP = {
+  'Technology':             'Technology',
+  'Communication Services': 'Technology',
+  'Healthcare':             'Healthcare',
+  'Financial Services':     'Financial Services',
+  'Consumer Defensive':     'Consumer Defensive',
+  'Consumer Cyclical':      'Consumer Cyclical',
+  'Industrials':            'Industrials',
+  'Basic Materials':        'Basic Materials',
+  'Energy':                 'Energy',
+  'Utilities':              'Utilities',
+  'Real Estate':            'Real Estate',
+};
+
+async function fetchMeta(ticker) {
+  try {
+    const res = await fetch(`${API}/stocks/meta/${encodeURIComponent(ticker)}`, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
+}
+
 export default function TickerAutocomplete({
   value,
   onChange,
   onSelect,
   placeholder = 'Search by ticker or company name…',
 }) {
-  const [results,  setResults]  = useState([]);
-  const [open,     setOpen]     = useState(false);
-  const [fetching, setFetching] = useState(false);
+  const [results,   setResults]   = useState([]);
+  const [open,      setOpen]      = useState(false);
+  const [fetching,  setFetching]  = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const containerRef = useRef(null);
   const debounceRef  = useRef(null);
   const abortRef     = useRef(null);
@@ -80,11 +103,32 @@ export default function TickerAutocomplete({
     debounceRef.current = setTimeout(() => doSearch(q), 150);
   }
 
-  function handleSelect(company) {
+  async function handleSelect(company) {
     setOpen(false);
     setResults([]);
     onChange(company.ticker);
+
+    // Immediately call onSelect with what we know (ticker + name from list)
     onSelect(company);
+
+    // If sector or currency is missing (backend NSE results have empty sector),
+    // fire a lightweight meta fetch to fill them in.
+    if (!company.sector || !company.currency) {
+      setEnriching(true);
+      try {
+        const meta = await fetchMeta(company.ticker);
+        if (meta) {
+          onSelect({
+            ...company,
+            name:     meta.name     || company.name,
+            sector:   SECTOR_MAP[meta.sector] || meta.sector || company.sector || '',
+            currency: meta.currency || (company.ticker.endsWith('.NS') ? 'INR' : 'USD'),
+          });
+        }
+      } finally {
+        setEnriching(false);
+      }
+    }
   }
 
   function handleKeyDown(e) {
@@ -136,10 +180,15 @@ export default function TickerAutocomplete({
 
         {/* Spinner or clear */}
         <span style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)' }}>
-          {fetching ? (
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent)', animation: 'spin 0.8s linear infinite' }}>
-              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31 11"/>
-            </svg>
+          {(fetching || enriching) ? (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent)', animation: 'spin 0.8s linear infinite' }}>
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31 11"/>
+              </svg>
+              {enriching && (
+                <span style={{ fontSize: '0.6rem', color: 'var(--text-4)', whiteSpace: 'nowrap' }}>filling…</span>
+              )}
+            </span>
           ) : value ? (
             <button
               type="button"
