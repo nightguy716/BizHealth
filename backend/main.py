@@ -1,15 +1,15 @@
 """
-BizHealth FastAPI Backend — Anthropic Claude
+BizHealth FastAPI Backend ? Anthropic Claude
 --------------------------------------------
-POST /analyze  →  structured financial analysis via Claude claude-haiku-4-5
+POST /analyze  ?  structured financial analysis via Claude claude-haiku-4-5
 
 Deploy to Render:
-1. render.com → New Web Service → connect nightguy716/BizHealth repo
+1. render.com ? New Web Service ? connect nightguy716/BizHealth repo
 2. Root Directory:  backend
 3. Build Command:   pip install -r requirements.txt
 4. Start Command:   uvicorn main:app --host 0.0.0.0 --port $PORT
 5. Environment variable: ANTHROPIC_API_KEY = sk-ant-...
-6. Copy the Render URL → add VITE_BACKEND_URL in Vercel dashboard → Redeploy
+6. Copy the Render URL ? add VITE_BACKEND_URL in Vercel dashboard ? Redeploy
 """
 
 import os
@@ -33,11 +33,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-# ─────────────────────────────────────────────────────────────
-#  RATE LIMITING  — in-memory, per IP
-#  No external dependency needed — resets on Railway redeploy
+# ?????????????????????????????????????????????????????????????
+#  RATE LIMITING  ? in-memory, per IP
+#  No external dependency needed ? resets on Railway redeploy
 #  which is fine (we don't want persistent bans, just abuse prevention)
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
 
 # Storage: { ip: { "analyze": [...], "lookup": [...], "search": [...] } }
 _rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": [], "search": []})
@@ -48,7 +48,7 @@ _LOOKUP_LIMIT_PER_HR = 30     # Full company data fetches per IP per hour
 _SEARCH_LIMIT_PER_HR = 300    # Autocomplete search queries per IP per hour (very cheap)
 
 def _get_ip(request: Request) -> str:
-    """Extract real client IP, handling proxies (Vercel → Railway)."""
+    """Extract real client IP, handling proxies (Vercel to Railway)."""
     forwarded = request.headers.get("x-forwarded-for")
     if forwarded:
         return forwarded.split(",")[0].strip()
@@ -57,9 +57,9 @@ def _get_ip(request: Request) -> str:
 def _check_rate(ip: str, kind: str) -> None:
     """
     Raise HTTP 429 if the IP has exceeded its quota.
-    kind = "analyze"  → 7 per day
-    kind = "lookup"   → 30 per hour  (full quoteSummary fetches)
-    kind = "search"   → 300 per hour (lightweight autocomplete only)
+    kind = "analyze"  ? 7 per day
+    kind = "lookup"   ? 30 per hour  (full quoteSummary fetches)
+    kind = "search"   ? 300 per hour (lightweight autocomplete only)
     """
     now   = time.time()
     store = _rate_store[ip]
@@ -70,7 +70,7 @@ def _check_rate(ip: str, kind: str) -> None:
         limit   = _AI_LIMIT_PER_DAY
         msg     = (
             f"You've used all {_AI_LIMIT_PER_DAY} free AI analyses for today. "
-            "Limit resets at midnight UTC — come back tomorrow or upgrade to Pro."
+            "Limit resets at midnight UTC ? come back tomorrow or upgrade to Pro."
         )
     elif kind == "search":
         window  = 3600
@@ -95,7 +95,7 @@ def _check_rate(ip: str, kind: str) -> None:
 
 
 def _get_usage(ip: str) -> dict:
-    """Return remaining quota for an IP — surfaced to frontend."""
+    """Return remaining quota for an IP ? surfaced to frontend."""
     now   = time.time()
     store = _rate_store[ip]
     ai_used     = len([t for t in store.get("analyze", []) if now - t < 86400])
@@ -112,7 +112,7 @@ def _get_usage(ip: str) -> dict:
         "searches_remaining":    max(0, _SEARCH_LIMIT_PER_HR - search_used),
     }
 
-# ── Shared requests session for yfinance — browser-like headers ──────────────
+# ?? Shared requests session for yfinance ? browser-like headers ??????????????
 # Without this, Yahoo Finance's servers detect the bare Python requests agent
 # and block cloud IPs (especially for non-US tickers like .NS, .BO).
 _YF_BROWSER_SESSION = requests.Session()
@@ -133,10 +133,10 @@ _YF_BROWSER_SESSION.headers.update({
 
 _executor = ThreadPoolExecutor(max_workers=4)
 
-# ── Yahoo Finance proxy — persistent session ──────────────────
+# ?? Yahoo Finance proxy ? persistent session ??????????????????
 # Yahoo Finance blocks API calls without a valid cookie+crumb pair.
-# We bootstrap a real browser-like session once (visit homepage →
-# get cookies → get crumb), then reuse it for all ticker fetches.
+# We bootstrap a real browser-like session once (visit homepage ?
+# get cookies ? get crumb), then reuse it for all ticker fetches.
 
 _YF_NAV_HEADERS = {           # used when visiting homepage
     "User-Agent":      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -186,7 +186,7 @@ async def _get_yf_session() -> tuple[httpx.AsyncClient, str]:
             timeout=20.0,
         )
 
-        # Step 1 — visit homepage so Yahoo sets session cookies
+        # Step 1 ? visit homepage so Yahoo sets session cookies
         for url in ("https://finance.yahoo.com/", "https://www.yahoo.com/"):
             try:
                 await client.get(url)
@@ -194,7 +194,7 @@ async def _get_yf_session() -> tuple[httpx.AsyncClient, str]:
             except Exception:
                 pass
 
-        # Step 2 — accept EU consent if redirected (GDPR pop-up)
+        # Step 2 ? accept EU consent if redirected (GDPR pop-up)
         try:
             await client.post(
                 "https://consent.yahoo.com/v2/collectConsent",
@@ -204,7 +204,7 @@ async def _get_yf_session() -> tuple[httpx.AsyncClient, str]:
         except Exception:
             pass
 
-        # Step 3 — switch to API headers and fetch crumb
+        # Step 3 ? switch to API headers and fetch crumb
         client.headers.update(_YF_API_HEADERS)
         crumb = ""
         for base in ("https://query1.finance.yahoo.com",
@@ -355,12 +355,12 @@ def _parse_yf_response(data: dict) -> dict:
         "cashflow": [parse_cf(s)  for s in cf_stmts[:5]],
     }
 
-    # Most-recent year → input fields
+    # Most-recent year ? input fields
     inc0 = historical["income"][0]  if historical["income"]  else {}
     bal0 = historical["balance"][0] if historical["balance"] else {}
     cf0  = historical["cashflow"][0] if historical.get("cashflow") else {}
 
-    # ── financialData fallback helper (works without crumb) ──
+    # ?? financialData fallback helper (works without crumb) ??
     fd = r.get("financialData") or {}
     def _sv(d, *keys):
         for k in keys:
@@ -378,7 +378,7 @@ def _parse_yf_response(data: dict) -> dict:
     fd_ocf    = _sv(fd, "operatingCashflow")
     fd_gp     = _sv(fd, "grossProfits")
     fd_ebitda = _sv(fd, "ebitda")
-    # Derive net profit from margin × revenue when not directly available
+    # Derive net profit from margin ? revenue when not directly available
     pm        = _sv(fd, "profitMargins")
     fd_np     = (pm * fd_rev) if (pm and fd_rev) else None
 
@@ -414,8 +414,8 @@ def _parse_yf_response(data: dict) -> dict:
     filled   = len(data_fields)
     coverage = round((filled / total) * 100) if total else 0
 
-    # ── Market valuation multiples (reuse _sv defined above) ─
-    def _sv(d, *keys):  # noqa: F811 – redefine for clarity
+    # ?? Market valuation multiples (reuse _sv defined above) ?
+    def _sv(d, *keys):  # noqa: F811 ? redefine for clarity
         for k in keys:
             v = d.get(k)
             if isinstance(v, dict):
@@ -465,10 +465,10 @@ def _parse_yf_response(data: dict) -> dict:
     }
 
 
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
 #  Direct Yahoo Finance quoteSummary fetch via browser session
 #  Uses the persistent httpx client + crumb (handles .NS / .BO)
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
 _MODULES = (
     "incomeStatementHistory,balanceSheetHistory,cashflowStatementHistory,"
     "defaultKeyStatistics,assetProfile,financialData"
@@ -519,7 +519,7 @@ app.add_middleware(
 
 SYSTEM_PROMPT = """You are a senior financial analyst with expertise across SMEs, large-cap corporations, and listed companies globally. You analyse financial ratios and translate them into clear, actionable intelligence tailored to the entity's scale and context.
 
-You must respond with ONLY a valid JSON object — no markdown, no explanation outside the JSON — with exactly these keys:
+You must respond with ONLY a valid JSON object ? no markdown, no explanation outside the JSON ? with exactly these keys:
 
 {
   "executive_summary": "2-3 sentence overview of overall financial health, mentioning specific ratio values and the company/entity name if known",
@@ -540,7 +540,7 @@ Rules:
 - top_risks: exactly 3 items
 - top_opportunities: exactly 3 items
 - priority_actions: exactly 5 items
-- If the entity is a large listed company (e.g. Amazon, Microsoft, TCS), frame advice for institutional investors, CFOs, and analysts — not SME owners
+- If the entity is a large listed company (e.g. Amazon, Microsoft, TCS), frame advice for institutional investors, CFOs, and analysts ? not SME owners
 - If the entity is an SME or unknown, frame advice for business owners in plain English
 - Always mention actual ratio values in descriptions
 - Tailor industry_context to global norms for listed companies, or local/regional norms for SMEs"""
@@ -570,18 +570,18 @@ def health():
     return {"status": "ok"}
 
 
-# ─────────────────────────────────────────────────────────────
-# ── Keep-alive ping (used by UptimeRobot every 5 min) ────────
+# ?????????????????????????????????????????????????????????????
+# ?? Keep-alive ping (used by UptimeRobot every 5 min) ????????
 @app.get("/ping")
 async def ping():
     return {"status": "ok"}
 
 
-#  COMPANY SEARCH  —  proxy Yahoo Finance suggest API
-# ─────────────────────────────────────────────────────────────
+#  COMPANY SEARCH  ?  proxy Yahoo Finance suggest API
+# ?????????????????????????????????????????????????????????????
 @app.get("/usage")
 async def get_usage(request: Request):
-    """Return remaining quota for the calling IP — polled by the frontend."""
+    """Return remaining quota for the calling IP ? polled by the frontend."""
     return _get_usage(_get_ip(request))
 
 
@@ -589,7 +589,7 @@ async def get_usage(request: Request):
 async def search_companies(request: Request, q: str = Query(..., min_length=1)):
     _check_rate(_get_ip(request), "search")
 
-    # Use browser-like API headers — YF search doesn't need cookies/crumb,
+    # Use browser-like API headers ? YF search doesn't need cookies/crumb,
     # just a real-looking User-Agent + Referer to avoid IP blocking.
     from urllib.parse import quote as _urlencode
     search_headers = {**_YF_API_HEADERS}
@@ -621,9 +621,9 @@ async def search_companies(request: Request, q: str = Query(..., min_length=1)):
     return {"results": results[:8]}
 
 
-# ─────────────────────────────────────────────────────────────
-#  COMPANY FINANCIALS  —  yfinance → our 14 input fields
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
+#  COMPANY FINANCIALS  ?  yfinance ? our 14 input fields
+# ?????????????????????????????????????????????????????????????
 SECTOR_MAP = {
     "Technology":          "tech",
     "Communication Services": "tech",
@@ -692,7 +692,7 @@ async def get_company(ticker: str):
     if not fmp_key:
         raise HTTPException(
             status_code=503,
-            detail="FMP_API_KEY not configured. Add it in Railway → Variables."
+            detail="FMP_API_KEY not configured. Add it in Railway ? Variables."
         )
 
     sym = ticker.upper().replace(".NS", "").replace(".BO", "")  # FMP uses bare tickers
@@ -722,7 +722,7 @@ async def get_company(ticker: str):
     inc = inc_list[0]   # most recent annual
     bal = bal_list[0] if bal_list and isinstance(bal_list, list) else {}
 
-    # ── income statement ─────────────────────────────────────────
+    # ?? income statement ?????????????????????????????????????????
     revenue    = _fv(inc, "revenue")
     gross_p    = _fv(inc, "grossProfit")
     cogs_raw   = _fv(inc, "costOfRevenue")
@@ -740,7 +740,7 @@ async def get_company(ticker: str):
     if cogs_raw is None and revenue and gross_p:
         cogs_raw = revenue - gross_p
 
-    # ── balance sheet ─────────────────────────────────────────────
+    # ?? balance sheet ?????????????????????????????????????????????
     cur_assets   = _fv(bal, "totalCurrentAssets")
     cur_liab     = _fv(bal, "totalCurrentLiabilities")
     inventory    = _fv(bal, "inventory")
@@ -750,7 +750,7 @@ async def get_company(ticker: str):
     total_debt   = _fv(bal, "totalDebt", "longTermDebt")
     receivables  = _fv(bal, "netReceivables", "accountsReceivable")
 
-    # ── metadata ──────────────────────────────────────────────────
+    # ?? metadata ??????????????????????????????????????????????????
     name     = inc.get("symbol", sym)
     sector   = ""
     currency = inc.get("reportedCurrency", "USD")
@@ -808,15 +808,15 @@ async def get_company(ticker: str):
     }
 
 
-# ─────────────────────────────────────────────────────────────
-#  Yahoo Finance proxy — no API key, no rate limit
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
+#  Yahoo Finance proxy ? no API key, no rate limit
+# ?????????????????????????????????????????????????????????????
 
 @app.get("/company/yf/{ticker}")
 async def get_company_yf(ticker: str, request: Request):
     """
     Fetch financials for a listed company.
-    Priority: yfinance (no key, no rate limit) → Alpha Vantage → FMP
+    Priority: yfinance (no key, no rate limit) ? Alpha Vantage ? FMP
     Results cached 1 hour per ticker.
     """
     _check_rate(_get_ip(request), "lookup")
@@ -829,7 +829,7 @@ async def get_company_yf(ticker: str, request: Request):
 
     last_error = "Unknown error"
 
-    # ── 1. yfinance (primary) ─────────────────────────────────────────────
+    # ?? 1. yfinance (primary) ?????????????????????????????????????????????
     #  yfinance 0.2.61+ manages its own cookie/crumb auth internally.
     try:
         loop   = asyncio.get_event_loop()
@@ -842,12 +842,12 @@ async def get_company_yf(ticker: str, request: Request):
             parsed["ticker"] = sym
             _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
             return parsed
-        # Sparse result — fall through to httpx for richer data
+        # Sparse result ? fall through to httpx for richer data
         last_error = f"yfinance returned only {parsed.get('filled',0)} fields"
     except (asyncio.TimeoutError, Exception) as e:
         last_error = str(e)
 
-    # ── 1b. httpx quoteSummary fallback ──────────────────────────────────
+    # ?? 1b. httpx quoteSummary fallback ??????????????????????????????????
     try:
         parsed = await asyncio.wait_for(_httpx_yf_fetch(sym), timeout=15.0)
         parsed["ticker"] = sym
@@ -856,7 +856,7 @@ async def get_company_yf(ticker: str, request: Request):
     except Exception as e:
         last_error = str(e)
 
-    # ── 2. Alpha Vantage fallback (25 calls/day) ─────────────────
+    # ?? 2. Alpha Vantage fallback (25 calls/day) ?????????????????
     av_key = os.environ.get("AV_API_KEY", "")
     if av_key:
         try:
@@ -865,11 +865,11 @@ async def get_company_yf(ticker: str, request: Request):
             _yf_data_cache[sym] = {"data": parsed, "ts": time.time()}
             return parsed
         except HTTPException as e:
-            last_error = e.detail   # store, don't re-raise — let FMP try
+            last_error = e.detail   # store, don't re-raise ? let FMP try
         except Exception as e:
             last_error = str(e)
 
-    # ── 3. FMP fallback ───────────────────────────────────────────
+    # ?? 3. FMP fallback ???????????????????????????????????????????
     fmp_key = os.environ.get("FMP_API_KEY", "")
     if fmp_key:
         try:
@@ -884,7 +884,7 @@ async def get_company_yf(ticker: str, request: Request):
 
     raise HTTPException(
         status_code=404,
-        detail=f"No financial data available for {sym}. The ticker may be invalid, delisted, or not yet covered — please try a different company.",
+        detail=f"No financial data available for {sym}. The ticker may be invalid, delisted, or not yet covered ? please try a different company.",
     )
 
 
@@ -906,7 +906,7 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
         return bool(j.get("Information") or j.get("Note"))
 
     async with httpx.AsyncClient(timeout=20) as client:
-        # Fetch all 4 in parallel — AV allows 5 req/min so this is fine
+        # Fetch all 4 in parallel ? AV allows 5 req/min so this is fine
         inc_r, bal_r, cf_r, ov_r = await asyncio.gather(
             client.get(f"{AV}?function=INCOME_STATEMENT&symbol={sym}&apikey={api_key}"),
             client.get(f"{AV}?function=BALANCE_SHEET&symbol={sym}&apikey={api_key}"),
@@ -919,11 +919,11 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
     cf_j  = cf_r.json()  if cf_r.status_code == 200 else {}
     ov_j  = ov_r.json()  if ov_r.status_code == 200 else {}
 
-    # Rate-limit check — stop here with a clear message
+    # Rate-limit check ? stop here with a clear message
     if _is_limited(inc_j) or _is_limited(bal_j):
         raise HTTPException(
             status_code=429,
-            detail="Alpha Vantage daily limit reached (25 calls/day). Quota resets at midnight UTC — try again tomorrow.",
+            detail="Alpha Vantage daily limit reached (25 calls/day). Quota resets at midnight UTC ? try again tomorrow.",
         )
 
     inc_list = inc_j.get("annualReports") or []
@@ -1225,7 +1225,7 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
 
 def _yf_fetch_ticker(sym: str, session=None) -> dict:
     """
-    Blocking — run in executor.
+    Blocking ? run in executor.
     Uses yfinance's own internal cookie/crumb auth (0.2.61+), which is
     more reliable than any custom session we can pass from the async layer.
     The session param is kept for signature compatibility but ignored.
@@ -1237,7 +1237,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     cf_df:  pd.DataFrame | None = None
     info:   dict = {}
 
-    # Let yfinance manage its own authentication — do NOT pass a session.
+    # Let yfinance manage its own authentication ? do NOT pass a session.
     # yfinance 0.2.61+ handles cookie/crumb internally and is more reliable.
     tk = yf.Ticker(sym)
 
@@ -1273,7 +1273,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
             "The ticker may be invalid, delisted, or not supported by Yahoo Finance."
         )
 
-    # ── Field-name aliases (yfinance renames between versions) ──
+    # ?? Field-name aliases (yfinance renames between versions) ??
     _INC_REVENUE    = ['Total Revenue', 'Revenue', 'TotalRevenue']
     _INC_COGS       = ['Cost Of Revenue', 'CostOfRevenue', 'Cost of Revenue']
     _INC_GP         = ['Gross Profit', 'GrossProfit']
@@ -1422,7 +1422,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
 
     cf0 = historical["cashflow"][0] if historical.get("cashflow") else {}
 
-    # ── info-based fallbacks (tk.info always returns even when stmts fail) ──
+    # ?? info-based fallbacks (tk.info always returns even when stmts fail) ??
     def _iv(*keys):
         for k in keys:
             v = info.get(k)
@@ -1484,9 +1484,9 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     }
 
 
-# ─────────────────────────────────────────────────────────────
-#  IB-STYLE EXCEL EXPORT — Models
-# ─────────────────────────────────────────────────────────────
+# ?????????????????????????????????????????????????????????????
+#  IB-STYLE EXCEL EXPORT ? Models
+# ?????????????????????????????????????????????????????????????
 
 class IncomeYear(BaseModel):
     year: str = ''
@@ -1561,7 +1561,7 @@ class ExcelRequest(BaseModel):
     ai_insights: dict = {}
 
 
-# ── Colour palette ────────────────────────────────────────────
+# ?? Colour palette ????????????????????????????????????????????
 _NAVY_HDR = '#0D1B3E'   # dark navy header (matches reference IB model)
 _NAVY     = '#003366'
 _WHITE    = '#FFFFFF'
@@ -1575,7 +1575,7 @@ _BLUE_INP = '#4472C4'   # blue for DCF assumption cells
 
 STATUS_LBL = {'green': 'Healthy', 'amber': 'Borderline', 'red': 'Critical', 'na': 'N/A'}
 
-# ── Industry comps data (illustrative) ───────────────────────
+# ?? Industry comps data (illustrative) ???????????????????????
 _COMPS: dict = {
     'tech': [
         ('AMD',      'AMD',  220,  235,  23.0, 4.5, 10.2, 52.2, 16.5),
@@ -1621,7 +1621,7 @@ _COMPS: dict = {
     ],
 }
 
-# ── DCF growth rate assumptions per industry ─────────────────
+# ?? DCF growth rate assumptions per industry ?????????????????
 _DCF_GROWTH = {
     'tech':          [0.30, 0.22, 0.18, 0.14, 0.12],
     'healthcare':    [0.12, 0.10, 0.09, 0.08, 0.07],
@@ -1641,7 +1641,7 @@ _DCF_EBITDA_MARGIN = {
 
 
 def _mm(v):
-    """Raw value → $ millions (2 dp)."""
+    """Raw value ? $ millions (2 dp)."""
     if v is None: return None
     return round(v / 1_000_000, 2)
 
@@ -1666,7 +1666,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     curr = req.company.currency or 'USD'
     today_str = date.today().strftime('%d %B %Y')
 
-    # ── Format factory ────────────────────────────────────────
+    # ?? Format factory ????????????????????????????????????????
     def F(**kw):
         base = {'font_name': 'Calibri', 'font_size': 10, 'valign': 'vcenter'}
         base.update(kw)
@@ -1685,14 +1685,14 @@ def build_excel(req: ExcelRequest) -> bytes:
     # Section label (ALL CAPS, bold, no fill)
     f_sec = F(bold=True, font_size=10, font_color=_BLACK)
 
-    # Bold row (subtotal) — left label
+    # Bold row (subtotal) ? left label
     f_bold_lbl = F(bold=True, font_color=_BLACK, border=1)
-    # Bold row — right number
+    # Bold row ? right number
     f_bold_num = F(bold=True, font_color=_BLACK, num_format='#,##0', align='right', border=1)
 
-    # Regular row — label (1-space indent)
+    # Regular row ? label (1-space indent)
     f_lbl = F(font_color=_BLACK, border=1, indent=1)
-    # Regular row — number
+    # Regular row ? number
     f_num = F(num_format='#,##0', align='right', border=1)
 
     # % sub-row (grey italic, 2-space indent)
@@ -1728,7 +1728,7 @@ def build_excel(req: ExcelRequest) -> bytes:
         if v is None: return f_pct_num
         return f_pos if v >= 0 else f_neg
 
-    # ── Reversed (oldest→newest) views for Excel display ──────
+    # ?? Reversed (oldest?newest) views for Excel display ??????
     inc = list(reversed(req.historical.income))
     bal = list(reversed(req.historical.balance))
     cf  = list(reversed(req.historical.cashflow))
@@ -1736,9 +1736,9 @@ def build_excel(req: ExcelRequest) -> bytes:
     n_bal = len(bal)
     n_cf  = len(cf)
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 1 — COVER & NOTES
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 1 ? COVER & NOTES
+    # ??????????????????????????????????????????????????????????
     ws0 = wb.add_worksheet('Cover & Notes')
     ws0.set_column('A:A', 28)
     ws0.set_column('B:B', 70)
@@ -1756,11 +1756,11 @@ def build_excel(req: ExcelRequest) -> bytes:
     # Model Contents table
     ws0.write('A6', 'Model Contents', f_cover_h)
     contents = [
-        ('Cover & Notes',    'This sheet — model overview, color coding, key assumptions.'),
+        ('Cover & Notes',    'This sheet ? model overview, color coding, key assumptions.'),
         ('Financial Ratios', 'Current-period ratios across Liquidity, Profitability, Efficiency & Leverage.'),
-        ('Income Statement', f'Historical P&L FY{inc[0].year if inc else "—"}–FY{inc[-1].year if inc else "—"}. Revenue, Gross Profit, EBITDA, EBIT, Net Income, EPS.'),
-        ('Balance Sheet',    f'Historical B/S FY{bal[0].year if bal else "—"}–FY{bal[-1].year if bal else "—"}. Assets, Liabilities, Shareholders\' Equity.'),
-        ('Cash Flow',        f'Historical CFS FY{cf[0].year if cf else "—"}–FY{cf[-1].year if cf else "—"}. Operating, Investing, Financing + Free Cash Flow.'),
+        ('Income Statement', f'Historical P&L FY{inc[0].year if inc else "?"}?FY{inc[-1].year if inc else "?"}. Revenue, Gross Profit, EBITDA, EBIT, Net Income, EPS.'),
+        ('Balance Sheet',    f'Historical B/S FY{bal[0].year if bal else "?"}?FY{bal[-1].year if bal else "?"}. Assets, Liabilities, Shareholders\' Equity.'),
+        ('Cash Flow',        f'Historical CFS FY{cf[0].year if cf else "?"}?FY{cf[-1].year if cf else "?"}. Operating, Investing, Financing + Free Cash Flow.'),
         ('DCF Valuation',    '5-year DCF model. WACC = 10%, TGR = 4%. Blue cells are editable assumptions.'),
         ('Comps',            f'{req.industry.title()} sector peer trading comparables. Illustrative multiples.'),
         ('AI Insights',      'AI-generated executive summary, risks, opportunities, and priority actions.'),
@@ -1772,7 +1772,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     # Color Coding legend
     ws0.write('A15', 'Color Coding', f_cover_h)
     ws0.write('A16', 'Blue text',   F(bold=True, font_color=_BLUE_INP))
-    ws0.write('B16', 'Hardcoded inputs / assumptions — change these to run scenarios', f_cover_t)
+    ws0.write('B16', 'Hardcoded inputs / assumptions ? change these to run scenarios', f_cover_t)
     ws0.write('A17', 'Black text',  f_cover_b)
     ws0.write('B17', 'Calculated formulas', f_cover_t)
     ws0.write('A18', 'Green fill',  F(bold=True, font_color=_WHITE, bg_color=_GREEN))
@@ -1788,20 +1788,20 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws0.write('A22', 'Key Assumptions (DCF)', f_cover_h)
     assumptions = [
         ('Revenue Growth', f'FY+1: {growth_rates[0]:.0%}, FY+2: {growth_rates[1]:.0%}, FY+3: {growth_rates[2]:.0%}, FY+4: {growth_rates[3]:.0%}, FY+5: {growth_rates[4]:.0%}'),
-        ('EBITDA Margin',  f'~{ebitda_margins[2]:.0%}–{ebitda_margins[4]:.0%} — based on industry norms for {req.industry}'),
-        ('WACC',           '10% — reflects equity risk premium for the sector'),
-        ('Terminal Growth','4% — long-run nominal GDP growth + industry tailwinds'),
-        ('D&A % Revenue',  '2% — capex-light assumption; adjust for asset-heavy industries'),
-        ('CapEx % Revenue','4% — typical maintenance + growth capex assumption'),
-        ('Tax Rate',       '21% — US federal statutory rate; adjust for non-US entities'),
+        ('EBITDA Margin',  f'~{ebitda_margins[2]:.0%}?{ebitda_margins[4]:.0%} ? based on industry norms for {req.industry}'),
+        ('WACC',           '10% ? reflects equity risk premium for the sector'),
+        ('Terminal Growth','4% ? long-run nominal GDP growth + industry tailwinds'),
+        ('D&A % Revenue',  '2% ? capex-light assumption; adjust for asset-heavy industries'),
+        ('CapEx % Revenue','4% ? typical maintenance + growth capex assumption'),
+        ('Tax Rate',       '21% ? US federal statutory rate; adjust for non-US entities'),
     ]
     for i, (k, v) in enumerate(assumptions):
         ws0.write(22+i, 0, k, f_cover_b)
         ws0.write(22+i, 1, v, f_cover_t)
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 2 — FINANCIAL RATIOS
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 2 ? FINANCIAL RATIOS
+    # ??????????????????????????????????????????????????????????
     ws1 = wb.add_worksheet('Financial Ratios')
     ws1.set_column('A:A', 28)
     ws1.set_column('B:B', 14)
@@ -1851,8 +1851,8 @@ def build_excel(req: ExcelRequest) -> bytes:
     ]
     INTERP = {
         'currentRatio':       'Ability to cover short-term liabilities with current assets.',
-        'quickRatio':         'Liquidity excluding inventory — stricter liquidity test.',
-        'cashRatio':          'Strictest measure — cash only vs current liabilities.',
+        'quickRatio':         'Liquidity excluding inventory ? stricter liquidity test.',
+        'cashRatio':          'Strictest measure ? cash only vs current liabilities.',
         'grossMargin':        'Revenue retained after direct production costs.',
         'operatingMargin':    'Profitability from core operations before tax & interest.',
         'netMargin':          'Bottom-line profitability after all expenses and taxes.',
@@ -1862,7 +1862,7 @@ def build_excel(req: ExcelRequest) -> bytes:
         'fixedAssetTurnover': 'Revenue efficiency from fixed / long-term assets.',
         'receivablesDays':    'Average days to collect customer payments.',
         'inventoryDays':      'Average days inventory is held before sale.',
-        'debtToEquity':       'Financial leverage — total debt relative to equity.',
+        'debtToEquity':       'Financial leverage ? total debt relative to equity.',
         'interestCoverage':   'Ability to service interest payments from operating earnings.',
     }
 
@@ -1884,9 +1884,9 @@ def build_excel(req: ExcelRequest) -> bytes:
 
     ws1.freeze_panes(5, 0)
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 3 — INCOME STATEMENT
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 3 ? INCOME STATEMENT
+    # ??????????????????????????????????????????????????????????
     ws2 = wb.add_worksheet('Income Statement')
     ws2.set_column('A:A', 30)
     for c in range(n_inc): ws2.set_column(c+1, c+1, 13)
@@ -1927,13 +1927,13 @@ def build_excel(req: ExcelRequest) -> bytes:
         for c in range(n_inc+1): ws2.write(r, c, None, f_lbl)
 
     row = 3
-    # ── REVENUE ──────────────────────────────────────────────
+    # ?? REVENUE ??????????????????????????????????????????????
     ws2.write(row, 0, 'REVENUE', f_sec); row += 1
     irow(row, '  Total Revenue', [_mm(y.revenue) for y in inc], f_bold_lbl, f_bold_num); row += 1
     iyoy(row, '    YoY Growth',  [y.revenue for y in inc]); row += 1
     blank_row(row); row += 1
 
-    # ── PROFITABILITY ─────────────────────────────────────────
+    # ?? PROFITABILITY ?????????????????????????????????????????
     ws2.write(row, 0, 'PROFITABILITY', f_sec); row += 1
     irow(row, '  Cost of Revenue',      [_mm(y.cogs) for y in inc]); row += 1
     irow(row, 'Gross Profit',            [_mm(y.grossProfit) for y in inc], f_bold_lbl, f_bold_num); row += 1
@@ -1961,7 +1961,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     ipct(row, '    Net Margin',            [_ratio(y.netProfit, y.revenue) for y in inc]); row += 1
     blank_row(row); row += 1
 
-    # ── KEY METRICS ───────────────────────────────────────────
+    # ?? KEY METRICS ???????????????????????????????????????????
     ws2.write(row, 0, 'KEY METRICS', f_sec); row += 1
     irow(row, '  EBITDA',                 [_mm(y.ebitda) for y in inc], f_bold_lbl, f_bold_num); row += 1
     ipct(row, '    EBITDA Margin',        [_ratio(y.ebitda, y.revenue) for y in inc]); row += 1
@@ -1969,9 +1969,9 @@ def build_excel(req: ExcelRequest) -> bytes:
     irow(row, '  Diluted EPS',            [y.eps for y in inc], f_bold_lbl, f_eps); row += 1
     irow(row, '  Diluted Shares (B)',     [y.dilutedShares for y in inc], f_lbl, f_shr); row += 1
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 4 — BALANCE SHEET
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 4 ? BALANCE SHEET
+    # ??????????????????????????????????????????????????????????
     ws3 = wb.add_worksheet('Balance Sheet')
     ws3.set_column('A:A', 30)
     for c in range(n_bal): ws3.set_column(c+1, c+1, 13)
@@ -1991,7 +1991,7 @@ def build_excel(req: ExcelRequest) -> bytes:
         for c in range(n_bal+1): ws3.write(r, c, None, f_lbl)
 
     row = 3
-    # ── ASSETS ───────────────────────────────────────────────
+    # ?? ASSETS ???????????????????????????????????????????????
     ws3.write(row, 0, 'ASSETS', f_sec); row += 1
     brow(row, '  Cash & Equivalents',       [_mm(y.cash) for y in bal]); row += 1
     brow(row, '  Short-Term Investments',   [_mm(y.sti) for y in bal]); row += 1
@@ -2007,7 +2007,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     brow(row, 'Total Assets',               [_mm(y.totalAssets) for y in bal], f_bold_lbl, f_bold_num); row += 1
     bblank(row); row += 1
 
-    # ── LIABILITIES ───────────────────────────────────────────
+    # ?? LIABILITIES ???????????????????????????????????????????
     ws3.write(row, 0, 'LIABILITIES', f_sec); row += 1
     brow(row, '  Accounts Payable',         [_mm(y.ap) for y in bal]); row += 1
     brow(row, '  Current Debt',             [_mm(y.currentDebt) for y in bal]); row += 1
@@ -2025,15 +2025,15 @@ def build_excel(req: ExcelRequest) -> bytes:
     brow(row, 'Total Liabilities',          [_total_liab(y) for y in bal], f_bold_lbl, f_bold_num); row += 1
     bblank(row); row += 1
 
-    # ── SHAREHOLDERS' EQUITY ──────────────────────────────────
+    # ?? SHAREHOLDERS' EQUITY ??????????????????????????????????
     ws3.write(row, 0, "SHAREHOLDERS' EQUITY", f_sec); row += 1
     brow(row, '  Additional Paid-In Capital',[_mm(y.apic) for y in bal]); row += 1
     brow(row, '  Retained Earnings',         [_mm(y.retainedEarnings) for y in bal]); row += 1
     brow(row, 'Total Equity',                [_mm(y.equity) for y in bal], f_bold_lbl, f_bold_num); row += 1
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 5 — CASH FLOW
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 5 ? CASH FLOW
+    # ??????????????????????????????????????????????????????????
     ws4 = wb.add_worksheet('Cash Flow')
     ws4.set_column('A:A', 30)
     for c in range(n_cf): ws4.set_column(c+1, c+1, 13)
@@ -2053,7 +2053,7 @@ def build_excel(req: ExcelRequest) -> bytes:
         for c in range(n_cf+1): ws4.write(r, c, None, f_lbl)
 
     row = 3
-    # ── OPERATING ─────────────────────────────────────────────
+    # ?? OPERATING ?????????????????????????????????????????????
     ws4.write(row, 0, 'OPERATING ACTIVITIES', f_sec); row += 1
     crow(row, '  Net Income',              [_mm(y.netIncome) for y in cf]); row += 1
     crow(row, '  D&A',                     [_mm(y.da) for y in cf]); row += 1
@@ -2069,13 +2069,13 @@ def build_excel(req: ExcelRequest) -> bytes:
     crow(row, 'Cash from Operations',      [_mm(y.cfOps) for y in cf], f_bold_lbl, f_bold_num); row += 1
     cblank(row); row += 1
 
-    # ── INVESTING ─────────────────────────────────────────────
+    # ?? INVESTING ?????????????????????????????????????????????
     ws4.write(row, 0, 'INVESTING ACTIVITIES', f_sec); row += 1
     crow(row, '  Capital Expenditure (CapEx)',[_mm(y.capex) for y in cf]); row += 1
     crow(row, 'Cash from Investing',       [_mm(y.cfInvesting) for y in cf], f_bold_lbl, f_bold_num); row += 1
     cblank(row); row += 1
 
-    # ── FINANCING ─────────────────────────────────────────────
+    # ?? FINANCING ?????????????????????????????????????????????
     ws4.write(row, 0, 'FINANCING ACTIVITIES', f_sec); row += 1
     crow(row, '  Share Buybacks',          [_mm(y.buybacks) for y in cf]); row += 1
     crow(row, '  Dividends Paid',          [_mm(y.dividends) for y in cf]); row += 1
@@ -2088,7 +2088,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     crow(row, 'Cash from Financing',       [_mm(y.cfFinancing) for y in cf], f_bold_lbl, f_bold_num); row += 1
     cblank(row); row += 1
 
-    # ── FREE CASH FLOW ────────────────────────────────────────
+    # ?? FREE CASH FLOW ????????????????????????????????????????
     ws4.write(row, 0, 'FREE CASH FLOW & LIQUIDITY', f_sec); row += 1
     def _fcf(y):
         if y.cfOps and y.capex: return _mm(y.cfOps + y.capex)
@@ -2116,9 +2116,9 @@ def build_excel(req: ExcelRequest) -> bytes:
         return None   # can't reliably derive without prior year
     crow(row, '  Ending Cash', [None]*n_cf); row += 1
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 6 — DCF VALUATION
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 6 ? DCF VALUATION
+    # ??????????????????????????????????????????????????????????
     ws5 = wb.add_worksheet('DCF Valuation')
     ws5.set_column('A:A', 34)
     for c in range(5): ws5.set_column(c+1, c+1, 14)
@@ -2229,9 +2229,9 @@ def build_excel(req: ExcelRequest) -> bytes:
         ws5.write(row, 1, v, f_bold_num)
         row += 1
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 7 — COMPS
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 7 ? COMPS
+    # ??????????????????????????????????????????????????????????
     ws6 = wb.add_worksheet('Comps')
     ws6.set_column('A:A', 22)
     ws6.set_column('B:B', 8)
@@ -2273,15 +2273,15 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws6.write(mrow, 0, 'PEER MEDIAN', F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, border=1))
     for c in range(1, 9): ws6.write(mrow, c, 'Median', F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, align='center', border=1))
 
-    # ──────────────────────────────────────────────────────────
-    # SHEET 8 — AI INSIGHTS
-    # ──────────────────────────────────────────────────────────
+    # ??????????????????????????????????????????????????????????
+    # SHEET 8 ? AI INSIGHTS
+    # ??????????????????????????????????????????????????????????
     if req.ai_insights:
         ws7 = wb.add_worksheet('AI Insights')
         ws7.set_column('A:A', 24)
         ws7.set_column('B:B', 88)
 
-        ws7.write(0, 0, f'{co} — AI Financial Intelligence', f_title)
+        ws7.write(0, 0, f'{co} ? AI Financial Intelligence', f_title)
         ws7.write(1, 0, f'Generated by Claude AI  |  {today_str}', f_sub)
 
         ai_r = 2
@@ -2399,7 +2399,7 @@ Return ONLY the JSON object. No preamble."""
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ─── 3-AI Debate endpoint ─────────────────────────────────────────────────────
+# ??? 3-AI Debate endpoint ?????????????????????????????????????????????????????
 
 class DebateRequest(BaseModel):
     ticker: str
@@ -2434,7 +2434,7 @@ async def debate(req: DebateRequest, request: Request):
         return msg.content[0].text.strip()
 
     try:
-        # ── Bull agent ────────────────────────────────────────────────────────
+        # ?? Bull agent ????????????????????????????????????????????????????????
         bull_system = (
             "You are a seasoned equity research analyst known for identifying high-conviction "
             "long opportunities. Your job is to present the strongest possible bull case for the "
@@ -2448,7 +2448,7 @@ async def debate(req: DebateRequest, request: Request):
         )
         bull_text = _call(bull_system, bull_prompt)
 
-        # ── Bear agent ────────────────────────────────────────────────────────
+        # ?? Bear agent ????????????????????????????????????????????????????????
         bear_system = (
             "You are a sharp short-seller and risk analyst. Your job is to stress-test investment "
             "theses and expose every weakness. Be brutally honest, specific, and concise. "
@@ -2458,11 +2458,11 @@ async def debate(req: DebateRequest, request: Request):
             f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
             f"User thesis: {req.thesis}\n\n"
             f"The bull case for this position is:\n{bull_text}\n\n"
-            "List the most compelling reasons to be BEARISH — challenge or rebut the bull points where possible."
+            "List the most compelling reasons to be BEARISH ? challenge or rebut the bull points where possible."
         )
         bear_text = _call(bear_system, bear_prompt)
 
-        # ── Arbiter ───────────────────────────────────────────────────────────
+        # ?? Arbiter ???????????????????????????????????????????????????????????
         arbiter_system = (
             "You are a CFA-level portfolio manager acting as an impartial arbiter. "
             "You have just heard a bull case and a bear case for an investment. "
@@ -2536,10 +2536,13 @@ async def _load_nse_stock_list():
     return stocks
 
 @app.get("/stocks/search")
-async def stocks_search(q: str = Query(default="", min_length=1), limit: int = Query(default=10, le=20), request: Request = None):
+async def stocks_search(
+    request: Request,
+    q: str = Query(default="", min_length=1),
+    limit: int = Query(default=10, le=20),
+):
     """Fuzzy search over all NSE-listed equities."""
-    if request:
-        _check_rate(_get_ip(request), "search")
+    _check_rate(_get_ip(request), "search")
     q_lower = q.strip().lower()
     stocks  = await _load_nse_stock_list()
     exact_t = []; exact_n = []; starts_t = []; starts_n = []; contains = []
@@ -2555,7 +2558,7 @@ async def stocks_search(q: str = Query(default="", min_length=1), limit: int = Q
 
 # -- Lightweight stock metadata (sector + currency only) ----------------------
 # Used by TickerAutocomplete to fill sector/currency after a company is selected.
-# Much faster than /company/yf/{ticker} � only fetches .info, no financials.
+# Much faster than /company/yf/{ticker} - only fetches .info, no financials.
 
 _META_CACHE: dict = {}
 _META_TTL = 6 * 60 * 60  # 6 hours
@@ -2574,7 +2577,7 @@ def _fetch_meta(sym: str) -> dict:
 
 @app.get("/stocks/meta/{ticker}")
 async def stocks_meta(ticker: str, request: Request):
-    """Return sector + currency for a ticker. Lightweight � no financials fetched."""
+    """Return sector + currency for a ticker. Lightweight - no financials fetched."""
     sym = ticker.upper().strip()
     cached = _META_CACHE.get(sym)
     if cached and time.time() - cached["ts"] < _META_TTL:
