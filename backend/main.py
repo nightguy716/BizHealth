@@ -23,7 +23,6 @@ import requests
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
-import anthropic
 import httpx
 # yfinance / pandas / xlsxwriter are imported lazily inside the functions that need them
 # so Uvicorn can bind and /health responds quickly on cold start (Railway healthchecks).
@@ -2412,6 +2411,7 @@ class DebateRequest(BaseModel):
 
 @app.post("/debate")
 async def debate(req: DebateRequest, request: Request):
+    import anthropic
     _check_rate(_get_ip(request), "analyze")
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
