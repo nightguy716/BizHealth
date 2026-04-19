@@ -402,7 +402,7 @@ export default function Journal() {
                         <DebatePanel
                           ticker={entry.ticker}
                           companyName={entry.company_name || entry.ticker}
-                          thesis={entry.thesis || ''}
+                          initialThesis={entry.thesis || ''}
                           savedDebate={entry.debate_result}
                           onSave={(result) => handleDebateSave(entry.id, result)}
                         />

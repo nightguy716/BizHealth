@@ -46,8 +46,8 @@ function BulletList({ text }) {
   );
 }
 
-export default function DebatePanel({ ticker, companyName, sector, financials, savedDebate, onSave }) {
-  const [thesis, setThesis]   = useState('');
+export default function DebatePanel({ ticker, companyName, sector, financials, savedDebate, onSave, initialThesis = '' }) {
+  const [thesis, setThesis]   = useState(initialThesis);
   const [debate, setDebate]   = useState(savedDebate || null);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState('');
