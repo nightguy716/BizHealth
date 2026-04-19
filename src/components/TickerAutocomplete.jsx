@@ -1,16 +1,31 @@
 /**
- * TickerAutocomplete — lightweight company search for forms.
- * Uses the local curated company list (no backend call).
- * Calls onSelect({ ticker, name, sector, exchange }) when a company is chosen.
+ * TickerAutocomplete — company search for forms.
+ *
+ * Strategy:
+ *  1. Instant results from the local curated list (popular stocks, no latency).
+ *  2. If local results < 3, also query the backend /stocks/search endpoint
+ *     which covers all ~1800+ NSE-listed equities via NSE's public CSV.
+ *  3. Merged & de-duped results shown in dropdown.
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchCompanies } from '../data/companies.js';
 
-export default function TickerAutocomplete({ value, onChange, onSelect, placeholder = 'AAPL, NVDA, TCS…' }) {
+const API = import.meta.env.VITE_API_URL
+         || import.meta.env.VITE_BACKEND_URL
+         || 'https://bizhealth-production.up.railway.app';
+
+export default function TickerAutocomplete({
+  value,
+  onChange,
+  onSelect,
+  placeholder = 'Search by ticker or company name…',
+}) {
   const [results,  setResults]  = useState([]);
   const [open,     setOpen]     = useState(false);
-  const containerRef            = useRef(null);
-  const debounceRef             = useRef(null);
+  const [fetching, setFetching] = useState(false);
+  const containerRef = useRef(null);
+  const debounceRef  = useRef(null);
+  const abortRef     = useRef(null);
 
   // Close on outside click
   useEffect(() => {
@@ -19,18 +34,50 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
     return () => document.removeEventListener('mousedown', h);
   }, []);
 
-  const doSearch = useCallback((q) => {
+  const doSearch = useCallback(async (q) => {
     if (!q || q.length < 1) { setResults([]); setOpen(false); return; }
-    const hits = searchCompanies(q, 8);
-    setResults(hits);
-    setOpen(hits.length > 0);
+
+    // 1 — instant local results
+    const local = searchCompanies(q, 8);
+    if (local.length > 0) {
+      setResults(local);
+      setOpen(true);
+    }
+
+    // 2 — if fewer than 3 local hits, supplement with backend full NSE list
+    if (local.length < 3) {
+      if (abortRef.current) abortRef.current.abort();
+      abortRef.current = new AbortController();
+      setFetching(true);
+      try {
+        const res = await fetch(
+          `${API}/stocks/search?q=${encodeURIComponent(q)}&limit=10`,
+          { signal: abortRef.current.signal }
+        );
+        if (res.ok) {
+          const remote = await res.json();
+          // Merge: prefer local, append remote results not already present
+          const seen = new Set(local.map(c => c.ticker));
+          const merged = [
+            ...local,
+            ...remote.filter(r => !seen.has(r.ticker)),
+          ];
+          setResults(merged);
+          setOpen(merged.length > 0);
+        }
+      } catch (e) {
+        if (e.name !== 'AbortError') console.warn('Stock search error:', e.message);
+      } finally {
+        setFetching(false);
+      }
+    }
   }, []);
 
   function handleChange(e) {
     const q = e.target.value;
     onChange(q);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => doSearch(q), 100);
+    debounceRef.current = setTimeout(() => doSearch(q), 150);
   }
 
   function handleSelect(company) {
@@ -65,7 +112,7 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
           style={{
             width: '100%',
             paddingLeft: '1.75rem',
-            paddingRight: value ? '1.75rem' : '0.65rem',
+            paddingRight: (value || fetching) ? '1.75rem' : '0.65rem',
             paddingTop: '0.5rem',
             paddingBottom: '0.5rem',
             background: 'var(--surface)',
@@ -87,19 +134,23 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
           }}
         />
 
-        {/* Clear button */}
-        {value && (
-          <button
-            type="button"
-            onClick={() => { onChange(''); setResults([]); setOpen(false); }}
-            style={{
-              position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)',
-              background: 'none', border: 'none', cursor: 'pointer',
-              color: 'var(--text-4)', fontSize: '0.7rem', padding: '0.1rem',
-              lineHeight: 1,
-            }}
-          >✕</button>
-        )}
+        {/* Spinner or clear */}
+        <span style={{ position: 'absolute', right: '0.5rem', top: '50%', transform: 'translateY(-50%)' }}>
+          {fetching ? (
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ color: 'var(--accent)', animation: 'spin 0.8s linear infinite' }}>
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31 11"/>
+            </svg>
+          ) : value ? (
+            <button
+              type="button"
+              onClick={() => { onChange(''); setResults([]); setOpen(false); }}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-4)', fontSize: '0.7rem', padding: '0.1rem', lineHeight: 1,
+              }}
+            >✕</button>
+          ) : null}
+        </span>
       </div>
 
       {/* Dropdown */}
@@ -115,12 +166,14 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
           boxShadow: '0 8px 28px rgba(0,0,0,0.4)',
           zIndex: 200,
           overflow: 'hidden',
+          maxHeight: '280px',
+          overflowY: 'auto',
         }}>
           {results.map((r, i) => (
             <button
               key={r.ticker}
               type="button"
-              onMouseDown={e => e.preventDefault()} // prevent blur before click
+              onMouseDown={e => e.preventDefault()}
               onClick={() => handleSelect(r)}
               style={{
                 display: 'flex',
@@ -148,11 +201,11 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
                 border: '1px solid rgba(96,165,250,0.2)',
                 borderRadius: '0.35rem',
                 padding: '0.15rem 0.45rem',
-                minWidth: '52px',
+                minWidth: '60px',
                 textAlign: 'center',
                 flexShrink: 0,
               }}>
-                {r.ticker}
+                {r.ticker.replace('.NS', '')}
               </span>
 
               {/* Name + meta */}
@@ -160,7 +213,7 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
                 <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {r.name}
                 </p>
-                <p style={{ margin: 0, fontSize: '0.68rem', color: 'var(--text-4)', marginTop: '0.1rem' }}>
+                <p style={{ margin: 0, fontSize: '0.67rem', color: 'var(--text-4)', marginTop: '0.1rem' }}>
                   {r.exchange}{r.sector ? ` · ${r.sector}` : ''}
                 </p>
               </div>
@@ -168,6 +221,11 @@ export default function TickerAutocomplete({ value, onChange, onSelect, placehol
               <span style={{ color: 'var(--text-4)', fontSize: '0.7rem', flexShrink: 0 }}>→</span>
             </button>
           ))}
+
+          {/* "Powered by NSE" attribution footer */}
+          <div style={{ padding: '0.3rem 0.75rem', borderTop: '1px solid var(--border)', textAlign: 'right' }}>
+            <span style={{ fontSize: '0.6rem', color: 'var(--text-4)' }}>NSE equity data</span>
+          </div>
         </div>
       )}
     </div>

@@ -14,6 +14,7 @@ Deploy to Render:
 
 import os
 import io
+import csv
 import json
 import math
 import time
@@ -2487,3 +2488,67 @@ async def debate(req: DebateRequest, request: Request):
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# -- Full stock-list autocomplete ----------------------------------------------
+# Source: NSE public equity CSV (refreshed every 24 h, cached in memory).
+# Covers all ~1800+ NSE-listed equities.
+
+_STOCK_CACHE: dict = {"nse": [], "loaded_at": 0.0}
+_STOCK_CACHE_TTL = 24 * 60 * 60
+
+_NSE_CSV_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+_NSE_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Referer": "https://www.nseindia.com/",
+}
+
+async def _load_nse_stock_list():
+    now = time.time()
+    if _STOCK_CACHE["nse"] and now - _STOCK_CACHE["loaded_at"] < _STOCK_CACHE_TTL:
+        return _STOCK_CACHE["nse"]
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            resp = await client.get(_NSE_CSV_URL, headers=_NSE_HEADERS)
+            resp.raise_for_status()
+            text = resp.text
+    except Exception as exc:
+        if _STOCK_CACHE["nse"]:
+            return _STOCK_CACHE["nse"]
+        raise HTTPException(status_code=503, detail=f"Could not load NSE stock list: {exc}")
+    stocks = []
+    reader = csv.DictReader(io.StringIO(text))
+    VALID_SERIES = {"EQ","BE","SM","ST","N1","N2","N3","N4","N5","N6","N7","N8","N9",""}
+    for row in reader:
+        symbol = (row.get("SYMBOL") or "").strip()
+        name   = (row.get("NAME OF COMPANY") or "").strip()
+        series = (row.get("SERIES") or "").strip()
+        if not symbol or not name:
+            continue
+        if series and series not in VALID_SERIES:
+            continue
+        stocks.append({"ticker": symbol + ".NS", "name": name, "exchange": "NSE", "sector": ""})
+    if stocks:
+        _STOCK_CACHE["nse"] = stocks
+        _STOCK_CACHE["loaded_at"] = now
+    return stocks
+
+@app.get("/stocks/search")
+async def stocks_search(q: str = Query(default="", min_length=1), limit: int = Query(default=10, le=20), request: Request = None):
+    """Fuzzy search over all NSE-listed equities."""
+    if request:
+        _check_rate(_get_ip(request), "search")
+    q_lower = q.strip().lower()
+    stocks  = await _load_nse_stock_list()
+    exact_t = []; exact_n = []; starts_t = []; starts_n = []; contains = []
+    for s in stocks:
+        t = s["ticker"].lower().replace(".ns", "")
+        n = s["name"].lower()
+        if t == q_lower:          exact_t.append(s)
+        elif n == q_lower:        exact_n.append(s)
+        elif t.startswith(q_lower): starts_t.append(s)
+        elif n.startswith(q_lower): starts_n.append(s)
+        elif q_lower in t or q_lower in n: contains.append(s)
+    return (exact_t + exact_n + starts_t + starts_n + contains)[:limit]
