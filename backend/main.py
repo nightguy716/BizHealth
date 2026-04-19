@@ -2582,7 +2582,7 @@ async def stocks_meta(ticker: str, request: Request):
     cached = _META_CACHE.get(sym)
     if cached and time.time() - cached["ts"] < _META_TTL:
         return cached["data"]
-    loop   = asyncio.get_event_loop()
+    loop   = asyncio.get_running_loop()
     result = await asyncio.wait_for(
         loop.run_in_executor(_executor, _fetch_meta, sym),
         timeout=8.0,

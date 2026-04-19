@@ -1,5 +1,6 @@
-# Same as backend/Dockerfile — kept for: docker build -f Dockerfile .
-# Prefer backend/Dockerfile + railway.json for Railway deploys.
+# Build from repository ROOT:  docker build -f backend/Dockerfile .
+# Railway: leave "Root Directory" empty (monorepo root). Do NOT set it to `backend`
+# or COPY paths will fail.
 FROM python:3.11-slim
 WORKDIR /app
 ENV PYTHONUNBUFFERED=1
