@@ -79,6 +79,143 @@ export function AuthProvider({ children }) {
     return data ?? [];
   }
 
+  // ── Watchlist ──────────────────────────────────────────────────────────────
+
+  async function getWatchlist() {
+    if (!user || !supabase) return [];
+    const { data } = await supabase
+      .from('user_watchlist')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('added_at', { ascending: false });
+    return data ?? [];
+  }
+
+  async function addToWatchlist({ ticker, company_name, sector, currency, target_price, notes }) {
+    if (!user || !supabase) throw new Error('Not authenticated');
+    const { data, error } = await supabase
+      .from('user_watchlist')
+      .upsert({
+        user_id: user.id,
+        ticker: ticker.toUpperCase(),
+        company_name,
+        sector,
+        currency,
+        target_price,
+        notes,
+      }, { onConflict: 'user_id,ticker' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function removeFromWatchlist(ticker) {
+    if (!user || !supabase) return;
+    await supabase
+      .from('user_watchlist')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('ticker', ticker.toUpperCase());
+  }
+
+  async function isOnWatchlist(ticker) {
+    if (!user || !supabase) return false;
+    const { data } = await supabase
+      .from('user_watchlist')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('ticker', ticker.toUpperCase())
+      .single();
+    return !!data;
+  }
+
+  // ── Journal ────────────────────────────────────────────────────────────────
+
+  async function getJournalEntries() {
+    if (!user || !supabase) return [];
+    const { data } = await supabase
+      .from('journal_entries')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('entry_date', { ascending: false });
+    return data ?? [];
+  }
+
+  async function addJournalEntry(entry) {
+    if (!user || !supabase) throw new Error('Not authenticated');
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .insert({ ...entry, user_id: user.id })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function updateJournalEntry(id, updates) {
+    if (!user || !supabase) throw new Error('Not authenticated');
+    const { data, error } = await supabase
+      .from('journal_entries')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  }
+
+  async function deleteJournalEntry(id) {
+    if (!user || !supabase) return;
+    await supabase
+      .from('journal_entries')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id);
+  }
+
+  // ── Notifications ──────────────────────────────────────────────────────────
+
+  async function getNotifications() {
+    if (!user || !supabase) return [];
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    return data ?? [];
+  }
+
+  async function markNotificationRead(id) {
+    if (!user || !supabase) return;
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', id)
+      .eq('user_id', user.id);
+  }
+
+  async function markAllNotificationsRead() {
+    if (!user || !supabase) return;
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('user_id', user.id)
+      .eq('read', false);
+  }
+
+  async function createNotification({ type, ticker, message }) {
+    if (!user || !supabase) return;
+    await supabase.from('notifications').insert({
+      user_id: user.id,
+      type,
+      ticker,
+      message,
+    });
+  }
+
   const loading = user === undefined;
 
   return (
@@ -86,6 +223,9 @@ export function AuthProvider({ children }) {
       user, profile, loading,
       signUp, signIn, signOut,
       saveSearch, getSearchHistory,
+      getWatchlist, addToWatchlist, removeFromWatchlist, isOnWatchlist,
+      getJournalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry,
+      getNotifications, markNotificationRead, markAllNotificationsRead, createNotification,
       isAuthenticated: !!user,
     }}>
       {children}

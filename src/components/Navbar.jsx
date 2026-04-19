@@ -2,14 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import NotificationBell from './NotificationBell';
 
 const LINKS = [
   { to: '/',          label: 'Home'      },
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/journal',   label: 'Journal'   },
+  { to: '/watchlist', label: 'Watchlist' },
   { to: '/blog',      label: 'Blog'      },
   { to: '/pricing',   label: 'Pricing'   },
   { to: '/about',     label: 'About'     },
-  { to: '/contact',   label: 'Contact'   },
 ];
 
 function UserMenu({ user, onSignOut }) {
@@ -170,9 +172,10 @@ export default function Navbar() {
           })}
         </div>
 
-        {/* Right side: theme toggle + auth */}
+        {/* Right side: theme toggle + notifications + auth */}
         <div className="hidden md:flex items-center gap-2">
           <ThemeToggle />
+          <NotificationBell />
           {loading ? (
             <div className="w-5 h-5 rounded-full border-2 border-blue-600 border-t-transparent animate-spin ml-1" />
           ) : user ? (
@@ -195,9 +198,10 @@ export default function Navbar() {
           )}
         </div>
 
-        {/* Mobile: theme toggle + hamburger */}
+        {/* Mobile: theme toggle + bell + hamburger */}
         <div className="md:hidden flex items-center gap-2">
           <ThemeToggle />
+          <NotificationBell />
         </div>
         <button className="md:hidden p-2 rounded-lg" onClick={() => setOpen(o => !o)}
           style={{ color: 'var(--text-4)' }}>
@@ -238,7 +242,7 @@ export default function Navbar() {
                 Sign out
               </button>
             </>
-          ) : (
+          ) : !loading && (
             <Link to="/auth" onClick={() => setOpen(false)}
               className="block px-3 py-2 rounded-lg text-sm font-semibold text-center mt-2"
               style={{ background: '#4f6ef7', color: '#fff' }}>

@@ -1292,6 +1292,7 @@ export default function App() {
                 onShare={handleShare}
                 shareCopied={shareCopied}
                 isSharedView={isSharedView}
+                companyContext={companyContext}
               />
 
               {/* ── View toggle ── */}

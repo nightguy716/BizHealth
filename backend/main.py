@@ -2396,3 +2396,94 @@ Return ONLY the JSON object. No preamble."""
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── 3-AI Debate endpoint ─────────────────────────────────────────────────────
+
+class DebateRequest(BaseModel):
+    ticker: str
+    company_name: str
+    sector: str | None = None
+    thesis: str           # user's investment thesis / trade idea
+    financials: dict | None = None  # optional key ratios for richer context
+
+@app.post("/debate")
+async def debate(req: DebateRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    entity = f"{req.company_name} ({req.ticker.upper()})"
+    sector = req.sector or "General"
+    fin_block = ""
+    if req.financials:
+        lines = [f"  {k}: {v}" for k, v in req.financials.items() if v is not None]
+        fin_block = "\nKey financials:\n" + "\n".join(lines)
+
+    def _call(system_prompt: str, user_content: str) -> str:
+        msg = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=600,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_content}],
+        )
+        return msg.content[0].text.strip()
+
+    try:
+        # ── Bull agent ────────────────────────────────────────────────────────
+        bull_system = (
+            "You are a seasoned equity research analyst known for identifying high-conviction "
+            "long opportunities. Your job is to present the strongest possible bull case for the "
+            "investment thesis provided. Be specific, data-driven, and concise. "
+            "Respond in plain text with 4-6 bullet points, no preamble, no sign-off."
+        )
+        bull_prompt = (
+            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
+            f"User thesis: {req.thesis}\n\n"
+            "List the most compelling reasons to be BULLISH on this position."
+        )
+        bull_text = _call(bull_system, bull_prompt)
+
+        # ── Bear agent ────────────────────────────────────────────────────────
+        bear_system = (
+            "You are a sharp short-seller and risk analyst. Your job is to stress-test investment "
+            "theses and expose every weakness. Be brutally honest, specific, and concise. "
+            "Respond in plain text with 4-6 bullet points, no preamble, no sign-off."
+        )
+        bear_prompt = (
+            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
+            f"User thesis: {req.thesis}\n\n"
+            f"The bull case for this position is:\n{bull_text}\n\n"
+            "List the most compelling reasons to be BEARISH — challenge or rebut the bull points where possible."
+        )
+        bear_text = _call(bear_system, bear_prompt)
+
+        # ── Arbiter ───────────────────────────────────────────────────────────
+        arbiter_system = (
+            "You are a CFA-level portfolio manager acting as an impartial arbiter. "
+            "You have just heard a bull case and a bear case for an investment. "
+            "Weigh both sides and deliver a balanced verdict: overall bias (Bullish / Neutral / Bearish), "
+            "the single most important risk, the single strongest catalyst, and a 1-2 sentence actionable "
+            "recommendation. Be concise and decisive. No preamble, no sign-off."
+        )
+        arbiter_prompt = (
+            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
+            f"User thesis: {req.thesis}\n\n"
+            f"BULL CASE:\n{bull_text}\n\nBEAR CASE:\n{bear_text}\n\n"
+            "Deliver your verdict."
+        )
+        arbiter_text = _call(arbiter_system, arbiter_prompt)
+
+        return {
+            "bull":    bull_text,
+            "bear":    bear_text,
+            "arbiter": arbiter_text,
+        }
+
+    except anthropic.APIError as e:
+        raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

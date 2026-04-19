@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import HealthRadar from './HealthRadar';
+import { useAuth } from '../context/AuthContext';
 
 const VERDICTS = {
   strong:  { label: 'STRONG',        sub: 'Financial Health',   color: '#00e887', ring: '#00e887', shadow: 'rgba(0,232,135,0.38)'   },
@@ -47,7 +50,43 @@ function ScoreRing({ pct, verdict }) {
   );
 }
 
-export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, exporting, onShare, shareCopied, isSharedView }) {
+export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, exporting, onShare, shareCopied, isSharedView, companyContext }) {
+  const { isAuthenticated, addToWatchlist, isOnWatchlist } = useAuth();
+  const navigate = useNavigate();
+  const [onWatchlist, setOnWatchlist] = useState(false);
+  const [addingWatch, setAddingWatch] = useState(false);
+  const [watchDone, setWatchDone]     = useState(false);
+
+  const ticker = companyContext?.ticker;
+
+  useEffect(() => {
+    if (!isAuthenticated || !ticker) { setOnWatchlist(false); return; }
+    isOnWatchlist(ticker).then(setOnWatchlist);
+  }, [ticker, isAuthenticated]);
+
+  async function handleAddWatch() {
+    if (!isAuthenticated) { navigate('/auth'); return; }
+    if (!ticker) return;
+    setAddingWatch(true);
+    try {
+      await addToWatchlist({
+        ticker,
+        company_name: companyContext?.name || ticker,
+        sector:       companyContext?.industry || null,
+        currency:     companyContext?.currency || 'USD',
+      });
+      setOnWatchlist(true);
+      setWatchDone(true);
+      setTimeout(() => setWatchDone(false), 2500);
+    } finally {
+      setAddingWatch(false);
+    }
+  }
+
+  function handleAddJournal() {
+    if (!isAuthenticated) { navigate('/auth'); return; }
+    navigate('/journal');
+  }
   const green = statuses.filter(s => s === 'green').length;
   const amber = statuses.filter(s => s === 'amber').length;
   const red   = statuses.filter(s => s === 'red').length;
@@ -197,6 +236,38 @@ export default function SummaryBanner({ statuses, onExportPDF, onExportExcel, ex
                   </>
                 )}
               </button>
+            )}
+            {/* Watchlist + Journal quick-access (only when a listed ticker is loaded) */}
+            {ticker && (
+              <>
+                <button
+                  onClick={handleAddWatch}
+                  disabled={addingWatch || onWatchlist}
+                  className="inline-flex items-center gap-2 text-[12px] font-semibold px-4 py-2.5 rounded-xl transition-all duration-200"
+                  style={{
+                    background: (watchDone || onWatchlist) ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.04)',
+                    border: (watchDone || onWatchlist) ? '1px solid rgba(96,165,250,0.35)' : '1px solid rgba(255,255,255,0.1)',
+                    color: (watchDone || onWatchlist) ? '#60a5fa' : 'var(--text-secondary)',
+                    opacity: addingWatch ? 0.6 : 1,
+                  }}
+                >
+                  {watchDone || onWatchlist ? '★ Watching' : '☆ Watchlist'}
+                </button>
+
+                <button
+                  onClick={handleAddJournal}
+                  className="inline-flex items-center gap-2 text-[12px] font-semibold px-4 py-2.5 rounded-xl transition-all duration-200"
+                  style={{
+                    background: 'rgba(255,255,255,0.04)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    color: 'var(--text-secondary)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.background='rgba(96,165,250,0.08)'; e.currentTarget.style.borderColor='rgba(96,165,250,0.3)'; e.currentTarget.style.color='#60a5fa'; }}
+                  onMouseLeave={e => { e.currentTarget.style.background='rgba(255,255,255,0.04)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.1)'; e.currentTarget.style.color='var(--text-secondary)'; }}
+                >
+                  + Journal Entry
+                </button>
+              </>
             )}
           </div>
         </div>
