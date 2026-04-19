@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const API = import.meta.env.VITE_API_URL || 'https://bizhealth-production.up.railway.app';
 
@@ -290,14 +291,30 @@ export default function Watchlist() {
               gap: '1rem',
             }}
           >
-            <FieldRow label="Ticker *">
-              <input style={inputStyle()} required value={form.ticker} onChange={field('ticker')} placeholder="AAPL" disabled={!!editTicker} />
-            </FieldRow>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <FieldRow label="Company / Ticker *">
+                {editTicker ? (
+                  <input style={inputStyle()} value={form.ticker} disabled />
+                ) : (
+                  <TickerAutocomplete
+                    value={form.ticker}
+                    onChange={val => setForm(f => ({ ...f, ticker: val.toUpperCase() }))}
+                    onSelect={c => setForm(f => ({
+                      ...f,
+                      ticker:       c.ticker,
+                      company_name: c.name,
+                      sector:       c.sector || f.sector,
+                    }))}
+                    placeholder="Search ticker or company name…"
+                  />
+                )}
+              </FieldRow>
+            </div>
             <FieldRow label="Company Name">
-              <input style={inputStyle()} value={form.company_name} onChange={field('company_name')} placeholder="Apple Inc." />
+              <input style={inputStyle()} value={form.company_name} onChange={field('company_name')} placeholder="Auto-filled on search" />
             </FieldRow>
             <FieldRow label="Sector">
-              <input style={inputStyle()} value={form.sector} onChange={field('sector')} placeholder="Technology" />
+              <input style={inputStyle()} value={form.sector} onChange={field('sector')} placeholder="Auto-filled on search" />
             </FieldRow>
             <FieldRow label="Currency">
               <input style={inputStyle()} value={form.currency} onChange={field('currency')} placeholder="USD" />

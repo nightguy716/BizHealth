@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import DebatePanel from '../components/DebatePanel';
+import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const DIR_OPTS  = ['long', 'short'];
 const OUT_OPTS  = ['open', 'win', 'loss'];
@@ -235,11 +236,22 @@ export default function Journal() {
               gap: '1rem',
             }}
           >
-            <FieldRow label="Ticker *">
-              <input style={inputStyle} required value={form.ticker} onChange={field('ticker')} placeholder="AAPL" />
-            </FieldRow>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <FieldRow label="Company / Ticker *">
+                <TickerAutocomplete
+                  value={form.ticker}
+                  onChange={val => setForm(f => ({ ...f, ticker: val.toUpperCase() }))}
+                  onSelect={c => setForm(f => ({
+                    ...f,
+                    ticker:       c.ticker,
+                    company_name: c.name,
+                  }))}
+                  placeholder="Search ticker or company name…"
+                />
+              </FieldRow>
+            </div>
             <FieldRow label="Company Name">
-              <input style={inputStyle} value={form.company_name} onChange={field('company_name')} placeholder="Apple Inc." />
+              <input style={inputStyle} value={form.company_name} onChange={field('company_name')} placeholder="Auto-filled on search" />
             </FieldRow>
             <FieldRow label="Direction">
               <select style={selectStyle} value={form.direction} onChange={field('direction')}>
