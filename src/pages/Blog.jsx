@@ -2,20 +2,24 @@ import { Link } from 'react-router-dom';
 import { POSTS } from '../data/blogPosts';
 
 const CATEGORY_COLORS = {
-  'Liquidity':       { bg: 'rgba(34,211,238,0.1)',   border: 'rgba(34,211,238,0.25)',  text: '#22d3ee'  },
-  'Profitability':   { bg: 'rgba(0,232,135,0.1)',    border: 'rgba(0,232,135,0.25)',   text: '#00e887'  },
-  'Credit Analysis': { bg: 'rgba(244,63,94,0.1)',    border: 'rgba(244,63,94,0.25)',   text: '#f43f5e'  },
-  'Efficiency':      { bg: 'rgba(167,139,250,0.1)',  border: 'rgba(167,139,250,0.25)', text: '#a78bfa'  },
-  'Valuation':       { bg: 'rgba(251,191,36,0.1)',   border: 'rgba(251,191,36,0.25)',  text: '#fbbf24'  },
-  'Earnings Quality':{ bg: 'rgba(251,191,36,0.1)',   border: 'rgba(251,191,36,0.25)',  text: '#fbbf24'  },
-  'How-To':          { bg: 'rgba(79,110,247,0.1)',   border: 'rgba(79,110,247,0.25)',  text: '#4f6ef7'  },
+  'Liquidity':       '#2461d4',
+  'Profitability':   '#16a34a',
+  'Credit Analysis': '#dc2626',
+  'Efficiency':      '#7c3aed',
+  'Valuation':       '#b45309',
+  'Earnings Quality':'#b45309',
+  'How-To':          '#2461d4',
 };
 
 function CategoryBadge({ cat }) {
-  const c = CATEGORY_COLORS[cat] || CATEGORY_COLORS['How-To'];
+  const color = CATEGORY_COLORS[cat] || '#2461d4';
   return (
-    <span className="inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
-      style={{ background: c.bg, border: `1px solid ${c.border}`, color: c.text, fontFamily: 'JetBrains Mono, monospace' }}>
+    <span style={{
+      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+      letterSpacing: '0.08em', textTransform: 'uppercase',
+      color, border: `1px solid ${color}`, borderRadius: 3,
+      padding: '2px 6px', whiteSpace: 'nowrap',
+    }}>
       {cat}
     </span>
   );
@@ -44,7 +48,7 @@ function PostCard({ post, featured = false }) {
         <span className="mono text-[10px]" style={{ color: 'var(--text-5)' }}>
           {new Date(post.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </span>
-        <span className="text-xs font-semibold transition-colors" style={{ color: '#4f6ef7' }}>
+        <span className="text-xs font-semibold transition-colors" style={{ color: '#2461d4' }}>
           Read →
         </span>
       </div>
@@ -97,7 +101,7 @@ export default function Blog() {
               border: '1px solid var(--border)',
               boxShadow: 'var(--shadow-card)',
             }}
-            onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(79,110,247,0.35)'}
+            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--border-hi)'}
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
             <div className="flex items-center gap-3 mb-4">
               <CategoryBadge cat={featured.category} />
@@ -113,7 +117,7 @@ export default function Blog() {
             <p className="text-sm leading-relaxed max-w-2xl mb-5" style={{ color: 'var(--text-3)' }}>
               {featured.description}
             </p>
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#4f6ef7' }}>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#2461d4' }}>
               Read article
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M5 12h14M12 5l7 7-7 7"/>

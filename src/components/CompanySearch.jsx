@@ -323,88 +323,97 @@ export default function CompanySearch({ onSelect }) {
   }
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} data-tour="search" className="relative">
 
+      {/* Search input */}
       <div className="relative">
-        <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-          style={{ color:'rgba(34,211,238,0.45)', fontSize:14 }}>⌕</span>
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4a5568" strokeWidth="2">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
         <input type="text" value={query}
           onChange={e => { setQuery(e.target.value); setLoaded(null); setError(''); }}
           onFocus={() => results.length > 0 && setOpen(true)}
-          placeholder="AAPL, NVDA, TCS, RELIANCE…"
-          className="w-full py-2 text-xs outline-none"
+          placeholder="Search ticker · AAPL · RELIANCE.NS · TCS ..."
+          className="w-full text-xs outline-none"
           style={{
-            paddingLeft:28, paddingRight:28,
-            background:'rgba(34,211,238,0.04)',
-            border:'1px solid rgba(34,211,238,0.15)',
-            borderRadius:10, color:'var(--text-1)',
-            fontFamily:'var(--font-mono)',
-            transition:'border-color .15s, box-shadow .15s',
+            paddingLeft: 32, paddingRight: 56, height: 38,
+            background: '#0f1523', border: '1px solid #1d2840', borderRadius: 4,
+            color: '#e2e8f4', fontFamily: 'var(--font-sans)',
+            transition: 'border-color 0.15s',
           }}
-          onFocusCapture={e => { e.target.style.borderColor='rgba(34,211,238,0.4)'; e.target.style.boxShadow='0 0 0 2px rgba(34,211,238,0.08)'; }}
-          onBlurCapture={e =>  { e.target.style.borderColor='rgba(34,211,238,0.15)'; e.target.style.boxShadow='none'; }}
+          onFocus={e  => e.target.style.borderColor = '#243354'}
+          onBlur={e   => e.target.style.borderColor = '#1d2840'}
         />
-        <span className="absolute right-3 top-1/2 -translate-y-1/2">
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
           {fetching ? (
-            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" style={{ color:'#22d3ee' }}>
+            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" style={{ color:'#2461d4' }}>
               <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" strokeDasharray="31 11"/>
             </svg>
           ) : query ? (
-            <button onClick={clear} className="text-slate-600 hover:text-slate-400 transition-colors" style={{ fontSize:12 }}>✕</button>
+            <button onClick={clear} style={{ background:'none', border:'none', color:'#4a5568', fontSize:14, cursor:'pointer', lineHeight:1 }}>✕</button>
           ) : null}
-        </span>
+          <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:10, color:'#4a5568', border:'1px solid #1d2840', borderRadius:3, padding:'2px 5px', letterSpacing:'0.04em' }}>⌘K</span>
+        </div>
       </div>
 
+      {/* Dropdown */}
       {open && results.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 mt-1.5 rounded-xl overflow-hidden"
-          style={{ top:'100%', background:'rgba(4,9,22,0.98)', border:'1px solid rgba(34,211,238,0.14)', backdropFilter:'blur(24px)', boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }}>
+        <div className="absolute z-50 left-0 right-0 mt-1 overflow-hidden"
+          style={{ top:'100%', background:'#0f1523', border:'1px solid #1d2840', borderRadius:4 }}>
           {results.map((r, i) => (
             <button key={r.ticker} onClick={() => selectCompany(r)}
-              className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors"
-              style={{ borderBottom: i < results.length-1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-              onMouseEnter={e => e.currentTarget.style.background='rgba(255,255,255,0.04)'}
+              className="w-full flex items-center gap-3 px-3 py-2.5 text-left"
+              style={{ borderBottom: i < results.length-1 ? '1px solid #1d2840' : 'none', background:'none', border_bottom: i < results.length-1 ? '1px solid #1d2840' : 'none' }}
+              onMouseEnter={e => e.currentTarget.style.background='#141c2e'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-              <span className="mono text-[10px] font-bold px-2 py-0.5 rounded-lg flex-shrink-0"
-                style={{ background:'rgba(34,211,238,0.08)', color:'#22d3ee', border:'1px solid rgba(34,211,238,0.2)', minWidth:52, textAlign:'center' }}>
+              <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:12, fontWeight:600, color:'#e2e8f4', minWidth:72, flexShrink:0 }}>
                 {r.ticker}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="text-slate-200 text-xs truncate leading-tight">{r.name}</p>
-                <p className="mono text-[10px] mt-0.5" style={{ color:'rgba(100,116,139,0.8)' }}>{r.exchange}{r.sector ? ` · ${r.sector}` : ''}</p>
+                <p style={{ fontSize:12, color:'#7b8eab', margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{r.name}</p>
               </div>
-              <span className="text-slate-700 text-[10px] flex-shrink-0">→</span>
+              {r.exchange && (
+                <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:10, color:'#2461d4', border:'1px solid #2461d4', borderRadius:3, padding:'1px 5px', flexShrink:0 }}>
+                  {r.exchange}
+                </span>
+              )}
+              {r.sector && (
+                <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:10, color:'#4a5568', border:'1px solid #1d2840', borderRadius:3, padding:'1px 5px', flexShrink:0 }}>
+                  {r.sector}
+                </span>
+              )}
             </button>
           ))}
         </div>
       )}
 
+      {/* Loaded confirmation */}
       {loaded && !fetching && (
-        <div className="mt-2 rounded-xl overflow-hidden" style={{ border:'1px solid rgba(0,232,135,0.22)' }}>
-          <div className="flex items-center gap-2 px-3 py-1.5" style={{ background:'rgba(0,232,135,0.07)' }}>
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 pulse-dot" style={{ background:'#00e887', boxShadow:'0 0 5px #00e887' }} />
-            <span className="mono text-[11px] font-bold flex-shrink-0" style={{ color:'#00e887' }}>{loaded.ticker}</span>
-            <span className="text-slate-400 text-[11px] truncate flex-1">{loaded.name}</span>
-            {loaded.currency && loaded.currency !== 'INR' && (
-              <span className="mono text-[10px] flex-shrink-0 px-1.5 py-0.5 rounded"
-                style={{ background:'rgba(251,191,36,0.1)', color:'#fbbf24', border:'1px solid rgba(251,191,36,0.2)' }}>
+        <div className="mt-2 overflow-hidden" style={{ border:'1px solid #16a34a', borderRadius:4 }}>
+          <div className="flex items-center gap-2 px-3 py-2" style={{ background:'#0a0d14' }}>
+            <div style={{ width:6, height:6, borderRadius:'50%', background:'#16a34a', flexShrink:0 }} />
+            <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:11, fontWeight:600, color:'#16a34a', flexShrink:0 }}>{loaded.ticker}</span>
+            <span style={{ fontSize:11, color:'#7b8eab', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{loaded.name}</span>
+            {loaded.currency && (
+              <span style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:10, color:'#b45309', border:'1px solid #b45309', borderRadius:3, padding:'1px 5px', flexShrink:0 }}>
                 {loaded.currency}
               </span>
             )}
-            <button onClick={clear} className="text-slate-600 hover:text-slate-400 text-xs flex-shrink-0">✕</button>
+            <button onClick={clear} style={{ background:'none', border:'none', color:'#4a5568', fontSize:13, cursor:'pointer', flexShrink:0 }}>✕</button>
           </div>
           {loaded.coverage !== undefined && (
-            <div className="px-3 py-2" style={{ background:'rgba(0,0,0,0.2)' }}>
-              <div className="flex justify-between mono text-[9px] mb-1">
-                <span style={{ color:'rgba(148,163,184,0.5)' }}>FIELDS LOADED — {loaded.filled}/{loaded.total}</span>
-                <span style={{ color: loaded.coverage >= 80 ? '#00e887' : '#fbbf24', fontWeight:700 }}>{loaded.coverage}%</span>
+            <div className="px-3 py-1.5" style={{ background:'#0a0d14', borderTop:'1px solid #1d2840' }}>
+              <div className="flex justify-between mb-1" style={{ fontFamily:"'JetBrains Mono', monospace", fontSize:9 }}>
+                <span style={{ color:'#4a5568' }}>FIELDS LOADED — {loaded.filled}/{loaded.total}</span>
+                <span style={{ color: loaded.coverage >= 80 ? '#16a34a' : '#b45309', fontWeight:700 }}>{loaded.coverage}%</span>
               </div>
-              <div className="h-[2px] rounded-full overflow-hidden" style={{ background:'rgba(255,255,255,0.06)' }}>
+              <div className="h-[2px] rounded-full overflow-hidden" style={{ background:'#1d2840' }}>
                 <div className="h-full rounded-full transition-all duration-700"
-                  style={{ width:`${loaded.coverage}%`, background: loaded.coverage >= 80 ? 'linear-gradient(90deg,#00e887,#22d3ee)' : 'linear-gradient(90deg,#fbbf24,#f59e0b)' }} />
+                  style={{ width:`${loaded.coverage}%`, background: loaded.coverage >= 80 ? '#16a34a' : '#b45309' }} />
               </div>
               {loaded.coverage < 100 && (
-                <p className="text-[9px] mt-1.5 leading-relaxed" style={{ color:'rgba(100,116,139,0.7)' }}>
-                  Missing fields are normal for service/tech companies — those ratios show N/A.
+                <p style={{ fontSize:9, marginTop:4, color:'#4a5568', lineHeight:1.4 }}>
+                  Missing fields are normal — those ratios show N/A.
                 </p>
               )}
             </div>
@@ -413,7 +422,7 @@ export default function CompanySearch({ onSelect }) {
       )}
 
       {error && (
-        <p className="mt-1.5 mono text-[10px] px-1 leading-relaxed" style={{ color:'rgba(244,63,94,0.8)' }}>⚠ {error}</p>
+        <p style={{ marginTop:6, fontFamily:"'JetBrains Mono', monospace", fontSize:10, color:'#dc2626', lineHeight:1.5 }}>⚠ {error}</p>
       )}
     </div>
   );

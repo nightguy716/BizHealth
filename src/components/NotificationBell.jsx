@@ -1,6 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
+const C = {
+  bg:      '#0a0d14',
+  surface: '#0f1523',
+  border:  '#1d2840',
+  text:    '#e2e8f4',
+  text2:   '#7b8eab',
+  muted:   '#4a5568',
+  blue:    '#2461d4',
+  red:     '#dc2626',
+  purple:  '#7c3aed',
+};
+const mono = "'JetBrains Mono', monospace";
+const sans = "'Inter', system-ui, sans-serif";
+
+/* Left border color per notification type */
+const TYPE_BORDER = {
+  price_alert:     C.red,
+  news:            C.blue,
+  debate:          C.purple,
+  watchlist_stale: '#b45309',
+  journal_open:    C.blue,
+  general:         C.muted,
+};
+
 function timeAgo(ts) {
   const diff = (Date.now() - new Date(ts).getTime()) / 1000;
   if (diff < 60)    return 'just now';
@@ -9,34 +33,26 @@ function timeAgo(ts) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-const TYPE_COLOR = {
-  watchlist_stale: '#f59e0b',
-  journal_open:    'var(--accent)',
-  general:         'var(--text-3)',
-};
-
 export default function NotificationBell() {
   const { isAuthenticated, getNotifications, markNotificationRead, markAllNotificationsRead } = useAuth();
-  const [notifs, setNotifs]   = useState([]);
-  const [open, setOpen]       = useState(false);
-  const ref                   = useRef(null);
+  const [notifs, setNotifs] = useState([]);
+  const [open,   setOpen]   = useState(false);
+  const ref = useRef(null);
 
   const load = useCallback(async () => {
     if (!isAuthenticated) return;
     const data = await getNotifications();
-    setNotifs(data);
+    setNotifs(data || []);
   }, [isAuthenticated, getNotifications]);
 
   useEffect(() => { load(); }, [load]);
 
-  // Poll every 60 s
   useEffect(() => {
     if (!isAuthenticated) return;
     const id = setInterval(load, 60_000);
     return () => clearInterval(id);
   }, [isAuthenticated, load]);
 
-  // Close on outside click
   useEffect(() => {
     function handle(e) {
       if (ref.current && !ref.current.contains(e.target)) setOpen(false);
@@ -62,42 +78,24 @@ export default function NotificationBell() {
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      {/* Bell button */}
+      {/* Bell */}
       <button
         onClick={() => setOpen(o => !o)}
         aria-label="Notifications"
-        style={{
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '0.3rem',
-          position: 'relative',
-          color: 'var(--text-2)',
-          display: 'flex',
-          alignItems: 'center',
-        }}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, position: 'relative', color: C.text2, display: 'flex', alignItems: 'center' }}
       >
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
         </svg>
         {unread > 0 && (
           <span style={{
-            position: 'absolute',
-            top: '0',
-            right: '0',
-            background: 'var(--red)',
-            color: '#fff',
-            fontSize: '0.6rem',
-            fontWeight: 800,
-            borderRadius: '999px',
-            minWidth: '15px',
-            height: '15px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '0 3px',
-            lineHeight: 1,
+            position: 'absolute', top: 0, right: 0,
+            background: C.red, color: '#fff',
+            fontFamily: mono, fontSize: 9, fontWeight: 700,
+            borderRadius: '50%', minWidth: 14, height: 14,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '0 2px', lineHeight: 1,
           }}>
             {unread > 9 ? '9+' : unread}
           </span>
@@ -107,27 +105,27 @@ export default function NotificationBell() {
       {/* Dropdown */}
       {open && (
         <div style={{
-          position: 'absolute',
-          top: 'calc(100% + 0.5rem)',
-          right: 0,
-          width: '320px',
-          maxHeight: '400px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: '0.75rem',
-          boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
-          zIndex: 999,
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
+          position: 'absolute', top: 'calc(100% + 8px)', right: 0,
+          width: 320, maxHeight: 420,
+          background: C.surface, border: `1px solid ${C.border}`,
+          borderRadius: 4, zIndex: 999,
+          display: 'flex', flexDirection: 'column', overflow: 'hidden',
+          fontFamily: sans,
         }}>
           {/* Header */}
-          <div style={{ padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 700, fontSize: '0.82rem', color: 'var(--text-1)' }}>
-              Notifications {unread > 0 && <span style={{ color: 'var(--accent)' }}>({unread})</span>}
+          <div style={{
+            padding: '10px 14px', borderBottom: `1px solid ${C.border}`,
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            background: C.bg,
+          }}>
+            <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: C.text2, letterSpacing: '0.07em' }}>
+              NOTIFICATIONS{unread > 0 && <span style={{ color: C.red, marginLeft: 6 }}>{unread}</span>}
             </span>
             {unread > 0 && (
-              <button onClick={handleReadAll} style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>
+              <button onClick={handleReadAll} style={{
+                background: 'none', border: 'none', fontFamily: sans,
+                color: C.blue, fontSize: 11, cursor: 'pointer', fontWeight: 500,
+              }}>
                 Mark all read
               </button>
             )}
@@ -136,37 +134,41 @@ export default function NotificationBell() {
           {/* List */}
           <div style={{ overflowY: 'auto', flex: 1 }}>
             {notifs.length === 0 ? (
-              <p style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-4)', fontSize: '0.82rem' }}>
-                No notifications yet.
+              <p style={{ padding: '2rem', textAlign: 'center', fontFamily: mono, fontSize: 11, color: C.muted }}>
+                No notifications
               </p>
             ) : (
-              notifs.map(n => (
-                <div
-                  key={n.id}
-                  onClick={() => handleRead(n)}
-                  style={{
-                    padding: '0.7rem 1rem',
-                    borderBottom: '1px solid var(--border)',
-                    background: n.read ? 'transparent' : 'rgba(96,165,250,0.05)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.2rem',
-                    transition: 'background 0.15s',
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-                    {n.ticker && (
-                      <span style={{ fontSize: '0.72rem', fontWeight: 700, color: TYPE_COLOR[n.type] || 'var(--text-3)', fontFamily: 'monospace' }}>
-                        {n.ticker}
+              notifs.map(n => {
+                const borderColor = TYPE_BORDER[n.type] || C.muted;
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleRead(n)}
+                    style={{
+                      padding: '9px 14px 9px 12px',
+                      borderBottom: `1px solid ${C.border}`,
+                      borderLeft: `3px solid ${borderColor}`,
+                      background: n.read ? 'transparent' : '#0f1523',
+                      cursor: 'pointer',
+                      display: 'flex', flexDirection: 'column', gap: 3,
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#141c2e'}
+                    onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : '#0f1523'}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: C.text }}>
+                        {n.title || n.ticker || 'Alert'}
                       </span>
+                      <span style={{ fontFamily: mono, fontSize: 10, color: C.muted, whiteSpace: 'nowrap' }}>
+                        {timeAgo(n.created_at)}
+                      </span>
+                    </div>
+                    {n.message && (
+                      <p style={{ margin: 0, fontSize: 11, color: C.text2, lineHeight: 1.45 }}>{n.message}</p>
                     )}
-                    <span style={{ fontSize: '0.68rem', color: 'var(--text-4)', marginLeft: 'auto' }}>{timeAgo(n.created_at)}</span>
-                    {!n.read && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />}
                   </div>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-2)', lineHeight: 1.45 }}>{n.message}</p>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 
 const STATUS = {
-  green: { card:'card-green', bar:'bar-green', val:'val-green', dot:'#00e887', label:'Healthy',         bg:'rgba(0,232,135,0.08)',  border:'rgba(0,232,135,0.25)'  },
-  amber: { card:'card-amber', bar:'bar-amber', val:'val-amber', dot:'#fbbf24', label:'Borderline',      bg:'rgba(251,191,36,0.08)', border:'rgba(251,191,36,0.25)' },
-  red:   { card:'card-red',   bar:'bar-red',   val:'val-red',   dot:'#f43f5e', label:'Needs Attention', bg:'rgba(244,63,94,0.08)',  border:'rgba(244,63,94,0.25)'  },
-  na:    { card:'card-na',    bar:'bar-na',     val:'val-na',   dot:'#3d5070', label:'No Data',         bg:'rgba(255,255,255,0.04)',border:'rgba(255,255,255,0.08)' },
+  green: { card:'card-green', bar:'bar-green', val:'val-green', dot:'#16a34a', label:'PASS',   signalClass:'signal-pass'   },
+  amber: { card:'card-amber', bar:'bar-amber', val:'val-amber', dot:'#b45309', label:'WATCH',  signalClass:'signal-watch'  },
+  red:   { card:'card-red',   bar:'bar-red',   val:'val-red',   dot:'#dc2626', label:'BREACH', signalClass:'signal-breach' },
+  na:    { card:'card-na',    bar:'bar-na',    val:'val-na',    dot:'#4a5568', label:'N/A',    signalClass:'signal-na'     },
 };
 
 function useCountUp(target, delay = 0) {
@@ -51,19 +51,10 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
     <div className={`ghost-card rounded-2xl p-5 animate-in ${cfg.card}`}
       style={{ animationDelay: `${delay}ms` }}>
 
-      {/* Header — name left, status badge right */}
+      {/* Header — name left, signal tag right */}
       <div className="flex items-start justify-between gap-2 mb-3">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.1em] leading-snug"
-          style={{ color: '#9fb3d4', fontFamily: 'Inter, system-ui, sans-serif' }}>
-          {name}
-        </span>
-        <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap flex-shrink-0"
-          style={{ background: cfg.bg, border: `1px solid ${cfg.border}`, color: cfg.dot,
-            fontFamily: 'JetBrains Mono, monospace', letterSpacing: '0.06em' }}>
-          <span className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: cfg.dot, boxShadow: `0 0 4px ${cfg.dot}` }} />
-          {cfg.label.toUpperCase()}
-        </span>
+        <span className="label-upper leading-snug">{name}</span>
+        <span className={cfg.signalClass}>{cfg.label}</span>
       </div>
 
       {/* Value — large number + small suffix */}
@@ -104,9 +95,9 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
 
       {/* Recommendation — amber/red only */}
       {recommendation && (status === 'amber' || status === 'red') && (
-        <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <span style={{ color: '#4f6ef7', fontSize: 13, flexShrink: 0, marginTop: 1 }}>→</span>
-          <p style={{ fontSize: 11, lineHeight: 1.5, color: '#9fb3f8' }}>{recommendation}</p>
+        <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: '1px solid #1d2840' }}>
+          <span style={{ color: '#2461d4', fontSize: 13, flexShrink: 0, marginTop: 1 }}>→</span>
+          <p style={{ fontSize: 11, lineHeight: 1.5, color: '#7b8eab' }}>{recommendation}</p>
         </div>
       )}
     </div>

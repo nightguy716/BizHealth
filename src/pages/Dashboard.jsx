@@ -37,6 +37,7 @@ import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
 import Logo             from '../components/Logo';
+import TourOverlay, { useShouldShowTour } from '../components/TourOverlay';
 
 import { SECTOR_COMPANIES, COMPARISON_RATIOS } from '../data/sectorData';
 
@@ -98,8 +99,9 @@ export default function App() {
   const [historical,      setHistorical]      = useState({ income: [], balance: [] });
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
-  const [sidebarOpen,     setSidebarOpen]     = useState(true);
+  const [sidebarOpen,     setSidebarOpen]     = useState(() => localStorage.getItem('bh_sidebar') !== 'closed');
   const [mobileOpen,      setMobileOpen]      = useState(false);
+  const [showTour,        setShowTour]        = useState(() => useShouldShowTour());
   const [viewMode,        setViewMode]        = useState('cards'); // 'cards' | 'table'
   const [shareCopied,     setShareCopied]     = useState(false);
   const [isSharedView,    setIsSharedView]    = useState(false);
@@ -1092,7 +1094,7 @@ export default function App() {
     <div className="min-h-screen page-bg flex flex-col lg:flex-row">
 
       {/* ══ DESKTOP sidebar ══════════════════════════════════ */}
-      <div className="relative flex-shrink-0 hidden lg:block" style={{ width: sidebarOpen ? undefined : 0 }}>
+      <div data-tour="sidebar" className="relative flex-shrink-0 hidden lg:block" style={{ width: sidebarOpen ? undefined : 0 }}>
         <Sidebar
           {...sidebarProps}
           onCalculate={handleCalculate}
@@ -1102,18 +1104,22 @@ export default function App() {
 
       {/* ── Desktop collapse / expand toggle ── */}
       <button
-        onClick={() => setSidebarOpen(o => !o)}
-        className="hidden lg:flex fixed top-20 z-40 items-center justify-center w-5 h-10 rounded-r-lg transition-all hover:opacity-90"
+        onClick={() => setSidebarOpen(o => {
+          const next = !o;
+          localStorage.setItem('bh_sidebar', next ? 'open' : 'closed');
+          return next;
+        })}
+        className="hidden lg:flex fixed top-20 z-40 items-center justify-center w-5 h-8 rounded-r"
         style={{
           left: sidebarOpen ? '318px' : '0px',
-          background: 'rgba(79,110,247,0.9)',
-          border: '1px solid rgba(79,110,247,0.5)',
+          background: '#141c2e',
+          border: '1px solid #243354',
           borderLeft: 'none',
           transition: 'left 0.25s ease',
         }}
         title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
       >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5"
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7b8eab" strokeWidth="2.5"
           style={{ transform: sidebarOpen ? 'none' : 'rotate(180deg)', transition: 'transform 0.25s' }}>
           <path d="M15 18l-6-6 6-6"/>
         </svg>
@@ -1125,8 +1131,7 @@ export default function App() {
         <div
           className="absolute inset-0 transition-opacity duration-300"
           style={{
-            background: 'rgba(2,7,20,0.8)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(10,13,20,0.85)',
             opacity: mobileOpen ? 1 : 0,
           }}
           onClick={() => setMobileOpen(false)}
@@ -1137,10 +1142,9 @@ export default function App() {
           style={{
             height: '88vh',
             transform: mobileOpen ? 'translateY(0)' : 'translateY(100%)',
-            background: 'linear-gradient(180deg,#06101e 0%,#050d1a 100%)',
-            border: '1px solid rgba(79,110,247,0.2)',
+            background: '#0a0d14',
+            border: '1px solid #1d2840',
             borderBottom: 'none',
-            boxShadow: '0 -12px 48px rgba(0,0,0,0.6)',
           }}>
           {/* Drag handle */}
           <div className="flex justify-center pt-3 pb-1 flex-shrink-0">
@@ -1161,9 +1165,8 @@ export default function App() {
         style={{
           bottom: 20,
           right: 20,
-          background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)',
-          boxShadow: '0 4px 20px rgba(79,110,247,0.55), 0 2px 8px rgba(0,0,0,0.4)',
-          borderRadius: 14,
+          background: '#2461d4',
+          borderRadius: 4,
           padding: '10px 16px',
         }}
         onClick={() => setMobileOpen(true)}
@@ -1400,6 +1403,10 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {showTour && (
+        <TourOverlay onDone={() => setShowTour(false)} />
+      )}
     </div>
   );
 }

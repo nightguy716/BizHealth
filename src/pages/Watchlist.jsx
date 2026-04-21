@@ -1,190 +1,215 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import TickerAutocomplete from '../components/TickerAutocomplete';
 
-const API = import.meta.env.VITE_API_URL || 'https://bizhealth-production.up.railway.app';
+const API = import.meta.env.VITE_BACKEND_URL || 'https://bizhealth-production.up.railway.app';
+const POLL_MS  = 60_000;   // 60 seconds
+const ALERT_PCT = 5;       // notify if |change_pct| > 5%
 
 const EMPTY_FORM = { ticker: '', company_name: '', sector: '', currency: 'USD', target_price: '', notes: '' };
 
-function inputStyle(extra = {}) {
+/* ── Styles ──────────────────────────────────────────────────── */
+const C = {
+  bg:      '#0a0d14',
+  surface: '#0f1523',
+  surfHi:  '#141c2e',
+  border:  '#1d2840',
+  bActive: '#243354',
+  text:    '#e2e8f4',
+  text2:   '#7b8eab',
+  muted:   '#4a5568',
+  blue:    '#2461d4',
+  green:   '#16a34a',
+  red:     '#dc2626',
+  amber:   '#b45309',
+};
+const mono = "'JetBrains Mono', monospace";
+const sans = "'Inter', system-ui, sans-serif";
+
+function ifield(extra = {}) {
   return {
-    background: 'var(--surface)',
-    border: '1px solid var(--border)',
-    borderRadius: '0.45rem',
-    padding: '0.5rem 0.65rem',
-    color: 'var(--text-1)',
-    fontSize: '0.85rem',
-    outline: 'none',
-    width: '100%',
-    fontFamily: 'inherit',
-    ...extra,
+    background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4,
+    padding: '7px 10px', color: C.text, fontSize: 12,
+    outline: 'none', width: '100%', fontFamily: sans, ...extra,
   };
 }
 
 function FieldRow({ label, children }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-      <span style={{ fontSize: '0.7rem', fontWeight: 600, letterSpacing: '0.07em', color: 'var(--text-3)', textTransform: 'uppercase' }}>{label}</span>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontFamily: mono, fontSize: 9, fontWeight: 600, letterSpacing: '0.1em', color: C.muted, textTransform: 'uppercase' }}>
+        {label}
+      </span>
       {children}
     </label>
   );
 }
 
-function ScorePill({ score }) {
-  if (score == null) return <span style={{ color: 'var(--text-4)', fontSize: '0.78rem' }}>—</span>;
-  const color = score >= 70 ? 'var(--green)' : score >= 45 ? '#f59e0b' : 'var(--red)';
-  return (
-    <span style={{
-      background: `${color}18`,
-      color,
-      border: `1px solid ${color}35`,
-      borderRadius: '999px',
-      padding: '0.15rem 0.6rem',
-      fontSize: '0.75rem',
-      fontWeight: 700,
-    }}>
-      {score}/100
-    </span>
-  );
-}
-
-async function fetchScore(ticker) {
-  try {
-    const res = await fetch(`${API}/lookup/${encodeURIComponent(ticker)}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data?.health_score ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function WatchCard({ item, onRemove, onEdit }) {
-  const [score, setScore]   = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
+/* ── WatchCard with live price + news polling ────────────────── */
+function WatchCard({ item, onRemove, onEdit, onAlert }) {
+  const [price,      setPrice]      = useState(null);
+  const [news,       setNews]       = useState([]);
+  const [loadingPx,  setLoadingPx]  = useState(true);
   const [confirmDel, setConfirmDel] = useState(false);
+  const alertedRef = useRef(false);  // fire alert at most once per session
 
-  async function loadScore() {
-    if (fetched) return;
-    setLoading(true);
-    const s = await fetchScore(item.ticker);
-    setScore(s);
-    setFetched(true);
-    setLoading(false);
+  async function fetchLive() {
+    try {
+      const [pxRes, nwRes] = await Promise.all([
+        fetch(`${API}/stocks/price/${encodeURIComponent(item.ticker)}`),
+        fetch(`${API}/stocks/news/${encodeURIComponent(item.ticker)}`),
+      ]);
+      if (pxRes.ok) {
+        const px = await pxRes.json();
+        setPrice(px);
+        // alert once per session if |change_pct| > ALERT_PCT
+        if (!alertedRef.current && Math.abs(px.change_pct || 0) > ALERT_PCT) {
+          alertedRef.current = true;
+          onAlert?.({
+            ticker: item.ticker,
+            company_name: item.company_name,
+            change_pct: px.change_pct,
+          });
+        }
+      }
+      if (nwRes.ok) setNews(await nwRes.json());
+    } catch { /* silent */ }
+    finally { setLoadingPx(false); }
   }
 
-  const priceDiff = item.target_price && score != null ? null : null; // placeholder for future price data
+  useEffect(() => {
+    fetchLive();
+    const id = setInterval(fetchLive, POLL_MS);
+    return () => clearInterval(id);
+  }, [item.ticker]);
+
+  const up  = (price?.change_pct || 0) >= 0;
+  const pct = price?.change_pct != null ? `${up ? '+' : ''}${price.change_pct.toFixed(2)}%` : null;
 
   return (
     <div style={{
-      background: 'var(--surface)',
-      border: '1px solid var(--border)',
-      borderRadius: '0.85rem',
-      padding: '1.1rem 1.25rem',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '0.75rem',
+      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4,
+      padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10, fontFamily: sans,
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <p style={{ margin: 0, fontWeight: 800, fontSize: '1rem', color: 'var(--text-1)', fontFamily: 'var(--font-mono, monospace)' }}>
-            {item.ticker}
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color: C.text }}>{item.ticker}</span>
+            {item.sector && (
+              <span style={{
+                fontFamily: mono, fontSize: 10, color: C.blue,
+                border: `1px solid ${C.blue}`, borderRadius: 3, padding: '1px 5px',
+              }}>{item.sector}</span>
+            )}
+          </div>
           {item.company_name && (
-            <p style={{ margin: '0.15rem 0 0', fontSize: '0.78rem', color: 'var(--text-3)' }}>{item.company_name}</p>
+            <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{item.company_name}</div>
           )}
         </div>
-        <ScorePill score={score} />
+        <button
+          onClick={() => setConfirmDel(true)}
+          style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 2 }}
+        >×</button>
       </div>
 
-      {/* Meta */}
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-        {item.sector && (
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-3)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: '0.35rem', padding: '0.15rem 0.5rem' }}>
-            {item.sector}
-          </span>
-        )}
-        {item.currency && item.currency !== 'USD' && (
-          <span style={{ fontSize: '0.72rem', color: 'var(--text-3)' }}>{item.currency}</span>
+      {/* Price row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {loadingPx ? (
+          <span style={{ fontFamily: mono, fontSize: 12, color: C.muted }}>Fetching price…</span>
+        ) : price?.price ? (
+          <>
+            <span style={{ fontFamily: mono, fontSize: 20, fontWeight: 600, color: C.text }}>
+              {item.currency === 'INR' ? '₹' : '$'}{price.price.toLocaleString()}
+            </span>
+            {pct && (
+              <span style={{
+                fontFamily: mono, fontSize: 11, fontWeight: 500,
+                color: up ? C.green : C.red, border: `1px solid ${up ? C.green : C.red}`,
+                borderRadius: 3, padding: '2px 7px',
+              }}>
+                {up ? '▲' : '▼'} {pct}
+              </span>
+            )}
+          </>
+        ) : (
+          <span style={{ fontFamily: mono, fontSize: 12, color: C.muted }}>Price unavailable</span>
         )}
         {item.target_price && (
-          <span style={{ fontSize: '0.72rem', color: 'var(--accent)', fontWeight: 600 }}>
-            Target: {item.target_price}
+          <span style={{ fontSize: 11, color: C.muted, marginLeft: 4 }}>
+            Target <span style={{ fontFamily: mono, color: C.text2 }}>
+              {item.currency === 'INR' ? '₹' : '$'}{Number(item.target_price).toLocaleString()}
+            </span>
           </span>
         )}
       </div>
 
+      {/* News */}
+      {news.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, borderTop: `1px solid ${C.border}`, paddingTop: 8 }}>
+          {news.slice(0, 3).map((n, i) => (
+            <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+              <a href={n.url} target="_blank" rel="noopener noreferrer" style={{
+                fontSize: 11, color: C.text2, textDecoration: 'none', lineHeight: 1.35, flex: 1,
+              }}
+              onMouseEnter={e => e.target.style.color = C.text}
+              onMouseLeave={e => e.target.style.color = C.text2}
+              >{n.title}</a>
+              <span style={{ fontFamily: mono, fontSize: 9, color: C.muted, whiteSpace: 'nowrap', alignSelf: 'flex-start' }}>
+                {n.publisher}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {item.notes && (
-        <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-3)', lineHeight: 1.5 }}>{item.notes}</p>
+        <p style={{ margin: 0, fontSize: 11, color: C.text2, lineHeight: 1.45 }}>{item.notes}</p>
       )}
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-        <button
-          onClick={loadScore}
-          disabled={loading || fetched}
-          style={{
-            padding: '0.35rem 0.85rem',
-            background: 'var(--bg)',
-            color: fetched ? 'var(--text-3)' : 'var(--accent)',
-            border: '1px solid var(--border)',
-            borderRadius: '0.4rem',
-            fontSize: '0.73rem',
-            fontWeight: 600,
-            cursor: loading || fetched ? 'default' : 'pointer',
-          }}
-        >
-          {loading ? 'Loading…' : fetched ? 'Score loaded' : 'Load Health Score'}
-        </button>
-
-        <Link
-          to={`/dashboard?ticker=${item.ticker}`}
-          style={{
-            padding: '0.35rem 0.85rem',
-            background: 'rgba(96,165,250,0.08)',
-            color: 'var(--accent)',
-            border: '1px solid rgba(96,165,250,0.25)',
-            borderRadius: '0.4rem',
-            fontSize: '0.73rem',
-            fontWeight: 600,
-            textDecoration: 'none',
-          }}
-        >
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Link to={`/dashboard?ticker=${item.ticker}`} style={{
+          fontFamily: sans, fontSize: 12, fontWeight: 500, color: C.blue,
+          border: `1px solid ${C.blue}`, borderRadius: 4, padding: '4px 12px',
+          textDecoration: 'none',
+        }}>
           Analyse →
         </Link>
-
-        <button
-          onClick={() => onEdit(item)}
-          style={{ padding: '0.35rem 0.75rem', background: 'var(--bg)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: '0.4rem', fontSize: '0.73rem', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}
-        >
-          Edit
-        </button>
+        <button onClick={() => onEdit(item)} style={{
+          fontFamily: sans, fontSize: 12, color: C.text2,
+          background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+          padding: '4px 10px', cursor: 'pointer',
+        }}>Edit</button>
 
         {confirmDel ? (
           <>
-            <button onClick={() => onRemove(item.ticker)} style={{ padding: '0.35rem 0.75rem', background: 'rgba(239,68,68,0.12)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '0.4rem', fontSize: '0.73rem', cursor: 'pointer', fontWeight: 700 }}>Confirm</button>
-            <button onClick={() => setConfirmDel(false)} style={{ padding: '0.35rem 0.5rem', background: 'var(--bg)', color: 'var(--text-4)', border: '1px solid var(--border)', borderRadius: '0.4rem', fontSize: '0.73rem', cursor: 'pointer' }}>✕</button>
+            <button onClick={() => onRemove(item.ticker)} style={{
+              fontFamily: sans, fontSize: 12, color: C.red, background: 'none',
+              border: `1px solid ${C.red}`, borderRadius: 4, padding: '4px 10px', cursor: 'pointer',
+            }}>Confirm</button>
+            <button onClick={() => setConfirmDel(false)} style={{
+              fontFamily: sans, fontSize: 12, color: C.muted, background: 'none',
+              border: `1px solid ${C.border}`, borderRadius: 4, padding: '4px 8px', cursor: 'pointer',
+            }}>Cancel</button>
           </>
-        ) : (
-          <button onClick={() => setConfirmDel(true)} style={{ padding: '0.35rem 0.75rem', background: 'rgba(239,68,68,0.07)', color: 'var(--red)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '0.4rem', fontSize: '0.73rem', cursor: 'pointer', fontWeight: 600 }}>Remove</button>
-        )}
+        ) : null}
       </div>
     </div>
   );
 }
 
+/* ── Page ────────────────────────────────────────────────────── */
 export default function Watchlist() {
-  const { isAuthenticated, loading, getWatchlist, addToWatchlist, removeFromWatchlist } = useAuth();
+  const { isAuthenticated, loading, getWatchlist, addToWatchlist, removeFromWatchlist, createNotification } = useAuth();
   const navigate = useNavigate();
 
-  const [items, setItems]       = useState([]);
-  const [fetching, setFetching] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm]         = useState(EMPTY_FORM);
-  const [saving, setSaving]     = useState(false);
+  const [items,     setItems]     = useState([]);
+  const [fetching,  setFetching]  = useState(true);
+  const [showForm,  setShowForm]  = useState(false);
+  const [form,      setForm]      = useState(EMPTY_FORM);
+  const [saving,    setSaving]    = useState(false);
   const [editTicker, setEditTicker] = useState(null);
 
   useEffect(() => {
@@ -206,10 +231,11 @@ export default function Watchlist() {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (!form.ticker.trim()) return;
     setSaving(true);
     try {
       await addToWatchlist({
-        ticker:       form.ticker,
+        ticker:       form.ticker.toUpperCase(),
         company_name: form.company_name || null,
         sector:       form.sector       || null,
         currency:     form.currency     || 'USD',
@@ -244,32 +270,39 @@ export default function Watchlist() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  async function handleAlert({ ticker, company_name, change_pct }) {
+    if (!createNotification) return;
+    const dir = change_pct > 0 ? 'up' : 'down';
+    await createNotification({
+      type:    'price_alert',
+      title:   `${ticker} moved ${Math.abs(change_pct).toFixed(1)}% ${dir}`,
+      message: `${company_name || ticker} has moved ${change_pct > 0 ? '+' : ''}${change_pct.toFixed(2)}% today.`,
+    });
+  }
+
   if (loading || (!isAuthenticated && !loading)) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingTop: '5rem' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem 1.25rem 4rem' }}>
+    <div style={{ minHeight: '100vh', background: C.bg, paddingTop: '5rem', fontFamily: sans }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '2rem 1.5rem 4rem' }}>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.75rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
           <div>
-            <p style={{ fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.12em', color: 'var(--accent)', textTransform: 'uppercase', marginBottom: '0.3rem' }}>Watchlist</p>
-            <h1 style={{ fontSize: '1.8rem', fontWeight: 800, color: 'var(--text-1)', margin: 0 }}>My Companies</h1>
-            <p style={{ color: 'var(--text-3)', fontSize: '0.85rem', marginTop: '0.3rem' }}>
-              {items.length} {items.length === 1 ? 'company' : 'companies'} tracked
+            <div style={{ fontFamily: mono, fontSize: 10, letterSpacing: '0.1em', color: C.muted, marginBottom: 4 }}>WATCHLIST</div>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: C.text }}>My Companies</h1>
+            <p style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>
+              {items.length} {items.length === 1 ? 'company' : 'companies'} tracked · prices auto-update every 60s
             </p>
           </div>
           <button
             onClick={() => { setShowForm(!showForm); setForm(EMPTY_FORM); setEditTicker(null); }}
             style={{
-              padding: '0.6rem 1.25rem',
-              background: showForm ? 'var(--surface)' : 'var(--accent)',
-              color: showForm ? 'var(--text-2)' : '#fff',
-              border: '1px solid var(--border)',
-              borderRadius: '0.5rem',
-              fontWeight: 700,
-              fontSize: '0.82rem',
-              cursor: 'pointer',
+              fontFamily: sans, fontSize: 12, fontWeight: 500,
+              color: showForm ? C.text2 : '#fff',
+              background: showForm ? 'none' : C.blue,
+              border: `1px solid ${showForm ? C.border : C.blue}`,
+              borderRadius: 4, padding: '8px 16px', cursor: 'pointer',
             }}
           >
             {showForm ? 'Cancel' : '+ Add Company'}
@@ -281,20 +314,15 @@ export default function Watchlist() {
           <form
             onSubmit={handleSubmit}
             style={{
-              background: 'var(--surface)',
-              border: '1px solid var(--border)',
-              borderRadius: '0.85rem',
-              padding: '1.5rem',
-              marginBottom: '1.5rem',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
-              gap: '1rem',
+              background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4,
+              padding: '1.25rem', marginBottom: 20,
+              display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12,
             }}
           >
             <div style={{ gridColumn: '1 / -1' }}>
               <FieldRow label="Company / Ticker *">
                 {editTicker ? (
-                  <input style={inputStyle()} value={form.ticker} disabled />
+                  <input style={ifield()} value={form.ticker} disabled />
                 ) : (
                   <TickerAutocomplete
                     value={form.ticker}
@@ -312,25 +340,30 @@ export default function Watchlist() {
               </FieldRow>
             </div>
             <FieldRow label="Company Name">
-              <input style={inputStyle()} value={form.company_name} onChange={field('company_name')} placeholder="Auto-filled on search" />
+              <input style={ifield()} value={form.company_name} onChange={field('company_name')} placeholder="Auto-filled" />
             </FieldRow>
             <FieldRow label="Sector">
-              <input style={inputStyle()} value={form.sector} onChange={field('sector')} placeholder="Auto-filled on search" />
+              <input style={ifield()} value={form.sector} onChange={field('sector')} placeholder="Auto-filled" />
             </FieldRow>
             <FieldRow label="Currency">
-              <input style={inputStyle()} value={form.currency} onChange={field('currency')} placeholder="USD" />
+              <input style={ifield()} value={form.currency} onChange={field('currency')} placeholder="USD / INR" />
             </FieldRow>
             <FieldRow label="Target Price">
-              <input style={inputStyle()} type="number" step="any" value={form.target_price} onChange={field('target_price')} placeholder="0.00" />
+              <input style={ifield()} type="number" step="any" value={form.target_price} onChange={field('target_price')} placeholder="0.00" />
             </FieldRow>
             <div style={{ gridColumn: '1 / -1' }}>
               <FieldRow label="Notes">
-                <textarea style={{ ...inputStyle(), resize: 'vertical' }} rows={2} value={form.notes} onChange={field('notes')} placeholder="Why are you watching this?" />
+                <textarea style={{ ...ifield(), resize: 'vertical' }} rows={2} value={form.notes} onChange={field('notes')} placeholder="Why are you watching this?" />
               </FieldRow>
             </div>
-            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button type="button" onClick={() => { setShowForm(false); setEditTicker(null); }} style={{ ...inputStyle({ width: 'auto', cursor: 'pointer' }) }}>Cancel</button>
-              <button type="submit" disabled={saving} style={{ padding: '0.5rem 1.5rem', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: '0.45rem', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer' }}>
+            <div style={{ gridColumn: '1 / -1', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <button type="button" onClick={() => { setShowForm(false); setEditTicker(null); }} style={{
+                ...ifield({ width: 'auto', cursor: 'pointer', padding: '6px 14px', fontFamily: sans }),
+              }}>Cancel</button>
+              <button type="submit" disabled={saving} style={{
+                padding: '6px 18px', background: C.blue, color: '#fff', border: 'none',
+                borderRadius: 4, fontWeight: 500, fontSize: 12, fontFamily: sans, cursor: 'pointer',
+              }}>
                 {saving ? 'Saving…' : editTicker ? 'Update' : 'Add to Watchlist'}
               </button>
             </div>
@@ -339,19 +372,25 @@ export default function Watchlist() {
 
         {/* Grid */}
         {fetching ? (
-          <p style={{ color: 'var(--text-3)', textAlign: 'center', padding: '3rem' }}>Loading…</p>
+          <p style={{ color: C.muted, textAlign: 'center', padding: '3rem', fontFamily: mono, fontSize: 12 }}>Loading…</p>
         ) : items.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '4rem 0', color: 'var(--text-4)' }}>
-            <p style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📡</p>
-            <p style={{ fontSize: '0.9rem' }}>
-              No companies on your watchlist yet. Add one, or use "Add to Watchlist" from the{' '}
-              <Link to="/dashboard" style={{ color: 'var(--accent)' }}>Dashboard</Link>.
+          <div style={{ textAlign: 'center', padding: '4rem 0', color: C.muted }}>
+            <p style={{ fontFamily: mono, fontSize: 12, marginBottom: 8 }}>No companies tracked.</p>
+            <p style={{ fontSize: 12 }}>
+              Add one above, or use "Add to Watchlist" from the{' '}
+              <Link to="/dashboard" style={{ color: C.blue }}>Dashboard</Link>.
             </p>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '0.85rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10 }}>
             {items.map(item => (
-              <WatchCard key={item.id} item={item} onRemove={handleRemove} onEdit={handleEdit} />
+              <WatchCard
+                key={item.id}
+                item={item}
+                onRemove={handleRemove}
+                onEdit={handleEdit}
+                onAlert={handleAlert}
+              />
             ))}
           </div>
         )}

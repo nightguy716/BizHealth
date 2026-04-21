@@ -6,8 +6,8 @@ import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const DIR_OPTS  = ['long', 'short'];
 const OUT_OPTS  = ['open', 'win', 'loss'];
-const DIR_COLOR = { long: 'var(--green)', short: 'var(--red)' };
-const OUT_COLOR = { open: 'var(--accent)', win: 'var(--green)', loss: 'var(--red)' };
+const DIR_COLOR = { long: '#16a34a', short: '#dc2626' };
+const OUT_COLOR = { open: '#2461d4', win: '#16a34a', loss: '#dc2626' };
 const EMPTY     = {
   ticker: '', company_name: '', direction: 'long',
   entry_date: '', entry_price: '', quantity: '',
@@ -17,15 +17,16 @@ const EMPTY     = {
 function Badge({ label, color }) {
   return (
     <span style={{
-      background: `${color}20`,
+      fontFamily: "'JetBrains Mono', monospace",
       color,
-      border: `1px solid ${color}40`,
-      borderRadius: '999px',
-      padding: '0.15rem 0.55rem',
-      fontSize: '0.7rem',
-      fontWeight: 700,
-      letterSpacing: '0.05em',
+      border: `1px solid ${color}`,
+      borderRadius: 3,
+      padding: '2px 6px',
+      fontSize: '0.68rem',
+      fontWeight: 600,
+      letterSpacing: '0.08em',
       textTransform: 'uppercase',
+      whiteSpace: 'nowrap',
     }}>
       {label}
     </span>
@@ -353,7 +354,7 @@ export default function Journal() {
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-3)' }}>{entry.company_name}</span>
                     )}
                     {pl !== null && (
-                      <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '0.88rem', color: pl >= 0 ? 'var(--green)' : 'var(--red)', fontFamily: 'monospace' }}>
+                      <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '0.88rem', color: pl >= 0 ? '#16a34a' : '#dc2626', fontFamily: "'JetBrains Mono', monospace" }}>
                         {pl >= 0 ? '+' : ''}{pl.toFixed(2)}
                       </span>
                     )}

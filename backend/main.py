@@ -2426,65 +2426,94 @@ async def debate(req: DebateRequest, request: Request):
         lines = [f"  {k}: {v}" for k, v in req.financials.items() if v is not None]
         fin_block = "\nKey financials:\n" + "\n".join(lines)
 
-    def _call(system_prompt: str, user_content: str) -> str:
+    context_header = (
+        f"Company: {entity}\nSector: {sector}{fin_block}\n"
+        f"Investment thesis: {req.thesis}\n\n"
+    )
+
+    # Each agent receives the full conversation so far and responds in 2-3 sentences max.
+    BULL_SYSTEM = (
+        "You are a bull-side equity analyst in a live investment debate. "
+        "Be sharp, specific, and respond directly to what your opponent just said. "
+        "2-3 sentences maximum. No bullet points. No preamble. No sign-off."
+    )
+    BEAR_SYSTEM = (
+        "You are a bear-side risk analyst in a live investment debate. "
+        "Be sharp, specific, and respond directly to what your opponent just said. "
+        "2-3 sentences maximum. No bullet points. No preamble. No sign-off."
+    )
+    ARBITER_SYSTEM = (
+        "You are a CFA-level portfolio manager acting as impartial arbiter. "
+        "You have read the full debate transcript. Deliver a decisive verdict: "
+        "state your overall bias (Bullish / Neutral / Bearish), the single strongest bull point, "
+        "the single most important bear risk, and one actionable recommendation. "
+        "3-4 sentences. No preamble. No sign-off."
+    )
+
+    def _call(system: str, messages: list) -> str:
         msg = client.messages.create(
             model="claude-haiku-4-5",
-            max_tokens=600,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_content}],
+            max_tokens=220,
+            system=system,
+            messages=messages,
         )
         return msg.content[0].text.strip()
 
     try:
-        # ?? Bull agent ????????????????????????????????????????????????????????
-        bull_system = (
-            "You are a seasoned equity research analyst known for identifying high-conviction "
-            "long opportunities. Your job is to present the strongest possible bull case for the "
-            "investment thesis provided. Be specific, data-driven, and concise. "
-            "Respond in plain text with 4-6 bullet points, no preamble, no sign-off."
-        )
-        bull_prompt = (
-            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
-            f"User thesis: {req.thesis}\n\n"
-            "List the most compelling reasons to be BULLISH on this position."
-        )
-        bull_text = _call(bull_system, bull_prompt)
+        rounds = []
+        # conversation history for each agent (shared context)
+        conversation: list[dict] = []
 
-        # ?? Bear agent ????????????????????????????????????????????????????????
-        bear_system = (
-            "You are a sharp short-seller and risk analyst. Your job is to stress-test investment "
-            "theses and expose every weakness. Be brutally honest, specific, and concise. "
-            "Respond in plain text with 4-6 bullet points, no preamble, no sign-off."
-        )
-        bear_prompt = (
-            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
-            f"User thesis: {req.thesis}\n\n"
-            f"The bull case for this position is:\n{bull_text}\n\n"
-            "List the most compelling reasons to be BEARISH ? challenge or rebut the bull points where possible."
-        )
-        bear_text = _call(bear_system, bear_prompt)
+        # Round 1 - Bull opens
+        bull_prompt = context_header + "Open the debate with your strongest bull argument for this investment."
+        conversation.append({"role": "user", "content": bull_prompt})
+        bull_r1 = _call(BULL_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bull_r1})
+        rounds.append({"agent": "bull", "text": bull_r1})
 
-        # ?? Arbiter ???????????????????????????????????????????????????????????
-        arbiter_system = (
-            "You are a CFA-level portfolio manager acting as an impartial arbiter. "
-            "You have just heard a bull case and a bear case for an investment. "
-            "Weigh both sides and deliver a balanced verdict: overall bias (Bullish / Neutral / Bearish), "
-            "the single most important risk, the single strongest catalyst, and a 1-2 sentence actionable "
-            "recommendation. Be concise and decisive. No preamble, no sign-off."
-        )
-        arbiter_prompt = (
-            f"Company: {entity}\nSector: {sector}{fin_block}\n\n"
-            f"User thesis: {req.thesis}\n\n"
-            f"BULL CASE:\n{bull_text}\n\nBEAR CASE:\n{bear_text}\n\n"
-            "Deliver your verdict."
-        )
-        arbiter_text = _call(arbiter_system, arbiter_prompt)
+        # Round 2 - Bear counters
+        conversation.append({"role": "user", "content": "Bear analyst, counter the bull's opening argument."})
+        bear_r1 = _call(BEAR_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bear_r1})
+        rounds.append({"agent": "bear", "text": bear_r1})
 
-        return {
-            "bull":    bull_text,
-            "bear":    bear_text,
-            "arbiter": arbiter_text,
-        }
+        # Round 3 - Bull rebuts
+        conversation.append({"role": "user", "content": "Bull analyst, rebut the bear's counter."})
+        bull_r2 = _call(BULL_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bull_r2})
+        rounds.append({"agent": "bull", "text": bull_r2})
+
+        # Round 4 - Bear rebuts
+        conversation.append({"role": "user", "content": "Bear analyst, rebut the bull's rebuttal."})
+        bear_r2 = _call(BEAR_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bear_r2})
+        rounds.append({"agent": "bear", "text": bear_r2})
+
+        # Round 5 - Bull closes
+        conversation.append({"role": "user", "content": "Bull analyst, make your closing statement."})
+        bull_r3 = _call(BULL_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bull_r3})
+        rounds.append({"agent": "bull", "text": bull_r3})
+
+        # Round 6 - Bear closes
+        conversation.append({"role": "user", "content": "Bear analyst, make your closing statement."})
+        bear_r3 = _call(BEAR_SYSTEM, conversation)
+        conversation.append({"role": "assistant", "content": bear_r3})
+        rounds.append({"agent": "bear", "text": bear_r3})
+
+        # Arbiter reads the full transcript and delivers verdict
+        transcript = "\n".join(
+            f"{'BULL' if r['agent'] == 'bull' else 'BEAR'}: {r['text']}"
+            for r in rounds
+        )
+        arbiter_messages = [{"role": "user", "content": (
+            f"{context_header}"
+            f"Full debate transcript:\n{transcript}\n\n"
+            "Deliver your verdict as arbiter."
+        )}]
+        arbiter_text = _call(ARBITER_SYSTEM, arbiter_messages)
+
+        return {"rounds": rounds, "arbiter": arbiter_text}
 
     except anthropic.APIError as e:
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
@@ -2591,4 +2620,124 @@ async def stocks_meta(ticker: str, request: Request):
         timeout=8.0,
     )
     _META_CACHE[sym] = {"data": result, "ts": time.time()}
+    return result
+
+
+# -- Live price endpoint -------------------------------------------------------
+_PRICE_CACHE: dict = {}
+_PRICE_TTL = 55  # seconds - just under 1 minute polling interval
+
+def _is_indian_ticker(sym: str) -> bool:
+    return sym.endswith(".NS") or sym.endswith(".BO")
+
+def _fetch_price_bse(sym: str) -> dict | None:
+    """Fetch live price via BSE library for Indian tickers."""
+    try:
+        from bse import BSE
+        b = BSE(timeout=6)
+        # Strip exchange suffix to get bare symbol
+        bare = sym.replace(".NS", "").replace(".BO", "")
+        # BSE search returns scrip code
+        result = b.getQuote(bare)
+        if not result:
+            return None
+        ltp    = float(result.get("currentValue") or result.get("LTP") or 0)
+        prev   = float(result.get("previousClose") or result.get("pClose") or ltp)
+        change = ltp - prev
+        change_pct = round((change / prev) * 100, 2) if prev else 0.0
+        return {
+            "price":      round(ltp, 2),
+            "change":     round(change, 2),
+            "change_pct": change_pct,
+            "prev_close": round(prev, 2),
+            "volume":     int(result.get("totalTradedVolume") or result.get("volume") or 0),
+            "source":     "BSE",
+        }
+    except Exception:
+        return None
+
+def _fetch_price_yf(sym: str) -> dict:
+    """Fallback: fetch live price via yfinance fast_info."""
+    import yfinance as yf
+    try:
+        tk   = yf.Ticker(sym)
+        fi   = tk.fast_info
+        ltp  = float(getattr(fi, "last_price", 0) or 0)
+        prev = float(getattr(fi, "previous_close", ltp) or ltp)
+        change = ltp - prev
+        change_pct = round((change / prev) * 100, 2) if prev else 0.0
+        return {
+            "price":      round(ltp, 2),
+            "change":     round(change, 2),
+            "change_pct": change_pct,
+            "prev_close": round(prev, 2),
+            "volume":     int(getattr(fi, "three_month_average_volume", 0) or 0),
+            "source":     "YF",
+        }
+    except Exception:
+        return {"price": 0, "change": 0, "change_pct": 0, "prev_close": 0, "volume": 0, "source": "YF"}
+
+def _fetch_price(sym: str) -> dict:
+    if _is_indian_ticker(sym):
+        result = _fetch_price_bse(sym)
+        if result and result["price"] > 0:
+            return result
+    return _fetch_price_yf(sym)
+
+@app.get("/stocks/price/{ticker}")
+async def stocks_price(ticker: str, request: Request):
+    """Live price for a stock. Indian tickers use BSE API, others use yfinance."""
+    _check_rate(_get_ip(request), "search")
+    sym = ticker.upper().strip()
+    cached = _PRICE_CACHE.get(sym)
+    if cached and time.time() - cached["ts"] < _PRICE_TTL:
+        return cached["data"]
+    loop   = asyncio.get_running_loop()
+    result = await asyncio.wait_for(
+        loop.run_in_executor(_executor, _fetch_price, sym),
+        timeout=10.0,
+    )
+    _PRICE_CACHE[sym] = {"data": result, "ts": time.time()}
+    return result
+
+
+# -- News endpoint -------------------------------------------------------------
+_NEWS_CACHE: dict = {}
+_NEWS_TTL = 10 * 60  # 10 minutes
+
+def _fetch_news(sym: str) -> list:
+    import yfinance as yf
+    try:
+        tk   = yf.Ticker(sym)
+        news = tk.news or []
+        out  = []
+        for item in news[:5]:
+            ct = item.get("content") or {}
+            title = ct.get("title") or item.get("title", "")
+            url   = ct.get("canonicalUrl", {}).get("url") or item.get("link", "")
+            pub   = ct.get("provider", {}).get("displayName") or item.get("publisher", "")
+            ts    = ct.get("pubDate") or item.get("providerPublishTime")
+            if isinstance(ts, int):
+                import datetime
+                ts = datetime.datetime.utcfromtimestamp(ts).isoformat() + "Z"
+            if title:
+                out.append({"title": title, "url": url, "publisher": pub, "published_at": ts or ""})
+        return out
+    except Exception:
+        return []
+
+@app.get("/stocks/news/{ticker}")
+async def stocks_news(ticker: str, request: Request):
+    """Recent news headlines for a ticker. Cached 10 minutes."""
+    _check_rate(_get_ip(request), "search")
+    sym = ticker.upper().strip()
+    cached = _NEWS_CACHE.get(sym)
+    if cached and time.time() - cached["ts"] < _NEWS_TTL:
+        return cached["data"]
+    loop   = asyncio.get_running_loop()
+    result = await asyncio.wait_for(
+        loop.run_in_executor(_executor, _fetch_news, sym),
+        timeout=10.0,
+    )
+    _NEWS_CACHE[sym] = {"data": result, "ts": time.time()}
     return result

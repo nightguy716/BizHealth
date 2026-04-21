@@ -11,8 +11,9 @@ import Auth      from './pages/Auth';
 import Profile   from './pages/Profile';
 import Blog      from './pages/Blog';
 import BlogPost  from './pages/BlogPost';
-import Journal   from './pages/Journal';
-import Watchlist from './pages/Watchlist';
+import Journal      from './pages/Journal';
+import Watchlist    from './pages/Watchlist';
+import DesignSystem from './DesignSystem';
 
 function BackendWarmup() {
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function App() {
           <Route path="/blog/:slug"  element={<BlogPost />}  />
           <Route path="/journal"     element={<Journal />}   />
           <Route path="/watchlist"   element={<Watchlist />} />
+          <Route path="/design"      element={<DesignSystem />} />
           {/* Fallback — redirect unknown paths to landing */}
           <Route path="*"            element={<Landing />}   />
         </Routes>
