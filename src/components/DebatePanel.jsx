@@ -56,7 +56,7 @@ export default function DebatePanel({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [shown, arbiter, typing]);
 
-  /* Sequential reveal after fetch */
+  /* Sequential reveal after fetch (fallback path) */
   function startReveal(data) {
     const dataRounds = Array.isArray(data?.rounds) ? data.rounds : [];
     setDebate(data);
@@ -96,28 +96,96 @@ export default function DebatePanel({
     setTyping(false);
     clearInterval(intervalRef.current);
 
+    const payload = {
+      ticker,
+      company_name: companyName,
+      sector: sector || '',
+      thesis: thesis.trim(),
+      financials: financials || null,
+    };
+
     try {
-      const res = await fetch(`${API}/debate`, {
+      // Live stream path (SSE): show rounds as they are generated.
+      const streamRes = await fetch(`${API}/debate/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ticker,
-          company_name: companyName,
-          sector: sector || '',
-          thesis: thesis.trim(),
-          financials: financials || null,
-        }),
+        headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.detail || `Error ${res.status}`);
+      if (!streamRes.ok || !streamRes.body) {
+        throw new Error(`Stream unavailable (${streamRes.status})`);
       }
-      const data = await res.json();
-      startReveal(data);
-    } catch (e) {
-      setError(e.message || 'Debate failed. Try again.');
-    } finally {
+
+      const reader = streamRes.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const liveData = { rounds: [], arbiter: '', arbiter_structured: null, meta: {} };
+
+      const pushRound = (r) => {
+        liveData.rounds.push(r);
+        setDebate({ ...liveData, rounds: [...liveData.rounds] });
+        setShown(liveData.rounds.length);
+      };
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || '';
+
+        for (const chunk of chunks) {
+          const lines = chunk.split('\n');
+          let evt = 'message';
+          let data = '';
+          for (const ln of lines) {
+            if (ln.startsWith('event:')) evt = ln.slice(6).trim();
+            if (ln.startsWith('data:')) data += ln.slice(5).trim();
+          }
+          if (!data) continue;
+          let parsed = null;
+          try { parsed = JSON.parse(data); } catch { continue; }
+
+          if (evt === 'round' && parsed?.text && parsed?.agent) {
+            pushRound({ agent: parsed.agent, text: parsed.text });
+          } else if (evt === 'arbiter') {
+            liveData.arbiter = parsed?.text || '';
+            liveData.arbiter_structured = parsed?.structured || null;
+            setDebate({ ...liveData, rounds: [...liveData.rounds] });
+            setTyping(false);
+            setArbiter(true);
+          } else if (evt === 'done') {
+            const finalData = parsed || liveData;
+            setDebate(finalData);
+            setShown(Array.isArray(finalData.rounds) ? finalData.rounds.length : liveData.rounds.length);
+            setTyping(false);
+            setArbiter(true);
+            if (onSave) onSave(finalData);
+          } else if (evt === 'error') {
+            throw new Error(parsed?.detail || 'Debate stream failed.');
+          }
+        }
+      }
       setLoading(false);
+      return;
+    } catch (e) {
+      // Fallback to old non-stream endpoint for compatibility.
+      try {
+        const res = await fetch(`${API}/debate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.detail || `Error ${res.status}`);
+        }
+        const data = await res.json();
+        startReveal(data);
+      } catch (fallbackErr) {
+        setError(fallbackErr.message || e.message || 'Debate failed. Try again.');
+      } finally {
+        setLoading(false);
+      }
     }
   }
 

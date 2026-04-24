@@ -2675,24 +2675,24 @@ class DebateRequest(BaseModel):
     financials: dict | None = None  # optional key ratios for richer context
     max_rounds: int | None = None   # optional: 4-5 only (capped server-side)
 
-@app.post("/debate")
-async def debate(req: DebateRequest, request: Request):
-    _check_rate(_get_ip(request), "analyze", request)
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+def _env_int(name: str, default: int, lo: int, hi: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    try:
+        val = int(raw) if raw else default
+    except Exception:
+        val = default
+    return max(lo, min(hi, val))
 
-    client = anthropic.Anthropic(api_key=api_key)
+def _clean_json_text(raw: str) -> str:
+    t = (raw or "").strip()
+    if t.startswith("```"):
+        t = t.strip("`")
+        if t.lower().startswith("json"):
+            t = t[4:]
+        t = t.strip()
+    return t
 
-    # ---- Cost & safety guards -------------------------------------------------
-    def _env_int(name: str, default: int, lo: int, hi: int) -> int:
-        raw = os.environ.get(name, "").strip()
-        try:
-            val = int(raw) if raw else default
-        except Exception:
-            val = default
-        return max(lo, min(hi, val))
-
+def _debate_event_stream(req: DebateRequest, client: anthropic.Anthropic):
     debate_model = os.environ.get("ANTHROPIC_DEBATE_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
     bullbear_max_tokens = _env_int("ANTHROPIC_DEBATE_BULLBEAR_MAX_TOKENS", 140, 80, 220)
     arbiter_max_tokens = _env_int("ANTHROPIC_DEBATE_ARBITER_MAX_TOKENS", 220, 120, 320)
@@ -2734,7 +2734,6 @@ async def debate(req: DebateRequest, request: Request):
         f"Investment thesis: {thesis}\n\n"
     )
 
-    # Each agent receives the full conversation so far and responds in 2-3 sentences max.
     BULL_SYSTEM = (
         "You are a bull-side equity analyst in a live investment debate. "
         "Be sharp, specific, and respond directly to what your opponent just said. "
@@ -2756,7 +2755,6 @@ async def debate(req: DebateRequest, request: Request):
     )
 
     def _trim_history(history: list[dict]) -> list[dict]:
-        # Keep the most recent context to prevent prompt growth and token spikes.
         trimmed = []
         total_chars = 0
         for msg in reversed(history):
@@ -2779,124 +2777,179 @@ async def debate(req: DebateRequest, request: Request):
         out_toks = int(getattr(getattr(msg, "usage", None), "output_tokens", 0) or 0)
         return text, out_toks
 
-    try:
-        rounds = []
-        # conversation history for each agent (shared context)
-        conversation: list[dict] = []
-        output_tokens_used = 0
+    rounds = []
+    conversation: list[dict] = []
+    output_tokens_used = 0
+    opening = context_header + "Open the debate with your strongest bull argument for this investment."
+    conversation.append({"role": "user", "content": opening})
 
-        opening = context_header + "Open the debate with your strongest bull argument for this investment."
-        conversation.append({"role": "user", "content": opening})
+    yield {
+        "event": "start",
+        "data": {
+            "model": debate_model,
+            "rounds_requested": max_rounds,
+            "output_token_budget": total_output_token_budget,
+        },
+    }
 
-        for i in range(max_rounds):
-            agent = "bull" if i % 2 == 0 else "bear"
-            is_opening = i == 0
-            is_last = i == (max_rounds - 1)
-            if is_opening:
-                prompt = opening
-            elif agent == "bull":
-                prompt = "Bull analyst, rebut the latest bear point with one high-conviction argument."
-            else:
-                prompt = "Bear analyst, rebut the latest bull point with one high-conviction risk argument."
-            if is_last:
-                prompt += " Keep this as your final closing argument."
+    for i in range(max_rounds):
+        agent = "bull" if i % 2 == 0 else "bear"
+        is_opening = i == 0
+        is_last = i == (max_rounds - 1)
+        if is_opening:
+            prompt = opening
+        elif agent == "bull":
+            prompt = "Bull analyst, rebut the latest bear point with one high-conviction argument."
+        else:
+            prompt = "Bear analyst, rebut the latest bull point with one high-conviction risk argument."
+        if is_last:
+            prompt += " Keep this as your final closing argument."
 
-            if not is_opening:
-                conversation.append({"role": "user", "content": prompt})
+        if not is_opening:
+            conversation.append({"role": "user", "content": prompt})
 
-            if output_tokens_used >= total_output_token_budget:
-                break
+        if output_tokens_used >= total_output_token_budget:
+            break
 
-            text, out_toks = _call(
-                BULL_SYSTEM if agent == "bull" else BEAR_SYSTEM,
-                conversation,
-                bullbear_max_tokens,
-            )
-            output_tokens_used += out_toks
-            conversation.append({"role": "assistant", "content": text})
-            rounds.append({"agent": agent, "text": text})
-
-            if output_tokens_used >= total_output_token_budget:
-                break
-
-        # Arbiter reads the full transcript and delivers verdict
-        transcript = "\n".join(
-            f"{'BULL' if r['agent'] == 'bull' else 'BEAR'}: {r['text']}"
-            for r in rounds
+        text, out_toks = _call(
+            BULL_SYSTEM if agent == "bull" else BEAR_SYSTEM,
+            conversation,
+            bullbear_max_tokens,
         )
-        arbiter_messages = [{"role": "user", "content": (
-            f"{context_header}"
-            f"Full debate transcript:\n{transcript}\n\n"
-            "Deliver your verdict for direct insertion into a trading journal."
-        )}]
-        arbiter_raw, arbiter_toks = _call(ARBITER_SYSTEM, arbiter_messages, arbiter_max_tokens)
-        output_tokens_used += arbiter_toks
-
-        def _clean_json_text(raw: str) -> str:
-            t = (raw or "").strip()
-            if t.startswith("```"):
-                t = t.strip("`")
-                if t.lower().startswith("json"):
-                    t = t[4:]
-                t = t.strip()
-            return t
-
-        try:
-            arb = json.loads(_clean_json_text(arbiter_raw))
-            bias = str(arb.get("bias", "Neutral")).strip().title()
-            if bias not in ("Bullish", "Neutral", "Bearish"):
-                bias = "Neutral"
-            confidence = arb.get("confidence", 55)
-            try:
-                confidence = int(confidence)
-            except Exception:
-                confidence = 55
-            confidence = max(0, min(100, confidence))
-            strongest_bull_point = str(arb.get("strongest_bull_point", "")).strip()
-            key_bear_risk = str(arb.get("key_bear_risk", "")).strip()
-            recommendation = str(arb.get("recommendation", "")).strip()
-            journal_verdict = str(arb.get("journal_verdict", "")).strip()
-        except Exception:
-            bias = "Neutral"
-            confidence = 55
-            strongest_bull_point = ""
-            key_bear_risk = ""
-            recommendation = ""
-            journal_verdict = arbiter_raw.strip()
-
-        if not journal_verdict:
-            journal_verdict = (
-                f"Bias: {bias}. Bull strength: {strongest_bull_point or 'earnings resilience and upside case.'} "
-                f"Main risk: {key_bear_risk or 'downside scenario could compress valuation quickly.'} "
-                f"Action: {recommendation or 'size position conservatively and reassess on next result cycle.'}"
-            )
-
-        arbiter_structured = {
-            "bias": bias,
-            "confidence": confidence,
-            "strongest_bull_point": strongest_bull_point,
-            "key_bear_risk": key_bear_risk,
-            "recommendation": recommendation,
-            "journal_verdict": journal_verdict,
-        }
-
-        return {
-            "rounds": rounds,
-            "arbiter": journal_verdict,  # back-compat for current UI
-            "arbiter_structured": arbiter_structured,
-            "meta": {
-                "model": debate_model,
-                "rounds_requested": max_rounds,
-                "rounds_completed": len(rounds),
+        output_tokens_used += out_toks
+        conversation.append({"role": "assistant", "content": text})
+        round_obj = {"agent": agent, "text": text}
+        rounds.append(round_obj)
+        yield {
+            "event": "round",
+            "data": {
+                "index": len(rounds) - 1,
+                **round_obj,
                 "output_tokens_used_estimate": output_tokens_used,
-                "output_token_budget": total_output_token_budget,
             },
         }
 
+        if output_tokens_used >= total_output_token_budget:
+            break
+
+    transcript = "\n".join(
+        f"{'BULL' if r['agent'] == 'bull' else 'BEAR'}: {r['text']}"
+        for r in rounds
+    )
+    arbiter_messages = [{"role": "user", "content": (
+        f"{context_header}"
+        f"Full debate transcript:\n{transcript}\n\n"
+        "Deliver your verdict for direct insertion into a trading journal."
+    )}]
+    arbiter_raw, arbiter_toks = _call(ARBITER_SYSTEM, arbiter_messages, arbiter_max_tokens)
+    output_tokens_used += arbiter_toks
+
+    try:
+        arb = json.loads(_clean_json_text(arbiter_raw))
+        bias = str(arb.get("bias", "Neutral")).strip().title()
+        if bias not in ("Bullish", "Neutral", "Bearish"):
+            bias = "Neutral"
+        confidence = arb.get("confidence", 55)
+        try:
+            confidence = int(confidence)
+        except Exception:
+            confidence = 55
+        confidence = max(0, min(100, confidence))
+        strongest_bull_point = str(arb.get("strongest_bull_point", "")).strip()
+        key_bear_risk = str(arb.get("key_bear_risk", "")).strip()
+        recommendation = str(arb.get("recommendation", "")).strip()
+        journal_verdict = str(arb.get("journal_verdict", "")).strip()
+    except Exception:
+        bias = "Neutral"
+        confidence = 55
+        strongest_bull_point = ""
+        key_bear_risk = ""
+        recommendation = ""
+        journal_verdict = arbiter_raw.strip()
+
+    if not journal_verdict:
+        journal_verdict = (
+            f"Bias: {bias}. Bull strength: {strongest_bull_point or 'earnings resilience and upside case.'} "
+            f"Main risk: {key_bear_risk or 'downside scenario could compress valuation quickly.'} "
+            f"Action: {recommendation or 'size position conservatively and reassess on next result cycle.'}"
+        )
+
+    arbiter_structured = {
+        "bias": bias,
+        "confidence": confidence,
+        "strongest_bull_point": strongest_bull_point,
+        "key_bear_risk": key_bear_risk,
+        "recommendation": recommendation,
+        "journal_verdict": journal_verdict,
+    }
+    yield {"event": "arbiter", "data": {"text": journal_verdict, "structured": arbiter_structured}}
+
+    final_payload = {
+        "rounds": rounds,
+        "arbiter": journal_verdict,
+        "arbiter_structured": arbiter_structured,
+        "meta": {
+            "model": debate_model,
+            "rounds_requested": max_rounds,
+            "rounds_completed": len(rounds),
+            "output_tokens_used_estimate": output_tokens_used,
+            "output_token_budget": total_output_token_budget,
+        },
+    }
+    yield {"event": "done", "data": final_payload}
+
+@app.post("/debate")
+async def debate(req: DebateRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        final = None
+        for evt in _debate_event_stream(req, client):
+            if evt.get("event") == "done":
+                final = evt.get("data")
+                break
+        if not final:
+            raise HTTPException(status_code=500, detail="Debate completed without final payload")
+        return final
     except anthropic.APIError as e:
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/debate/stream")
+async def debate_stream(req: DebateRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+
+    client = anthropic.Anthropic(api_key=api_key)
+
+    def _sse(event: str, data: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
+    async def _gen():
+        try:
+            for evt in _debate_event_stream(req, client):
+                yield _sse(evt.get("event", "message"), evt.get("data", {}))
+        except anthropic.APIError as e:
+            yield _sse("error", {"detail": f"Anthropic API error: {e}"})
+        except HTTPException as e:
+            yield _sse("error", {"detail": e.detail})
+        except Exception as e:
+            yield _sse("error", {"detail": str(e)})
+
+    return StreamingResponse(
+        _gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
+    )
 
 
 # -- Full stock-list autocomplete ----------------------------------------------
