@@ -1,4 +1,4 @@
-/**
+﻿/**
  * DesignSystem.jsx — Bloomberg-style design reference page
  * View at /design — remove route after approval
  */
@@ -8,14 +8,14 @@ import { useState } from 'react';
 /* ── Design tokens ──────────────────────────────────────── */
 const T = {
   bg:          '#0a0d14',
-  surface:     '#0f1523',
-  surfaceHi:   '#141c2e',
-  border:      '#1d2840',
-  borderActive:'#243354',
-  text:        '#e2e8f4',
-  text2:       '#7b8eab',
-  muted:       '#4a5568',
-  blue:        '#2461d4',
+  surface:     'var(--surface)',
+  surfaceHi:   'var(--surface-hi)',
+  border:      'var(--border)',
+  borderActive:'var(--border-hi)',
+  text:        'var(--text-1)',
+  text2:       'var(--text-3)',
+  muted:       'var(--text-4)',
+  blue:        'var(--gold)',
   green:       '#16a34a',
   red:         '#dc2626',
   amber:       '#b45309',
@@ -73,7 +73,7 @@ function NavbarDemo() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <div style={{ width: 7, height: 7, borderRadius: '50%', background: T.blue }} />
         <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color: T.text, letterSpacing: '0.02em' }}>
-          BizHealth
+          Valoreva
         </span>
       </div>
       {/* Nav links */}
@@ -510,7 +510,7 @@ export default function DesignSystem() {
             DESIGN SYSTEM PREVIEW
           </div>
           <div style={{ fontFamily: sans, fontSize: 18, fontWeight: 600, color: T.text }}>
-            BizHealth · Bloomberg Style
+            Valoreva · Bloomberg Style
           </div>
         </div>
         <div style={{ fontFamily: mono, fontSize: 10, color: T.muted }}>

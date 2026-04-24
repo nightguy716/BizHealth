@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
+import { FinAxisMark } from './FinAxisLogo';
 
 const LINKS = [
   { to: '/',          label: 'Home'      },
@@ -33,20 +34,20 @@ function UserMenu({ user, onSignOut }) {
       <button onClick={() => setOpen(o => !o)}
         className="flex items-center gap-2" style={{ background: 'none', border: 'none', cursor: 'pointer' }}>
         <div className="w-7 h-7 rounded flex items-center justify-center text-xs font-bold flex-shrink-0"
-          style={{ background: '#141c2e', border: '1px solid #1d2840', color: '#7b8eab', fontFamily: "'JetBrains Mono', monospace" }}>
+          style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-3)', fontFamily: 'var(--font-sans)' }}>
           {initials}
         </div>
-        <span className="hidden md:block text-xs max-w-[90px] truncate" style={{ color: '#7b8eab' }}>
+        <span className="hidden md:block text-xs max-w-[90px] truncate" style={{ color: 'var(--text-3)' }}>
           {name}
         </span>
       </button>
 
       {open && (
         <div className="absolute right-0 mt-2 w-44 overflow-hidden z-50"
-          style={{ background: '#0f1523', border: '1px solid #1d2840', borderRadius: 4, top: '100%' }}>
-          <div className="px-3 py-2.5" style={{ borderBottom: '1px solid #1d2840' }}>
-            <p className="text-xs font-medium truncate" style={{ color: '#e2e8f4' }}>{name}</p>
-            <p className="text-[10px] truncate" style={{ color: '#4a5568' }}>{user.email}</p>
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, top: '100%' }}>
+          <div className="px-3 py-2.5" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="text-xs font-medium truncate" style={{ color: 'var(--text-1)' }}>{name}</p>
+            <p className="text-[10px] truncate" style={{ color: 'var(--text-4)' }}>{user.email}</p>
           </div>
           {[
             { label: 'My Profile', action: () => navigate('/profile') },
@@ -54,17 +55,17 @@ function UserMenu({ user, onSignOut }) {
           ].map(({ label, action }) => (
             <button key={label} onClick={() => { setOpen(false); action(); }}
               className="w-full text-left px-3 py-2.5 text-xs"
-              style={{ color: '#7b8eab', background: 'none', border: 'none', cursor: 'pointer', display: 'block' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#141c2e'}
+              style={{ color: 'var(--text-3)', background: 'none', border: 'none', cursor: 'pointer', display: 'block' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hi)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               {label}
             </button>
           ))}
-          <div style={{ borderTop: '1px solid #1d2840' }}>
+          <div style={{ borderTop: '1px solid var(--border)' }}>
             <button onClick={() => { setOpen(false); onSignOut(); }}
               className="w-full text-left px-3 py-2.5 text-xs"
               style={{ color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', display: 'block' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#141c2e'}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hi)'}
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
               Sign out
             </button>
@@ -108,7 +109,6 @@ export default function Navbar() {
   const { pathname } = useLocation();
   const [open, setOpen] = useState(false);
   const { user, loading, signOut } = useAuth();
-  const { isDark } = useTheme();
   const navigate = useNavigate();
 
   async function handleSignOut() {
@@ -119,7 +119,7 @@ export default function Navbar() {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50"
       style={{
-        background: isDark ? '#0a0d14' : '#f4f6f9',
+        background: 'var(--bg)',
         borderBottom: '1px solid var(--border)',
         transition: 'background 0.2s, border-color 0.2s',
       }}>
@@ -127,11 +127,37 @@ export default function Navbar() {
 
         {/* Logo */}
         <Link to="/" className="flex items-center gap-2 flex-shrink-0">
-          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#2461d4', flexShrink: 0 }} />
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 600, fontSize: 14, color: 'var(--text-1)', letterSpacing: '0.02em' }}>
-            BizHealth
+          <span className="inline-flex items-center gap-1.5">
+            <FinAxisMark size={22} color="var(--text-1)" strokeWidth={2.1} />
+            <span
+              aria-label="Valoreva"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                fontSize: 15,
+                fontWeight: 800,
+                letterSpacing: '-0.012em',
+                lineHeight: 1,
+                display: 'inline-flex',
+                alignItems: 'baseline',
+                fontStyle: 'italic',
+              }}
+            >
+              <span style={{ color: 'var(--text-1)' }}>Va</span>
+              <span
+                style={{
+                  background: 'linear-gradient(92deg, var(--text-1) 0%, var(--gold) 88%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  color: 'transparent',
+                  display: 'inline-block',
+                  paddingRight: '0.06em',
+                }}
+              >
+                loreva
+              </span>
+            </span>
           </span>
-          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 9, padding: '2px 5px', borderRadius: 3, border: '1px solid #2461d4', color: '#2461d4', letterSpacing: '0.06em' }}>
+          <span style={{ fontFamily: "var(--font-sans)", fontSize: 9, padding: '2px 5px', borderRadius: 3, border: '1px solid var(--gold)', color: 'var(--gold)', letterSpacing: '0.06em' }}>
             BETA
           </span>
         </Link>
@@ -150,7 +176,7 @@ export default function Navbar() {
                   height: 48,
                   display: 'flex', alignItems: 'center',
                   color: active ? 'var(--text-1)' : 'var(--text-2)',
-                  borderBottom: active ? '2px solid #2461d4' : '2px solid transparent',
+                  borderBottom: active ? '2px solid var(--gold)' : '2px solid transparent',
                 }}>
                 {label}
               </Link>
@@ -177,7 +203,7 @@ export default function Navbar() {
               </Link>
               <Link to="/auth"
                 className="px-4 py-1.5 text-xs font-semibold"
-                style={{ background: '#2461d4', color: '#fff', borderRadius: 4 }}>
+                style={{ background: 'var(--text-1)', color: '#fff', borderRadius: 4 }}>
                 Get Started
               </Link>
             </>
@@ -208,7 +234,7 @@ export default function Navbar() {
             <Link key={to} to={to}
               onClick={() => setOpen(false)}
               className="block px-3 py-2.5 text-sm transition-colors"
-              style={{ color: pathname === to ? 'var(--text-1)' : 'var(--text-2)', borderLeft: pathname === to ? '2px solid #2461d4' : '2px solid transparent' }}>
+              style={{ color: pathname === to ? 'var(--text-1)' : 'var(--text-2)', borderLeft: pathname === to ? '2px solid var(--gold)' : '2px solid transparent' }}>
               {label}
             </Link>
           ))}
@@ -227,7 +253,7 @@ export default function Navbar() {
           ) : !loading && (
             <Link to="/auth" onClick={() => setOpen(false)}
               className="block px-3 py-2.5 text-sm font-semibold text-center mt-2"
-              style={{ background: '#2461d4', color: '#fff', borderRadius: 4 }}>
+              style={{ background: 'var(--text-1)', color: '#fff', borderRadius: 4 }}>
               Sign In / Get Started
             </Link>
           )}

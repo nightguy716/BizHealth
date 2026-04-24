@@ -109,7 +109,7 @@ export default function Auth() {
               style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)' }}>
               <span className="text-white font-black text-sm">B</span>
             </div>
-            <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>BizHealth</span>
+            <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>Valoreva</span>
           </Link>
 
           {/* Heading */}
@@ -170,14 +170,14 @@ export default function Auth() {
               <>
                 <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                   <button onClick={() => { setMode('forgot'); reset(); }}
-                    className="transition-colors hover:text-blue-400" style={{ color: '#4f6ef7' }}>
+                    className="transition-colors hover:text-blue-400" style={{ color: 'var(--gold)' }}>
                     Forgot password?
                   </button>
                 </p>
                 <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                   No account?{' '}
                   <button onClick={() => { setMode('signup'); reset(); }}
-                    className="font-semibold transition-colors" style={{ color: '#4f6ef7' }}>
+                    className="font-semibold transition-colors" style={{ color: 'var(--gold)' }}>
                     Create one free
                   </button>
                 </p>
@@ -187,7 +187,7 @@ export default function Auth() {
               <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                 Already have an account?{' '}
                 <button onClick={() => { setMode('login'); reset(); }}
-                  className="font-semibold transition-colors" style={{ color: '#4f6ef7' }}>
+                  className="font-semibold transition-colors" style={{ color: 'var(--gold)' }}>
                   Sign in
                 </button>
               </p>
@@ -195,7 +195,7 @@ export default function Auth() {
             {mode === 'forgot' && (
               <p className="text-xs" style={{ color: 'var(--text-4)' }}>
                 <button onClick={() => { setMode('login'); reset(); }}
-                  className="transition-colors" style={{ color: '#4f6ef7' }}>
+                  className="transition-colors" style={{ color: 'var(--gold)' }}>
                   ← Back to sign in
                 </button>
               </p>

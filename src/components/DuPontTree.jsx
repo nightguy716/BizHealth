@@ -21,7 +21,7 @@ function fmt(v, unit) {
 }
 
 function getColor(v, low, high, inverse = false) {
-  if (v === null || isNaN(v)) return '#3d5070';
+  if (v === null || isNaN(v)) return 'var(--text-5)';
   const good = inverse ? v <= low : v >= high;
   const ok   = inverse ? v <= high : v >= low;
   if (good) return '#00e887';
@@ -55,12 +55,12 @@ function Node({ label, value, unit, sub, color, tooltip, dim = false }) {
       </span>
       <span style={{
         fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, fontWeight: 600,
-        color: '#9fb3d4', marginTop: 4, lineHeight: 1.2,
+        color: 'var(--text-3)', marginTop: 4, lineHeight: 1.2,
       }}>
         {label}
       </span>
       {sub && (
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070', marginTop: 2 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)', marginTop: 2 }}>
           {sub}
         </span>
       )}
@@ -68,10 +68,10 @@ function Node({ label, value, unit, sub, color, tooltip, dim = false }) {
       {tooltip && hover && (
         <div style={{
           position: 'absolute', bottom: 'calc(100% + 8px)', left: '50%', transform: 'translateX(-50%)',
-          background: '#06101e', border: '1px solid rgba(79,110,247,0.3)',
+          background: 'var(--surface)', border: '1px solid var(--border)',
           borderRadius: 8, padding: '6px 10px', width: 180, zIndex: 50,
-          fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, color: '#9fb3d4',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.7)', lineHeight: 1.5, textAlign: 'left',
+          fontFamily: 'Inter, system-ui, sans-serif', fontSize: 10, color: 'var(--text-3)',
+          boxShadow: 'var(--shadow-lg)', lineHeight: 1.5, textAlign: 'left',
           whiteSpace: 'normal', pointerEvents: 'none',
         }}>
           {tooltip}
@@ -86,7 +86,7 @@ function Op({ symbol }) {
   return (
     <div style={{
       fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700,
-      color: '#3d5070', padding: '0 6px', flexShrink: 0, alignSelf: 'center',
+      color: 'var(--text-5)', padding: '0 6px', flexShrink: 0, alignSelf: 'center',
     }}>
       {symbol}
     </div>
@@ -111,7 +111,7 @@ function DriverRow({ label, value, unit, weight, color, tooltip }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4', width: 160, flexShrink: 0 }}>
+      <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)', width: 160, flexShrink: 0 }}>
         {label}
       </span>
       <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color, width: 64, textAlign: 'right', flexShrink: 0 }}>
@@ -126,10 +126,10 @@ function DriverRow({ label, value, unit, weight, color, tooltip }) {
       </div>
       {tooltip && hover && (
         <div style={{
-          position: 'absolute', right: 0, background: '#06101e',
-          border: '1px solid rgba(79,110,247,0.3)', borderRadius: 8, padding: '6px 10px',
-          width: 200, zIndex: 50, fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#9fb3d4',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.7)', lineHeight: 1.5, pointerEvents: 'none',
+          position: 'absolute', right: 0, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px',
+          width: 200, zIndex: 50, fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'var(--text-3)',
+          boxShadow: 'var(--shadow-lg)', lineHeight: 1.5, pointerEvents: 'none',
         }}>
           {tooltip}
         </div>
@@ -202,7 +202,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
         <div className="flex items-center gap-3 mb-3">
           <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#a78bfa' }}>DuPont Decomposition</span>
         </div>
-        <p style={{ fontSize: 12, color: '#6b82a8' }}>
+        <p style={{ fontSize: 12, color: 'var(--text-4)' }}>
           Enter Revenue, Total Assets, Equity, and Net Profit in the sidebar to see the DuPont tree.
         </p>
       </section>
@@ -222,7 +222,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
           <div>
             <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: '#a78bfa' }}>DuPont Decomposition</span>
-            <p className="text-[10px] mt-0.5" style={{ color: '#6b82a8' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
               ROE = Net Margin × Asset Turnover × Equity Multiplier
             </p>
           </div>
@@ -235,7 +235,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
               className="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-150 mono"
               style={mode === id
                 ? { background: 'rgba(167,139,250,0.2)', color: '#a78bfa', border: '1px solid rgba(167,139,250,0.35)' }
-                : { background: 'transparent', color: '#6b82a8', border: '1px solid transparent' }}>
+                : { background: 'transparent', color: 'var(--text-4)', border: '1px solid transparent' }}>
               {label}
             </button>
           ))}
@@ -269,7 +269,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
 
           {/* Driver bars */}
           <div className="mt-6 pt-5" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: '#3d5070' }}>
+            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--text-5)' }}>
               DRIVER CONTRIBUTION
             </p>
             <div className="relative">
@@ -329,21 +329,21 @@ export default function DuPontTree({ ratioValues, inputs }) {
             {[
               {
                 label: 'Profitability Path',
-                icon: '📈',
+                icon: 'PR',
                 color: '#00e887',
                 value: ebitMargin !== null ? ebitMargin.toFixed(1) + '% EBIT Margin' : '—',
                 sub: netMargin !== null ? `${netMargin.toFixed(1)}% reaches bottom line` : '',
               },
               {
                 label: 'Efficiency Path',
-                icon: '⚙️',
+                icon: 'EF',
                 color: '#22d3ee',
                 value: assetTurnover !== null ? assetTurnover.toFixed(2) + '× Asset T/O' : '—',
                 sub: 'Revenue generated per asset dollar',
               },
               {
                 label: 'Leverage Path',
-                icon: '⚖️',
+                icon: 'LV',
                 color: '#fbbf24',
                 value: equityMultiplier !== null ? equityMultiplier.toFixed(2) + '× EM' : '—',
                 sub: equityMultiplier > 3 ? 'High leverage — monitor coverage' : 'Leverage within acceptable range',
@@ -361,7 +361,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
                   {item.value}
                 </p>
                 {item.sub && (
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#6b82a8', marginTop: 2 }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'var(--text-4)', marginTop: 2 }}>
                     {item.sub}
                   </p>
                 )}
@@ -372,7 +372,7 @@ export default function DuPontTree({ ratioValues, inputs }) {
       )}
 
       {/* CFA note */}
-      <p className="mt-5 text-[10px]" style={{ color: '#3d5070', fontFamily: 'Inter, sans-serif' }}>
+      <p className="mt-5 text-[10px]" style={{ color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>
         <span style={{ color: '#a78bfa' }}>CFA L1 ·</span> DuPont analysis identifies whether ROE is driven by
         profitability, efficiency, or leverage — critical for equity valuation and peer benchmarking.
         High leverage-driven ROE carries higher credit risk.

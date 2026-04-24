@@ -1,30 +1,35 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import TickerAutocomplete from '../components/TickerAutocomplete';
+import { ownerHeaders } from '../lib/ownerHeaders';
+import { getBackendBaseUrl } from '../lib/backendUrl';
 
-const API = import.meta.env.VITE_BACKEND_URL || 'https://bizhealth-production.up.railway.app';
-const POLL_MS  = 60_000;   // 60 seconds
+const API = getBackendBaseUrl();
+const POLL_MS  = 60_000;   // base 60 seconds
+const PRICE_REQUESTS_BUDGET_PER_HOUR = 220;
+const NEWS_REQUESTS_BUDGET_PER_HOUR = 60;
 const ALERT_PCT = 5;       // notify if |change_pct| > 5%
+const ALERT_COOLDOWN_MS = 30 * 60_000; // 30 minutes per ticker unless direction flips
 
 const EMPTY_FORM = { ticker: '', company_name: '', sector: '', currency: 'USD', target_price: '', notes: '' };
 
 /* ── Styles ──────────────────────────────────────────────────── */
 const C = {
-  bg:      '#0a0d14',
-  surface: '#0f1523',
-  surfHi:  '#141c2e',
-  border:  '#1d2840',
-  bActive: '#243354',
-  text:    '#e2e8f4',
-  text2:   '#7b8eab',
-  muted:   '#4a5568',
-  blue:    '#2461d4',
+  bg:      'var(--bg)',
+  surface: 'var(--surface)',
+  surfHi:  'var(--surface-hi)',
+  border:  'var(--border)',
+  bActive: 'var(--border-hi)',
+  text:    'var(--text-1)',
+  text2:   'var(--text-3)',
+  muted:   'var(--text-4)',
+  blue:    'var(--gold)',
   green:   '#16a34a',
   red:     '#dc2626',
   amber:   '#b45309',
 };
-const mono = "'JetBrains Mono', monospace";
+const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
 
 function ifield(extra = {}) {
@@ -47,42 +52,167 @@ function FieldRow({ label, children }) {
 }
 
 /* ── WatchCard with live price + news polling ────────────────── */
-function WatchCard({ item, onRemove, onEdit, onAlert }) {
+function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs }) {
   const [price,      setPrice]      = useState(null);
   const [news,       setNews]       = useState([]);
   const [loadingPx,  setLoadingPx]  = useState(true);
   const [confirmDel, setConfirmDel] = useState(false);
-  const alertedRef = useRef(false);  // fire alert at most once per session
+  const alertStateRef = useRef({ lastDirection: null, lastAt: 0 });
+  const latestPriceRef = useRef(null);
+  const resolvedSymbolRef = useRef(null);
 
-  async function fetchLive() {
-    try {
-      const [pxRes, nwRes] = await Promise.all([
-        fetch(`${API}/stocks/price/${encodeURIComponent(item.ticker)}`),
-        fetch(`${API}/stocks/news/${encodeURIComponent(item.ticker)}`),
-      ]);
-      if (pxRes.ok) {
-        const px = await pxRes.json();
-        setPrice(px);
-        // alert once per session if |change_pct| > ALERT_PCT
-        if (!alertedRef.current && Math.abs(px.change_pct || 0) > ALERT_PCT) {
-          alertedRef.current = true;
-          onAlert?.({
-            ticker: item.ticker,
-            company_name: item.company_name,
-            change_pct: px.change_pct,
-          });
-        }
-      }
-      if (nwRes.ok) setNews(await nwRes.json());
-    } catch { /* silent */ }
-    finally { setLoadingPx(false); }
+  function normalizeTicker(raw) {
+    let t = String(raw || '').trim().toUpperCase();
+    if (!t) return '';
+    // Handle common watchlist formats like NSE:SBIN / BSE:TCS / SBIN-EQ.
+    if (t.startsWith('NSE:') || t.startsWith('BSE:')) t = t.slice(4);
+    if (t.endsWith('-EQ')) t = t.slice(0, -3);
+    return t;
+  }
+
+  function symbolCandidates() {
+    if (resolvedSymbolRef.current) return [resolvedSymbolRef.current];
+    const base = normalizeTicker(item.ticker);
+    if (!base) return [];
+    const hasExchange = base.endsWith('.NS') || base.endsWith('.BO');
+    if (hasExchange) return [base];
+    // Prefer NSE/BSE first when watchlist currency is INR.
+    if (String(item.currency || '').toUpperCase() === 'INR') {
+      return [`${base}.NS`, `${base}.BO`, base];
+    }
+    return [base, `${base}.NS`, `${base}.BO`];
   }
 
   useEffect(() => {
-    fetchLive();
-    const id = setInterval(fetchLive, POLL_MS);
-    return () => clearInterval(id);
-  }, [item.ticker]);
+    latestPriceRef.current = price;
+  }, [price]);
+
+  async function fetchPrice() {
+    try {
+      const symbols = symbolCandidates();
+      if (!symbols.length) return false;
+
+      let px = null;
+      let pxSymbol = null;
+      for (const sym of symbols) {
+        try {
+          const pxRes = await fetch(
+            `${API}/stocks/price/${encodeURIComponent(sym)}`,
+            { headers: ownerHeaders(), signal: AbortSignal.timeout(10_000) }
+          );
+          if (!pxRes.ok) continue;
+          const candidate = await pxRes.json();
+          if (Number(candidate?.price) > 0) {
+            px = candidate;
+            pxSymbol = sym;
+            break;
+          }
+        } catch {
+          // Try next symbol candidate on timeout/network errors.
+          continue;
+        }
+      }
+      // Hard fallback: pull latest price from company snapshot endpoint.
+      if (!px) {
+        for (const sym of symbols) {
+          try {
+            const yfRes = await fetch(
+              `${API}/company/yf/${encodeURIComponent(sym)}`,
+              { headers: ownerHeaders(), signal: AbortSignal.timeout(12_000) }
+            );
+            if (!yfRes.ok) continue;
+            const company = await yfRes.json();
+            const current = Number(company?.market_data?.currentPrice);
+            if (Number.isFinite(current) && current > 0) {
+              px = {
+                price: current,
+                change: Number(company?.market_data?.priceChange || 0),
+                change_pct: Number(company?.market_data?.priceChangePct || 0),
+                prev_close: Number(company?.market_data?.previousClose || 0),
+                volume: Number(company?.market_data?.volume || 0),
+                source: 'YF-META',
+              };
+              pxSymbol = sym;
+              break;
+            }
+          } catch {
+            continue;
+          }
+        }
+      }
+      if (!px) return false;
+      if (pxSymbol) resolvedSymbolRef.current = pxSymbol;
+      setPrice(px);
+      // fire alert when movement is material, with cooldown to avoid spam
+      const changePct = Number(px.change_pct || 0);
+      const absMove = Math.abs(changePct);
+      const direction = changePct >= 0 ? 'up' : 'down';
+      const now = Date.now();
+      const { lastDirection, lastAt } = alertStateRef.current;
+      const cooldownElapsed = now - lastAt >= ALERT_COOLDOWN_MS;
+      const directionFlipped = lastDirection && lastDirection !== direction;
+
+      if (absMove > ALERT_PCT && (cooldownElapsed || directionFlipped || !lastDirection)) {
+        alertStateRef.current = { lastDirection: direction, lastAt: now };
+        onAlert?.({
+          ticker: item.ticker,
+          company_name: item.company_name,
+          change_pct: changePct,
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    } finally {
+      setLoadingPx(false);
+    }
+  }
+
+  async function fetchNews() {
+    try {
+      const sym = resolvedSymbolRef.current || normalizeTicker(item.ticker);
+      if (!sym) return;
+      const nwRes = await fetch(
+        `${API}/stocks/news/${encodeURIComponent(sym)}`,
+        { headers: ownerHeaders() }
+      );
+      if (nwRes.ok) setNews(await nwRes.json());
+    } catch { /* silent */ }
+  }
+
+  useEffect(() => {
+    let alive = true;
+    let priceIntervalId = null;
+    let retryTimerId = null;
+    setLoadingPx(true);
+
+    // Spread requests across cards to reduce rate-limit bursts.
+    const jitter = [...item.ticker].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 12000;
+    const priceTimer = setTimeout(async () => {
+      if (!alive) return;
+      const ok = await fetchPrice();
+      // One delayed retry to recover from transient 429/network failures.
+      if (!ok && alive) {
+        retryTimerId = setTimeout(() => {
+          if (!alive) return;
+          fetchPrice();
+        }, 20_000);
+      }
+      fetchNews();
+      priceIntervalId = setInterval(fetchPrice, pricePollMs);
+    }, jitter);
+
+    // News can refresh less frequently than prices.
+    const newsTimer = setInterval(fetchNews, newsPollMs);
+
+    return () => {
+      alive = false;
+      clearTimeout(priceTimer);
+      if (retryTimerId) clearTimeout(retryTimerId);
+      if (priceIntervalId) clearInterval(priceIntervalId);
+      clearInterval(newsTimer);
+    };
+  }, [item.ticker, pricePollMs, newsPollMs]);
 
   const up  = (price?.change_pct || 0) >= 0;
   const pct = price?.change_pct != null ? `${up ? '+' : ''}${price.change_pct.toFixed(2)}%` : null;
@@ -129,7 +259,7 @@ function WatchCard({ item, onRemove, onEdit, onAlert }) {
                 color: up ? C.green : C.red, border: `1px solid ${up ? C.green : C.red}`,
                 borderRadius: 3, padding: '2px 7px',
               }}>
-                {up ? '▲' : '▼'} {pct}
+                {up ? 'UP' : 'DOWN'} {pct}
               </span>
             )}
           </>
@@ -170,7 +300,7 @@ function WatchCard({ item, onRemove, onEdit, onAlert }) {
 
       {/* Actions */}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-        <Link to={`/dashboard?ticker=${item.ticker}`} style={{
+        <Link to={`/dashboard?symbol=${encodeURIComponent(item.ticker)}${item.company_name ? `&name=${encodeURIComponent(item.company_name)}` : ''}`} style={{
           fontFamily: sans, fontSize: 12, fontWeight: 500, color: C.blue,
           border: `1px solid ${C.blue}`, borderRadius: 4, padding: '4px 12px',
           textDecoration: 'none',
@@ -211,6 +341,11 @@ export default function Watchlist() {
   const [form,      setForm]      = useState(EMPTY_FORM);
   const [saving,    setSaving]    = useState(false);
   const [editTicker, setEditTicker] = useState(null);
+
+  // Keep polling under backend rate limits as list size grows.
+  const itemCount = Math.max(items.length || 0, 1);
+  const pricePollMs = Math.max(POLL_MS, Math.ceil((3600_000 * itemCount) / PRICE_REQUESTS_BUDGET_PER_HOUR));
+  const newsPollMs = Math.max(5 * 60_000, Math.ceil((3600_000 * itemCount) / NEWS_REQUESTS_BUDGET_PER_HOUR));
 
   useEffect(() => {
     if (!loading && !isAuthenticated) navigate('/auth');
@@ -275,6 +410,7 @@ export default function Watchlist() {
     const dir = change_pct > 0 ? 'up' : 'down';
     await createNotification({
       type:    'price_alert',
+      ticker,
       title:   `${ticker} moved ${Math.abs(change_pct).toFixed(1)}% ${dir}`,
       message: `${company_name || ticker} has moved ${change_pct > 0 ? '+' : ''}${change_pct.toFixed(2)}% today.`,
     });
@@ -390,6 +526,8 @@ export default function Watchlist() {
                 onRemove={handleRemove}
                 onEdit={handleEdit}
                 onAlert={handleAlert}
+                pricePollMs={pricePollMs}
+                newsPollMs={newsPollMs}
               />
             ))}
           </div>

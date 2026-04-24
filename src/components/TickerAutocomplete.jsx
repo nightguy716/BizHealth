@@ -8,10 +8,9 @@
  */
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { searchCompanies } from '../data/companies.js';
+import { getBackendBaseUrl } from '../lib/backendUrl';
 
-const API = import.meta.env.VITE_API_URL
-         || import.meta.env.VITE_BACKEND_URL
-         || 'https://bizhealth-production.up.railway.app';
+const API = getBackendBaseUrl();
 
 // Yahoo Finance sector → friendly label mapping (same as CompanySearch)
 const SECTOR_MAP = {

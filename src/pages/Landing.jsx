@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { FinAxisLockup } from '../components/FinAxisLogo';
 
 /* ── Animated counter ─────────────────────────────────────── */
 function CountUp({ end, suffix = '', duration = 1800 }) {
@@ -44,7 +45,7 @@ function TerminalCard() {
         background: 'rgba(4,9,26,0.97)',
         border: '1px solid rgba(79,110,247,0.22)',
         boxShadow: '0 0 0 1px rgba(79,110,247,0.08), 0 24px 80px rgba(0,0,0,0.55), 0 0 60px rgba(79,110,247,0.1)',
-        fontFamily: "'JetBrains Mono', monospace",
+        fontFamily: "'var(--font-sans)'",
       }}>
       {/* Window chrome */}
       <div className="flex items-center gap-2 px-4 py-3"
@@ -52,7 +53,7 @@ function TerminalCard() {
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#f43f5e' }} />
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#fbbf24' }} />
         <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#00e887' }} />
-        <span className="ml-3 text-[11px]" style={{ color: '#4f6ef7' }}>AAPL · Apple Inc · Technology · USD</span>
+        <span className="ml-3 text-[11px]" style={{ color: 'var(--gold)' }}>AAPL · Apple Inc · Technology · USD</span>
         <span className="ml-auto text-[10px] px-2 py-0.5 rounded-md font-semibold"
           style={{ background: 'rgba(0,232,135,0.12)', color: '#00e887', border: '1px solid rgba(0,232,135,0.25)' }}>
           ● HEALTHY
@@ -62,7 +63,7 @@ function TerminalCard() {
       <div className="p-4 space-y-2.5">
         {rows.map(r => (
           <div key={r.label} className="flex items-center justify-between gap-3">
-            <span className="text-[11px]" style={{ color: '#6b82a8', minWidth: 120 }}>{r.label}</span>
+            <span className="text-[11px]" style={{ color: 'var(--text-4)', minWidth: 120 }}>{r.label}</span>
             <div className="flex-1 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.05)' }}>
               <div className="h-full rounded-full transition-all"
                 style={{ width: r.status === 'green' ? '72%' : '42%', background: clr[r.status], opacity: 0.7 }} />
@@ -95,7 +96,7 @@ const FEATURES = [
     icon: '⌕',
     title: 'One-Click Lookup',
     body: 'Type any ticker — AAPL, RELIANCE.NS, TSLA. Statements load automatically from Yahoo Finance. No CSV uploads.',
-    accent: '#4f6ef7',
+    accent: 'var(--gold)',
   },
   {
     icon: '◈',
@@ -197,13 +198,13 @@ export default function Landing() {
         {/* Eyebrow badge */}
         <div className="flex items-center gap-2 mb-7 px-4 py-1.5 rounded-full relative z-10"
           style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.22)' }}>
-          <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#4f6ef7' }} />
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gold)' }} />
           <span className="eyebrow">Financial Intelligence Platform · Beta</span>
         </div>
 
         {/* Headline */}
         <h1 className="heading-xl text-center max-w-3xl mb-5 relative z-10">
-          Institutional-grade analysis.{' '}
+          Institutional-grade <span className="gold-shine">analysis</span>.{' '}
           <span className="shimmer-text">In seconds.</span>
         </h1>
 
@@ -328,14 +329,35 @@ export default function Landing() {
           <p className="eyebrow text-center mb-10">Built for</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { role: 'CFA Candidates',        icon: '📊', desc: 'Apply theory to real data'        },
-              { role: 'Management Consultants', icon: '💼', desc: 'Quick due diligence in minutes'   },
-              { role: 'Equity Analysts',        icon: '📈', desc: 'Ratio screens in seconds'         },
-              { role: 'CFOs & Finance Teams',   icon: '🏢', desc: 'Track your own company health'    },
+              { role: 'CFA Candidates',        icon: 'chart',      desc: 'Apply theory to real data'        },
+              { role: 'Management Consultants', icon: 'briefcase',  desc: 'Quick due diligence in minutes'   },
+              { role: 'Equity Analysts',        icon: 'trend',      desc: 'Ratio screens in seconds'         },
+              { role: 'CFOs & Finance Teams',   icon: 'building',   desc: 'Track your own company health'    },
             ].map(p => (
               <div key={p.role} className="p-5 rounded-2xl text-center"
                 style={{ background: 'var(--bg-3)', border: '1px solid var(--border)' }}>
-                <div className="text-2xl mb-2">{p.icon}</div>
+                <div className="mb-3 flex justify-center">
+                  {p.icon === 'chart' && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold-hi)" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M4 19h16"/><path d="M7 15v-4M12 15V8M17 15V5"/>
+                    </svg>
+                  )}
+                  {p.icon === 'briefcase' && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold-hi)" strokeWidth="1.9" aria-hidden="true">
+                      <rect x="3" y="7" width="18" height="12" rx="2"/><path d="M9 7V5h6v2M3 12h18"/>
+                    </svg>
+                  )}
+                  {p.icon === 'trend' && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold-hi)" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M4 16l6-6 4 3 6-7"/><path d="M16 6h4v4"/>
+                    </svg>
+                  )}
+                  {p.icon === 'building' && (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold-hi)" strokeWidth="1.9" aria-hidden="true">
+                      <path d="M4 20h16"/><rect x="6" y="4" width="12" height="16"/><path d="M10 8h4M10 12h4M10 16h4"/>
+                    </svg>
+                  )}
+                </div>
                 <p className="font-semibold text-sm mb-1" style={{ color: 'var(--text-1)' }}>{p.role}</p>
                 <p className="text-xs" style={{ color: 'var(--text-4)' }}>{p.desc}</p>
               </div>
@@ -357,8 +379,8 @@ export default function Landing() {
           {wlCount !== null && wlCount > 0 && (
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full mb-6"
               style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)' }}>
-              <span className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#4f6ef7' }} />
-              <span className="mono text-xs font-semibold" style={{ color: '#4f6ef7' }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--gold)' }} />
+              <span className="mono text-xs font-semibold" style={{ color: 'var(--gold)' }}>
                 {wlCount} {wlCount === 1 ? 'person' : 'people'} already on the list
               </span>
             </div>
@@ -429,11 +451,7 @@ export default function Landing() {
       <footer className="py-10 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)' }}>
-              <span className="text-white font-black text-[10px]">B</span>
-            </div>
-            <span className="font-bold text-sm" style={{ color: 'var(--text-1)' }}>BizHealth</span>
+            <FinAxisLockup size={14} gap={6} finColor="var(--text-1)" axisColor="var(--gold)" markColor="var(--text-1)" />
             <span className="text-xs" style={{ color: 'var(--text-5)' }}>· Financial Intelligence</span>
           </div>
           <div className="flex items-center gap-6">
@@ -447,7 +465,7 @@ export default function Landing() {
             ))}
           </div>
           <p className="mono text-xs" style={{ color: 'var(--text-5)' }}>
-            © 2026 BizHealth · Beta
+            © 2026 Valoreva · Beta
           </p>
         </div>
       </footer>

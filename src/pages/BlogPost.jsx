@@ -1,6 +1,20 @@
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
-import { getPost, getRelatedPosts, POSTS } from '../data/blogPosts';
+﻿import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from 'recharts';
+import {
+  getBlogPostBySlug,
+  getRelatedBlogPosts,
+  getPostReactions,
+  setPostReaction,
+} from '../lib/blogPostsStore';
 
 /* ── Category badge ─────────────────────────────────────────── */
 const CAT_CLR = {
@@ -10,11 +24,11 @@ const CAT_CLR = {
   'Efficiency':      '#a78bfa',
   'Valuation':       '#fbbf24',
   'Earnings Quality':'#fbbf24',
-  'How-To':          '#4f6ef7',
+  'How-To':          'var(--gold)',
 };
 
 function CategoryBadge({ cat }) {
-  const c = CAT_CLR[cat] || '#4f6ef7';
+  const c = CAT_CLR[cat] || 'var(--gold)';
   return (
     <span className="inline-flex items-center text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider"
       style={{
@@ -59,14 +73,14 @@ function Block({ block }) {
         <div className="my-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(79,110,247,0.25)' }}>
           <div className="px-4 py-2 flex items-center justify-between"
             style={{ background: 'rgba(79,110,247,0.07)', borderBottom: '1px solid rgba(79,110,247,0.15)' }}>
-            <span className="mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: '#4f6ef7' }}>
+            <span className="mono text-[10px] font-semibold uppercase tracking-widest" style={{ color: 'var(--gold)' }}>
               {block.label}
             </span>
           </div>
           <div className="px-5 py-4" style={{ background: 'rgba(79,110,247,0.04)' }}>
             <p className="mono text-sm font-bold mb-1" style={{ color: '#f1f5f9' }}>{block.formula}</p>
             {block.example && (
-              <p className="mono text-xs mt-2" style={{ color: '#6b82a8' }}>{block.example}</p>
+              <p className="mono text-xs mt-2" style={{ color: 'var(--text-4)' }}>{block.example}</p>
             )}
           </div>
         </div>
@@ -81,7 +95,7 @@ function Block({ block }) {
                 <tr style={{ background: 'rgba(79,110,247,0.06)', borderBottom: '1px solid var(--border)' }}>
                   {block.headers.map(h => (
                     <th key={h} className="text-left px-4 py-3 font-bold uppercase tracking-wider mono"
-                      style={{ color: '#4f6ef7', fontSize: 10, whiteSpace: 'nowrap' }}>
+                      style={{ color: 'var(--gold)', fontSize: 10, whiteSpace: 'nowrap' }}>
                       {h}
                     </th>
                   ))}
@@ -106,8 +120,8 @@ function Block({ block }) {
 
     case 'callout': {
       const variants = {
-        info:    { bg: 'rgba(79,110,247,0.08)',  border: 'rgba(79,110,247,0.3)',   icon: 'ℹ', color: '#4f6ef7'  },
-        warning: { bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.3)',   icon: '⚠', color: '#fbbf24' },
+        info:    { bg: 'rgba(79,110,247,0.08)',  border: 'rgba(79,110,247,0.3)',   icon: 'ℹ', color: 'var(--gold)'  },
+        warning: { bg: 'rgba(251,191,36,0.08)',  border: 'rgba(251,191,36,0.3)',   icon: '[!]', color: '#fbbf24' },
         danger:  { bg: 'rgba(244,63,94,0.08)',   border: 'rgba(244,63,94,0.3)',    icon: '!', color: '#f43f5e'  },
       };
       const v = variants[block.variant] || variants.info;
@@ -125,7 +139,7 @@ function Block({ block }) {
         <ul className="my-4 space-y-2.5">
           {block.items.map((item, i) => (
             <li key={i} className="flex items-start gap-3 text-sm leading-relaxed" style={{ color: 'var(--text-2)' }}>
-              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2" style={{ background: '#4f6ef7' }} />
+              <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 mt-2" style={{ background: 'var(--gold)' }} />
               {item}
             </li>
           ))}
@@ -144,6 +158,72 @@ function Block({ block }) {
         </div>
       );
 
+    case 'image':
+      return (
+        <figure className="my-8">
+          <img
+            src={block.src}
+            alt={block.caption || 'Article illustration'}
+            className="w-full rounded-xl"
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}
+          />
+          {block.caption && (
+            <figcaption className="mt-2 text-xs" style={{ color: 'var(--text-4)' }}>
+              {block.caption}
+            </figcaption>
+          )}
+        </figure>
+      );
+
+    case 'miniChart':
+      return (
+        <div className="my-8 rounded-2xl p-4" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+          <p className="mono text-[11px] mb-3 uppercase tracking-wider" style={{ color: 'var(--gold)' }}>
+            {block.title || 'Trend'}
+          </p>
+          <div style={{ height: 260 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={Array.isArray(block.points) ? block.points : []} margin={{ top: 10, right: 12, left: 0, bottom: 2 }}>
+                <CartesianGrid stroke="rgba(79,110,247,0.12)" strokeDasharray="3 3" />
+                <XAxis dataKey="label" tick={{ fill: 'var(--text-4)', fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: 'var(--text-4)', fontSize: 11 }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip
+                  contentStyle={{
+                    background: 'var(--surface-hi)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 8,
+                    color: 'var(--text-1)',
+                  }}
+                />
+                <Line type="monotone" dataKey="value" stroke="var(--gold)" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      );
+
+    case 'companyAnalysis': {
+      const ticker = String(block.ticker || '').trim().toUpperCase();
+      const url = ticker ? `/dashboard?symbol=${encodeURIComponent(ticker)}${block.companyName ? `&name=${encodeURIComponent(block.companyName)}` : ''}` : '/dashboard';
+      return (
+        <div className="my-8 rounded-2xl p-5" style={{ border: '1px solid rgba(79,110,247,0.35)', background: 'rgba(79,110,247,0.08)' }}>
+          <p className="mono text-[10px] uppercase tracking-widest mb-2" style={{ color: 'var(--gold)' }}>
+            Direct Valoreva Analysis
+          </p>
+          <h3 className="text-sm font-bold mb-2" style={{ color: 'var(--text-1)' }}>
+            {block.companyName || ticker || 'Company'}
+            {ticker ? ` (${ticker})` : ''}
+          </h3>
+          {block.note && (
+            <p className="text-sm mb-3" style={{ color: 'var(--text-2)' }}>{block.note}</p>
+          )}
+          <Link to={url} className="btn-primary inline-block px-4 py-2 rounded-lg text-xs font-semibold text-white">
+            Open Live Dashboard Analysis
+          </Link>
+        </div>
+      );
+    }
+
     default:
       return null;
   }
@@ -151,7 +231,7 @@ function Block({ block }) {
 
 /* ── Related post card ──────────────────────────────────────── */
 function RelatedCard({ post }) {
-  const c = CAT_CLR[post.category] || '#4f6ef7';
+  const c = CAT_CLR[post.category] || 'var(--gold)';
   return (
     <Link to={`/blog/${post.slug}`}
       className="block p-5 rounded-xl transition-all"
@@ -174,12 +254,17 @@ function RelatedCard({ post }) {
 export default function BlogPost() {
   const { slug } = useParams();
   const navigate  = useNavigate();
-  const post      = getPost(slug);
-  const related   = getRelatedPosts(slug, 3);
+  const post      = getBlogPostBySlug(slug);
+  const related   = getRelatedBlogPosts(slug, 3);
+  const [reaction, setReaction] = useState(() => getPostReactions(slug));
 
   useEffect(() => {
     if (!post) { navigate('/blog', { replace: true }); }
   }, [post, navigate]);
+
+  useEffect(() => {
+    setReaction(getPostReactions(slug));
+  }, [slug]);
 
   if (!post) return null;
 
@@ -189,9 +274,9 @@ export default function BlogPost() {
     '@type': 'Article',
     headline: post.title,
     description: post.description,
-    author: { '@type': 'Organization', name: 'BizHealth' },
+    author: { '@type': 'Organization', name: 'Valoreva' },
     datePublished: post.date,
-    publisher: { '@type': 'Organization', name: 'BizHealth' },
+    publisher: { '@type': 'Organization', name: 'Valoreva' },
   };
 
   return (
@@ -252,14 +337,43 @@ export default function BlogPost() {
             </div>
             <div>
               <p className="text-xs font-semibold" style={{ color: 'var(--text-1)' }}>{post.author}</p>
-              <p className="text-[10px]" style={{ color: 'var(--text-4)' }}>BizHealth · Financial Intelligence</p>
+              <p className="text-[10px]" style={{ color: 'var(--text-4)' }}>Valoreva · Financial Intelligence</p>
             </div>
           </div>
           <Link to="/blog"
             className="text-xs font-semibold transition-colors hidden sm:block"
-            style={{ color: '#4f6ef7' }}>
+            style={{ color: 'var(--gold)' }}>
             ← All articles
           </Link>
+        </div>
+
+        <div className="rounded-2xl px-5 py-4 mt-3 flex items-center justify-between gap-3"
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <p className="text-xs" style={{ color: 'var(--text-3)' }}>Was this post useful?</p>
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{
+                border: '1px solid var(--border)',
+                background: reaction.userVote === 'approve' ? 'rgba(34,197,94,0.15)' : 'transparent',
+                color: reaction.userVote === 'approve' ? '#22c55e' : 'var(--text-3)',
+              }}
+              onClick={() => setReaction(setPostReaction(slug, reaction.userVote === 'approve' ? null : 'approve'))}
+            >
+              Approve ({reaction.approvals})
+            </button>
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+              style={{
+                border: '1px solid var(--border)',
+                background: reaction.userVote === 'disapprove' ? 'rgba(239,68,68,0.15)' : 'transparent',
+                color: reaction.userVote === 'disapprove' ? '#ef4444' : 'var(--text-3)',
+              }}
+              onClick={() => setReaction(setPostReaction(slug, reaction.userVote === 'disapprove' ? null : 'disapprove'))}
+            >
+              Disapprove ({reaction.disapprovals})
+            </button>
+          </div>
         </div>
       </div>
 

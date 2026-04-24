@@ -1,21 +1,23 @@
 import { Link } from 'react-router-dom';
-import { POSTS } from '../data/blogPosts';
+import { useMemo } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { getAllBlogPosts } from '../lib/blogPostsStore';
 
 const CATEGORY_COLORS = {
-  'Liquidity':       '#2461d4',
+  'Liquidity':       'var(--gold)',
   'Profitability':   '#16a34a',
   'Credit Analysis': '#dc2626',
   'Efficiency':      '#7c3aed',
   'Valuation':       '#b45309',
   'Earnings Quality':'#b45309',
-  'How-To':          '#2461d4',
+  'How-To':          'var(--gold)',
 };
 
 function CategoryBadge({ cat }) {
-  const color = CATEGORY_COLORS[cat] || '#2461d4';
+  const color = CATEGORY_COLORS[cat] || 'var(--gold)';
   return (
     <span style={{
-      fontFamily: "'JetBrains Mono', monospace", fontSize: 10, fontWeight: 600,
+      fontFamily: "'var(--font-sans)'", fontSize: 10, fontWeight: 600,
       letterSpacing: '0.08em', textTransform: 'uppercase',
       color, border: `1px solid ${color}`, borderRadius: 3,
       padding: '2px 6px', whiteSpace: 'nowrap',
@@ -48,7 +50,7 @@ function PostCard({ post, featured = false }) {
         <span className="mono text-[10px]" style={{ color: 'var(--text-5)' }}>
           {new Date(post.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
         </span>
-        <span className="text-xs font-semibold transition-colors" style={{ color: '#2461d4' }}>
+        <span className="text-xs font-semibold transition-colors" style={{ color: 'var(--gold)' }}>
           Read →
         </span>
       </div>
@@ -57,10 +59,11 @@ function PostCard({ post, featured = false }) {
 }
 
 export default function Blog() {
-  const featured = POSTS[POSTS.length - 1]; // most recent
-  const rest = POSTS.slice(0, POSTS.length - 1).reverse();
-
-  const categories = [...new Set(POSTS.map(p => p.category))];
+  const { user } = useAuth();
+  const posts = useMemo(() => getAllBlogPosts(), []);
+  const featured = posts[0];
+  const rest = posts.slice(1);
+  const categories = [...new Set(posts.map((p) => p.category))];
 
   return (
     <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
@@ -74,12 +77,24 @@ export default function Blog() {
           <p className="eyebrow mb-3">Finance Intelligence</p>
           <h1 className="heading-xl mb-4 max-w-2xl">
             Learn the ratios that drive<br />
-            <span style={{ color: '#4f6ef7' }}>real investment decisions.</span>
+            <span style={{ color: 'var(--gold)' }}>real investment decisions.</span>
           </h1>
           <p className="subheading max-w-lg">
             CFA-level concepts explained clearly for analysts, consultants, and finance professionals.
             Each article links directly to live analysis tools.
           </p>
+
+          {user && (
+            <div className="mt-5">
+              <Link
+                to="/blog/new"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold"
+                style={{ background: 'rgba(200,157,31,0.14)', border: '1px solid rgba(200,157,31,0.35)', color: 'var(--gold)' }}
+              >
+                Write Post
+              </Link>
+            </div>
+          )}
 
           {/* Category pills */}
           <div className="flex flex-wrap gap-2 mt-8">
@@ -91,6 +106,7 @@ export default function Blog() {
       </section>
 
       {/* ── FEATURED POST ── */}
+      {featured && (
       <section className="px-6 pb-8">
         <div className="max-w-5xl mx-auto">
           <p className="eyebrow mb-4" style={{ color: 'var(--text-4)' }}>Latest</p>
@@ -117,7 +133,7 @@ export default function Blog() {
             <p className="text-sm leading-relaxed max-w-2xl mb-5" style={{ color: 'var(--text-3)' }}>
               {featured.description}
             </p>
-            <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: '#2461d4' }}>
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: 'var(--gold)' }}>
               Read article
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
@@ -126,6 +142,7 @@ export default function Blog() {
           </Link>
         </div>
       </section>
+      )}
 
       {/* ── ARTICLE GRID ── */}
       <section className="px-6 pb-24">

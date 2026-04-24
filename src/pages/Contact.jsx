@@ -1,4 +1,4 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 const INQUIRY_TYPES = ['General Question', 'Feature Request', 'Bug Report', 'Partnership / Investment', 'Press'];
@@ -12,8 +12,8 @@ const CONTACT_ITEMS = [
       </svg>
     ),
     label: 'Email',
-    value: 'hello@bizhealth.app',
-    href: 'mailto:hello@bizhealth.app',
+    value: 'hello@valoreva.app',
+    href: 'mailto:hello@valoreva.app',
   },
   {
     icon: (
@@ -22,8 +22,8 @@ const CONTACT_ITEMS = [
       </svg>
     ),
     label: 'GitHub',
-    value: 'github.com/nightguy716/BizHealth',
-    href: 'https://github.com/nightguy716/BizHealth',
+    value: 'github.com/nightguy716/Valoreva',
+    href: 'https://github.com/nightguy716/Valoreva',
   },
   {
     icon: (
@@ -83,7 +83,7 @@ export default function Contact() {
         }} />
         <div className="relative">
           <p className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             CONTACT US
           </p>
           <h1 className="font-black mb-4"
@@ -114,7 +114,7 @@ export default function Contact() {
                 <a key={c.label} href={c.href} target="_blank" rel="noreferrer"
                   className="flex items-start gap-3 group">
                   <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors"
-                    style={{ background: 'rgba(79,110,247,0.08)', color: '#4f6ef7' }}>
+                    style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--gold)' }}>
                     {c.icon}
                   </div>
                   <div>
@@ -129,7 +129,7 @@ export default function Contact() {
             <div className="p-5 rounded-xl"
               style={{ background: 'rgba(0,232,135,0.05)', border: '1px solid rgba(0,232,135,0.15)' }}>
               <div className="flex items-center gap-2 mb-2">
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: '#00e887' }} />
+                <span className="w-2 h-2 rounded-full" style={{ background: '#00e887' }} />
                 <span className="text-xs font-bold" style={{ color: '#00e887', fontFamily: 'JetBrains Mono, monospace' }}>TYPICALLY RESPONDS</span>
               </div>
               <p className="text-2xl font-black" style={{ color: 'var(--text-1)', fontFamily: 'JetBrains Mono, monospace' }}>
@@ -239,7 +239,7 @@ export default function Contact() {
                     : 'Send Message →'}
                 </button>
 
-                <p className="text-xs text-center" style={{ color: '#3d5070' }}>
+                <p className="text-xs text-center" style={{ color: 'var(--text-5)' }}>
                   We respect your privacy. Your information is never shared with third parties.
                 </p>
               </form>

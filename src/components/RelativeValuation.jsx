@@ -31,8 +31,8 @@ function multipleStatus(value, benchmark) {
 const STATUS_STYLE = {
   premium:  { color: '#f43f5e', bg: 'rgba(244,63,94,0.08)',  border: 'rgba(244,63,94,0.25)',  label: 'PREMIUM'  },
   discount: { color: '#00e887', bg: 'rgba(0,232,135,0.08)',  border: 'rgba(0,232,135,0.25)',  label: 'DISCOUNT' },
-  fair:     { color: '#4f6ef7', bg: 'rgba(79,110,247,0.08)', border: 'rgba(79,110,247,0.25)', label: 'FAIR'     },
-  na:       { color: '#3d5070', bg: 'rgba(255,255,255,0.04)',border: 'rgba(255,255,255,0.08)',label: 'N/A'      },
+  fair:     { color: 'var(--gold)', bg: 'rgba(79,110,247,0.08)', border: 'rgba(79,110,247,0.25)', label: 'FAIR'     },
+  na:       { color: 'var(--text-5)', bg: 'rgba(255,255,255,0.04)',border: 'rgba(255,255,255,0.08)',label: 'N/A'      },
 };
 
 function fmt(v, decimals = 1) {
@@ -133,14 +133,14 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
           <div>
             <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: '#a78bfa' }}>Relative Valuation</span>
-            <p className="text-[10px] mt-0.5" style={{ color: '#6b82a8' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
               Trading multiples vs sector median · P/E · EV/EBITDA · P/S · P/B · PEG
             </p>
           </div>
         </div>
         {isListed && md.currentPrice && (
           <div className="flex items-center gap-2">
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6b82a8' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--text-4)' }}>
               PRICE
             </span>
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 16, fontWeight: 700, color: '#22d3ee' }}>
@@ -161,18 +161,18 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
         <div className="flex flex-wrap gap-3 mb-5 p-3 rounded-xl"
           style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.07)' }}>
           {[
-            { label: 'Market Cap',   value: fmtBig(md.marketCap),        color: '#7b95fa' },
-            { label: 'Enterprise V', value: fmtBig(md.enterpriseValue),   color: '#7b95fa' },
+            { label: 'Market Cap',   value: fmtBig(md.marketCap),        color: 'var(--gold-hi)' },
+            { label: 'Enterprise V', value: fmtBig(md.enterpriseValue),   color: 'var(--gold-hi)' },
             { label: 'Beta',         value: md.beta ? md.beta.toFixed(2) + '×' : '—', color: md.beta > 1.5 ? '#f43f5e' : md.beta < 0.8 ? '#00e887' : '#fbbf24' },
             { label: 'Fwd EPS',      value: md.forwardEps ? companyContext.currency + ' ' + md.forwardEps.toFixed(2) : '—', color: '#22d3ee' },
-            { label: 'Analysts',     value: md.numberOfAnalysts ? md.numberOfAnalysts + ' analysts' : '—', color: '#6b82a8' },
+            { label: 'Analysts',     value: md.numberOfAnalysts ? md.numberOfAnalysts + ' analysts' : '—', color: 'var(--text-4)' },
             { label: 'Rev. Growth',  value: fmtPct(md.revenueGrowthYoY), color: md.revenueGrowthYoY > 0 ? '#00e887' : '#f43f5e' },
             { label: 'EPS Growth',   value: fmtPct(md.earningsGrowthYoY), color: md.earningsGrowthYoY > 0 ? '#00e887' : '#f43f5e' },
             ...(md.recommendationKey ? [{ label: 'Consensus', value: md.recommendationKey.toUpperCase(),
               color: md.recommendationKey.includes('buy') ? '#00e887' : md.recommendationKey === 'sell' ? '#f43f5e' : '#fbbf24' }] : []),
           ].filter(item => item.value !== '—').map(({ label, value, color }) => (
             <div key={label} className="flex flex-col">
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070', letterSpacing: '0.1em' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)', letterSpacing: '0.1em' }}>
                 {label.toUpperCase()}
               </span>
               <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color, marginTop: 2 }}>
@@ -188,14 +188,14 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
         <div className="mb-5">
           <button onClick={() => setShowManual(p => !p)}
             className="flex items-center gap-2 text-[10px] font-semibold mb-2 transition-colors"
-            style={{ color: showManual ? '#a78bfa' : '#6b82a8', fontFamily: 'Inter, sans-serif' }}>
-            <span style={{ fontSize: 12 }}>{showManual ? '▲' : '▼'}</span>
+            style={{ color: showManual ? '#a78bfa' : 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
+            <span style={{ fontSize: 12 }}>{showManual ? '−' : '+'}</span>
             {showManual ? 'Hide manual market cap' : 'Enter market cap to derive multiples'}
           </button>
           {showManual && (
             <div className="flex items-center gap-3 p-3 rounded-xl"
               style={{ background: 'rgba(167,139,250,0.06)', border: '1px solid rgba(167,139,250,0.2)' }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)', flexShrink: 0 }}>
                 Market Cap
               </span>
               <input
@@ -209,7 +209,7 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                   color: '#ffffff', fontFamily: 'JetBrains Mono, monospace',
                 }}
               />
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#3d5070', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'var(--text-5)', flexShrink: 0 }}>
                 raw number
               </span>
             </div>
@@ -218,7 +218,7 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
       )}
 
       {!hasAnyMultiple ? (
-        <p style={{ fontSize: 11, color: '#6b82a8', fontFamily: 'Inter, sans-serif' }}>
+        <p style={{ fontSize: 11, color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
           {isListed
             ? 'Multiples not available for this ticker from Yahoo Finance.'
             : 'Search a listed company via the sidebar, or enter a market cap above to derive implied multiples.'}
@@ -234,7 +234,7 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                 display: 'grid', gridTemplateColumns: '1.2fr 80px 80px 80px 80px',
                 background: 'rgba(255,255,255,0.04)', gap: 8,
                 fontFamily: 'JetBrains Mono, monospace', fontSize: 8,
-                fontWeight: 700, letterSpacing: '0.12em', color: '#3d5070',
+                fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-5)',
                 borderBottom: '1px solid rgba(255,255,255,0.06)',
               }}>
               <span>MULTIPLE</span>
@@ -264,7 +264,7 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; setShowTip(false); }}>
 
                   <div>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#d4ddf5' }}>{label}</span>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-2)' }}>{label}</span>
                     <MultipleBar value={value} benchmark={benchValue} />
                   </div>
 
@@ -274,12 +274,12 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                   </span>
 
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11,
-                    color: '#6b82a8', textAlign: 'right', display: 'block' }}>
+                    color: 'var(--text-4)', textAlign: 'right', display: 'block' }}>
                     {benchKey ? fmt(bench[benchKey]) : '—'}
                   </span>
 
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, fontWeight: 600,
-                    color: premiumPct === null ? '#3d5070'
+                    color: premiumPct === null ? 'var(--text-5)'
                          : premiumPct > 0 ? '#f43f5e' : '#00e887',
                     textAlign: 'right', display: 'block' }}>
                     {premiumPct !== null ? (premiumPct >= 0 ? '+' : '') + premiumPct.toFixed(0) + '%' : '—'}
@@ -298,10 +298,10 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                   {showTip && tooltip && (
                     <div style={{
                       position: 'absolute', bottom: 'calc(100% + 6px)', left: 12, zIndex: 50,
-                      background: '#06101e', border: '1px solid rgba(79,110,247,0.3)',
+                      background: 'var(--surface)', border: '1px solid var(--border)',
                       borderRadius: 8, padding: '7px 10px', maxWidth: 260, width: 'max-content',
-                      fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#9fb3d4', lineHeight: 1.6,
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.7)', pointerEvents: 'none',
+                      fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'var(--text-3)', lineHeight: 1.6,
+                      boxShadow: 'var(--shadow-lg)', pointerEvents: 'none',
                     }}>
                       {tooltip}
                     </div>
@@ -323,11 +323,11 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
                           : 'fairly valued vs sector median';
             const vColor  = premiumCnt >= Math.ceil(validRows.length / 2) ? '#f43f5e'
                           : discountCnt >= Math.ceil(validRows.length / 2) ? '#00e887'
-                          : '#4f6ef7';
+                          : 'var(--gold)';
             return (
               <div className="px-4 py-3 rounded-xl"
                 style={{ background: `${vColor}08`, border: `1px solid ${vColor}25` }}>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#d4ddf5', lineHeight: 1.6 }}>
+                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-2)', lineHeight: 1.6 }}>
                   <span style={{ color: vColor, fontWeight: 700 }}>Verdict: </span>
                   On {validRows.length} available multiples, this company appears{' '}
                   <span style={{ color: vColor, fontWeight: 600 }}>{verdict}</span>.
@@ -340,7 +340,7 @@ export default function RelativeValuation({ companyContext, inputs, industry = '
       )}
 
       {/* CFA note */}
-      <p className="mt-5 text-[10px]" style={{ color: '#3d5070', fontFamily: 'Inter, sans-serif' }}>
+      <p className="mt-5 text-[10px]" style={{ color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>
         <span style={{ color: '#a78bfa' }}>CFA L2 / Equity ·</span> Sector benchmarks represent 2024–25 median
         multiples. EV/EBITDA is preferred in M&A as it is capital-structure neutral. P/E is distorted by leverage
         and non-recurring items. Always triangulate multiple valuation methods.

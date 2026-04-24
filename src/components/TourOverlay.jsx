@@ -41,14 +41,14 @@ const STEPS = [
 ];
 
 const C = {
-  surface: '#0f1523',
-  border:  '#243354',
-  text:    '#e2e8f4',
-  text2:   '#7b8eab',
-  muted:   '#4a5568',
-  blue:    '#2461d4',
+  surface: 'var(--surface)',
+  border:  'var(--border-hi)',
+  text:    'var(--text-1)',
+  text2:   'var(--text-3)',
+  muted:   'var(--text-4)',
+  blue:    'var(--gold)',
 };
-const mono = "'JetBrains Mono', monospace";
+const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
 
 function getRect(selector) {

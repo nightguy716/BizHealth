@@ -206,12 +206,30 @@ export function AuthProvider({ children }) {
       .eq('read', false);
   }
 
-  async function createNotification({ type, ticker, message }) {
+  async function deleteReadNotifications() {
+    if (!user || !supabase) return;
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('read', true);
+  }
+
+  async function clearAllNotifications() {
+    if (!user || !supabase) return;
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', user.id);
+  }
+
+  async function createNotification({ type, ticker, title, message }) {
     if (!user || !supabase) return;
     await supabase.from('notifications').insert({
       user_id: user.id,
       type,
-      ticker,
+      ticker: ticker || null,
+      title: title || null,
       message,
     });
   }
@@ -225,7 +243,7 @@ export function AuthProvider({ children }) {
       saveSearch, getSearchHistory,
       getWatchlist, addToWatchlist, removeFromWatchlist, isOnWatchlist,
       getJournalEntries, addJournalEntry, updateJournalEntry, deleteJournalEntry,
-      getNotifications, markNotificationRead, markAllNotificationsRead, createNotification,
+      getNotifications, markNotificationRead, markAllNotificationsRead, deleteReadNotifications, clearAllNotifications, createNotification,
       isAuthenticated: !!user,
     }}>
       {children}

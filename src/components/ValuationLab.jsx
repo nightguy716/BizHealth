@@ -43,11 +43,11 @@ function calcEV(baseRevenue, annualGrowth, ebitdaMargin, taxRate, wacc, termGrow
 
 /* ── Colour a cell relative to the base-case (center) value ── */
 function cellColor(val, base) {
-  if (val === null || base === null || base === 0) return { bg: 'rgba(255,255,255,0.04)', color: '#6b82a8' };
+  if (val === null || base === null || base === 0) return { bg: 'rgba(255,255,255,0.04)', color: 'var(--text-4)' };
   const ratio = val / base;
   if (ratio >= 1.30) return { bg: 'rgba(0,232,135,0.18)',  color: '#00e887' };
   if (ratio >= 1.10) return { bg: 'rgba(0,232,135,0.10)',  color: '#00c874' };
-  if (ratio >= 0.90) return { bg: 'rgba(79,110,247,0.12)', color: '#7b95fa' }; // base-case zone
+  if (ratio >= 0.90) return { bg: 'rgba(79,110,247,0.12)', color: 'var(--gold-hi)' }; // base-case zone
   if (ratio >= 0.70) return { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24' };
   return                    { bg: 'rgba(244,63,94,0.14)',  color: '#f43f5e' };
 }
@@ -61,8 +61,8 @@ function TabBar({ tabs, active, setActive }) {
         <button key={id} onClick={() => setActive(id)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[10px] font-bold transition-all duration-150 mono"
           style={active === id
-            ? { background: 'rgba(79,110,247,0.2)', color: '#7b95fa', border: '1px solid rgba(79,110,247,0.35)' }
-            : { background: 'transparent', color: '#6b82a8', border: '1px solid transparent' }}>
+            ? { background: 'rgba(79,110,247,0.2)', color: 'var(--gold-hi)', border: '1px solid rgba(79,110,247,0.35)' }
+            : { background: 'transparent', color: 'var(--text-4)', border: '1px solid transparent' }}>
           {icon} {label}
         </button>
       ))}
@@ -71,12 +71,12 @@ function TabBar({ tabs, active, setActive }) {
 }
 
 /* ── Slider row ── */
-function SliderRow({ label, value, min, max, step, onChange, format, color = '#4f6ef7' }) {
+function SliderRow({ label, value, min, max, step, onChange, format, color = 'var(--gold)' }) {
   const pct = ((value - min) / (max - min)) * 100;
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-1.5">
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4' }}>{label}</span>
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)' }}>{label}</span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700, color }}>
           {format(value)}
         </span>
@@ -91,7 +91,7 @@ function SliderRow({ label, value, min, max, step, onChange, format, color = '#4
           style={{ height: '100%' }} />
         {/* Thumb */}
         <div className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full border-2 pointer-events-none"
-          style={{ left: `calc(${pct}% - 6px)`, background: '#06101e', borderColor: color,
+          style={{ left: `calc(${pct}% - 6px)`, background: 'var(--surface)', borderColor: color,
             boxShadow: `0 0 8px ${color}`, transition: 'left 0.05s' }} />
       </div>
     </div>
@@ -189,7 +189,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
           <div>
             <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: '#22d3ee' }}>Valuation Lab</span>
-            <p className="text-[10px] mt-0.5" style={{ color: '#6b82a8' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
               DCF sensitivity grid · What-if scenario modelling
             </p>
           </div>
@@ -207,7 +207,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
       {tab === 'sensitivity' && (
         <>
           {!hasData ? (
-            <p style={{ fontSize: 12, color: '#6b82a8' }}>
+            <p style={{ fontSize: 12, color: 'var(--text-4)' }}>
               Enter Revenue in the sidebar to unlock the DCF sensitivity grid.
             </p>
           ) : (
@@ -237,14 +237,14 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
               {baseEV && (
                 <div className="flex items-center gap-3 mb-4 px-4 py-3 rounded-xl"
                   style={{ background: 'rgba(79,110,247,0.08)', border: '1px solid rgba(79,110,247,0.2)' }}>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6b82a8' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: 'var(--text-4)' }}>
                     BASE CASE EV ({(baseWacc * 100).toFixed(1)}% WACC · {(BASE_G * 100).toFixed(1)}% g)
                   </span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 20, fontWeight: 700, color: '#7b95fa',
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 20, fontWeight: 700, color: 'var(--gold-hi)',
                     textShadow: '0 0 20px rgba(79,110,247,0.5)' }}>
                     {fmtBig(baseEV)}
                   </span>
-                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#3d5070', marginLeft: 'auto' }}>
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'var(--text-5)', marginLeft: 'auto' }}>
                     5-yr DCF · Unlevered
                   </span>
                 </div>
@@ -257,7 +257,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
                     <tr>
                       {/* Corner label */}
                       <td style={{ padding: '4px 8px', textAlign: 'center' }}>
-                        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070', lineHeight: 1.3 }}>
+                        <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)', lineHeight: 1.3 }}>
                           <div>g ↓ WACC →</div>
                         </div>
                       </td>
@@ -265,11 +265,11 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
                         <td key={w} style={{ padding: '4px 6px', textAlign: 'center' }}>
                           <span style={{
                             fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 700,
-                            color: Math.abs(w - baseWacc) < 0.001 ? '#7b95fa' : '#6b82a8',
+                            color: Math.abs(w - baseWacc) < 0.001 ? 'var(--gold-hi)' : 'var(--text-4)',
                           }}>
                             {(w * 100).toFixed(0)}%
                             {Math.abs(w - baseWacc) < 0.001 && (
-                              <span style={{ color: '#4f6ef7', marginLeft: 2 }}>★</span>
+                              <span style={{ color: 'var(--gold)', marginLeft: 2 }}>★</span>
                             )}
                           </span>
                         </td>
@@ -283,11 +283,11 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
                         <td style={{ padding: '4px 8px' }}>
                           <span style={{
                             fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 700,
-                            color: Math.abs(g - BASE_G) < 0.001 ? '#7b95fa' : '#6b82a8',
+                            color: Math.abs(g - BASE_G) < 0.001 ? 'var(--gold-hi)' : 'var(--text-4)',
                           }}>
                             {(g * 100).toFixed(1)}%
                             {Math.abs(g - BASE_G) < 0.001 && (
-                              <span style={{ color: '#4f6ef7', marginLeft: 2 }}>★</span>
+                              <span style={{ color: 'var(--gold)', marginLeft: 2 }}>★</span>
                             )}
                           </span>
                         </td>
@@ -324,12 +324,12 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
               <div className="flex flex-wrap items-center gap-4 mt-4">
                 {[
                   { bg: 'rgba(0,232,135,0.18)',  color: '#00e887', label: '+30% above base' },
-                  { bg: 'rgba(79,110,247,0.12)', color: '#7b95fa', label: '±10% base zone ★' },
+                  { bg: 'rgba(79,110,247,0.12)', color: 'var(--gold-hi)', label: '±10% base zone ★' },
                   { bg: 'rgba(251,191,36,0.12)', color: '#fbbf24', label: '−10 to −30%' },
                   { bg: 'rgba(244,63,94,0.14)',  color: '#f43f5e', label: '>−30% downside' },
                 ].map(({ bg, color, label }) => (
                   <span key={label} className="flex items-center gap-1.5"
-                    style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#6b82a8' }}>
+                    style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-4)' }}>
                     <span style={{ width: 10, height: 10, background: bg, border: `1px solid ${color}50`,
                       borderRadius: 3, display: 'inline-block' }} />
                     {label}
@@ -346,7 +346,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left: sliders */}
           <div>
-            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-4" style={{ color: '#3d5070' }}>
+            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--text-5)' }}>
               ADJUST ASSUMPTIONS
             </p>
             <SliderRow label="Revenue Growth Rate" value={wiRevGrowth}
@@ -369,7 +369,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
 
           {/* Right: live indicators */}
           <div>
-            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-4" style={{ color: '#3d5070' }}>
+            <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-4" style={{ color: 'var(--text-5)' }}>
               PROJECTED IMPACT
             </p>
 
@@ -377,10 +377,10 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
             <div className="rounded-xl p-4 mb-4"
               style={{ background: `${wiColor}0d`, border: `1px solid ${wiColor}30` }}>
               <div className="flex items-center justify-between mb-2">
-                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4' }}>
+                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)' }}>
                   Projected Health Score
                 </span>
-                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6b82a8' }}>
+                <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: 'var(--text-4)' }}>
                   (simplified)
                 </span>
               </div>
@@ -440,10 +440,10 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
               return (
                 <div key={label} className="flex items-center justify-between py-2 px-3 rounded-lg mb-1.5 transition-colors duration-150"
                   style={{ background: 'rgba(255,255,255,0.025)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4' }}>{label}</span>
+                  <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)' }}>{label}</span>
                   <div className="flex items-center gap-2">
                     {base !== null && (
-                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#3d5070' }}>
+                      <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: 'var(--text-5)' }}>
                         {(fmtBase ?? f)(base)}{unit}
                       </span>
                     )}
@@ -457,7 +457,7 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
                         background: isUp ? 'rgba(0,232,135,0.1)' : 'rgba(244,63,94,0.1)',
                         borderRadius: 4, padding: '1px 5px',
                       }}>
-                        {isUp ? '▲' : '▼'} {Math.abs(pctChg).toFixed(1)}%
+                        {isUp ? 'UP' : 'DOWN'} {Math.abs(pctChg).toFixed(1)}%
                       </span>
                     )}
                   </div>
@@ -468,23 +468,23 @@ export default function ValuationLab({ inputs, industry = 'general', ratioValues
             {/* Narrative interpretation */}
             <div className="mt-3 px-3 py-2.5 rounded-xl text-[10px] leading-relaxed"
               style={{ background: 'rgba(79,110,247,0.06)', border: '1px solid rgba(79,110,247,0.15)',
-                fontFamily: 'Inter, sans-serif', color: '#9fb3d4' }}>
+                fontFamily: 'Inter, sans-serif', color: 'var(--text-3)' }}>
               {wiNetMargin < 0
-                ? '⚠ Negative margin scenario — business is loss-making at these assumptions.'
+                ? 'Risk: Negative margin scenario — business is loss-making at these assumptions.'
                 : wiDE > 3
-                ? '⚠ High leverage (D/E >3×) elevates credit risk and interest burden significantly.'
+                ? 'Risk: High leverage (D/E >3x) elevates credit risk and interest burden significantly.'
                 : wiScore >= 70
-                ? '✓ Strong scenario — business generates sustainable returns at these assumptions.'
+                ? 'Strong scenario — business generates sustainable returns at these assumptions.'
                 : wiScore >= 40
-                ? '◆ Moderate scenario — some risk factors present but business is viable.'
-                : '▼ Weak scenario — multiple ratios are under stress at these assumptions.'}
+                ? 'Moderate scenario — some risk factors present but business is viable.'
+                : 'Weak scenario — multiple ratios are under stress at these assumptions.'}
             </div>
           </div>
         </div>
       )}
 
       {/* CFA note */}
-      <p className="mt-5 text-[10px]" style={{ color: '#3d5070', fontFamily: 'Inter, sans-serif' }}>
+      <p className="mt-5 text-[10px]" style={{ color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>
         <span style={{ color: '#22d3ee' }}>CFA L2 / IB Valuation ·</span> Sensitivity tables are a core
         deliverable in equity research and M&A fairness opinions. WACC typically ranges 8–12% for mature
         companies; terminal growth rate should not exceed long-run GDP growth (2.5–3.5% for developed markets).

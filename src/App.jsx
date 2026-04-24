@@ -11,13 +11,15 @@ import Auth      from './pages/Auth';
 import Profile   from './pages/Profile';
 import Blog      from './pages/Blog';
 import BlogPost  from './pages/BlogPost';
+import NewBlogPost from './pages/NewBlogPost';
 import Journal      from './pages/Journal';
 import Watchlist    from './pages/Watchlist';
 import DesignSystem from './DesignSystem';
+import { getBackendBaseUrl } from './lib/backendUrl';
 
 function BackendWarmup() {
   useEffect(() => {
-    const url = import.meta.env.VITE_BACKEND_URL;
+    const url = getBackendBaseUrl();
     if (!url) return;
     // Fire immediately on any page load
     fetch(`${url}/ping`).catch(() => {});
@@ -44,6 +46,7 @@ export default function App() {
           <Route path="/auth"        element={<Auth />}      />
           <Route path="/profile"     element={<Profile />}   />
           <Route path="/blog"        element={<Blog />}      />
+          <Route path="/blog/new"    element={<NewBlogPost />} />
           <Route path="/blog/:slug"  element={<BlogPost />}  />
           <Route path="/journal"     element={<Journal />}   />
           <Route path="/watchlist"   element={<Watchlist />} />

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
-function StatPill({ label, value, color = '#4f6ef7' }) {
+function StatPill({ label, value, color = 'var(--gold)' }) {
   return (
     <div className="rounded-xl px-4 py-3 text-center"
       style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
@@ -34,8 +34,8 @@ export default function Profile() {
 
   if (loading || !user) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: '#030711' }}>
-        <div className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+      <div className="min-h-screen flex items-center justify-center page-bg">
+        <div className="w-5 h-5 rounded-full border-2 border-[var(--gold)] border-t-transparent animate-spin" />
       </div>
     );
   }
@@ -45,27 +45,25 @@ export default function Profile() {
   const joined   = new Date(user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   return (
-    <div className="min-h-screen px-4 py-10"
-      style={{ background: 'linear-gradient(135deg,#030711 0%,#060d1f 60%,#030711 100%)' }}>
+    <div className="min-h-screen px-4 py-10 page-bg">
       <div className="max-w-3xl mx-auto space-y-6">
 
         {/* Header card */}
-        <div className="rounded-2xl p-6"
+        <div className="ghost-card rounded-2xl p-6"
           style={{
+            borderColor: 'var(--border)',
             background: 'var(--surface)',
-            border: '1px solid rgba(79,110,247,0.15)',
-            backdropFilter: 'blur(16px)',
           }}>
           <div className="flex items-center gap-4">
             {/* Avatar */}
             <div className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 font-bold text-lg"
-              style={{ background: 'linear-gradient(135deg,#4f6ef7,#22d3ee)', color: '#fff' }}>
+              style={{ background: 'linear-gradient(135deg,var(--gold),var(--gold-hi))', color: '#fff' }}>
               {initials || '?'}
             </div>
             <div className="flex-1 min-w-0">
               <h1 className="font-bold text-lg truncate" style={{ color: 'var(--text-1)' }}>{name}</h1>
               <p className="text-sm truncate" style={{ color: 'var(--text-4)' }}>{user.email}</p>
-              <p className="mono text-[10px] mt-0.5" style={{ color: '#334155' }}>
+              <p className="mono text-[10px] mt-0.5" style={{ color: 'var(--text-5)' }}>
                 Member since {joined}
               </p>
             </div>
@@ -77,14 +75,14 @@ export default function Profile() {
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-3 mt-5">
-            <StatPill label="Analyses"  value={history.length}      color="#4f6ef7" />
+            <StatPill label="Analyses"  value={history.length}      color="var(--gold)" />
             <StatPill label="Countries" value={[...new Set(history.map(h => h.ticker.includes('.') ? h.ticker.split('.').pop() : 'US'))].length} color="#22d3ee" />
             <StatPill label="AI Credits" value="7/day"               color="#00e887" />
           </div>
         </div>
 
         {/* Search history */}
-        <div className="rounded-2xl overflow-hidden"
+        <div className="ghost-card rounded-2xl overflow-hidden"
           style={{
             background: 'var(--surface)',
             border: '1px solid var(--border)',
@@ -92,7 +90,7 @@ export default function Profile() {
           <div className="flex items-center justify-between px-5 py-4"
             style={{ borderBottom: '1px solid var(--border)' }}>
             <div>
-              <h2 className="mono text-[11px] font-bold uppercase tracking-widest" style={{ color: '#22d3ee' }}>
+              <h2 className="mono text-[11px] font-bold uppercase tracking-widest" style={{ color: 'var(--gold)' }}>
                 Recent Lookups
               </h2>
               <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-4)' }}>
@@ -101,20 +99,20 @@ export default function Profile() {
             </div>
             <button onClick={() => navigate('/dashboard')}
               className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: 'rgba(79,110,247,0.12)', color: '#4f6ef7', border: '1px solid rgba(79,110,247,0.2)' }}>
+              style={{ background: 'rgba(200,157,31,0.12)', color: 'var(--gold)', border: '1px solid rgba(200,157,31,0.25)' }}>
               + New Analysis
             </button>
           </div>
 
           {histLoading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="w-5 h-5 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+              <div className="w-5 h-5 rounded-full border-2 border-[var(--gold)] border-t-transparent animate-spin" />
             </div>
           ) : history.length === 0 ? (
             <div className="py-14 text-center">
-              <p className="text-3xl mb-3">📊</p>
+              <p className="text-3xl mb-3" style={{ color: 'var(--text-4)' }}>⊞</p>
               <p className="text-sm font-medium" style={{ color: 'var(--text-4)' }}>No lookups yet</p>
-              <p className="text-xs mt-1" style={{ color: '#334155' }}>
+              <p className="text-xs mt-1" style={{ color: 'var(--text-5)' }}>
                 Search for a company on the dashboard to see history here.
               </p>
             </div>
@@ -126,13 +124,13 @@ export default function Profile() {
                 return (
                   <div key={h.ticker}
                     className="flex items-center gap-3 px-5 py-3 transition-colors cursor-pointer"
-                    style={{ borderBottom: i < history.length - 1 ? '1px solid rgba(255,255,255,0.04)' : 'none' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface)'}
+                    style={{ borderBottom: i < history.length - 1 ? '1px solid var(--border)' : 'none' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hi)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                     onClick={() => navigate('/dashboard')}>
                     {/* Ticker badge */}
                     <span className="mono text-[10px] font-bold px-2 py-1 rounded-lg flex-shrink-0"
-                      style={{ background: 'rgba(34,211,238,0.07)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.15)', minWidth: 64, textAlign: 'center' }}>
+                      style={{ background: 'rgba(200,157,31,0.09)', color: 'var(--gold)', border: '1px solid rgba(200,157,31,0.2)', minWidth: 64, textAlign: 'center' }}>
                       {h.ticker}
                     </span>
                     {/* Name + sector */}
@@ -148,12 +146,12 @@ export default function Profile() {
                         <p className="mono text-xs font-bold" style={{ color: pct >= 80 ? '#00e887' : '#fbbf24' }}>
                           {pct}%
                         </p>
-                        <p className="mono text-[9px]" style={{ color: '#334155' }}>{h.filled}/{h.total} fields</p>
+                        <p className="mono text-[9px]" style={{ color: 'var(--text-5)' }}>{h.filled}/{h.total} fields</p>
                       </div>
                     </div>
                     {/* Date */}
-                    <span className="mono text-[10px] flex-shrink-0" style={{ color: '#334155' }}>{date}</span>
-                    <span style={{ color: '#334155', fontSize: 11 }}>→</span>
+                    <span className="mono text-[10px] flex-shrink-0" style={{ color: 'var(--text-5)' }}>{date}</span>
+                    <span style={{ color: 'var(--text-5)', fontSize: 11 }}>→</span>
                   </div>
                 );
               })}
@@ -162,20 +160,20 @@ export default function Profile() {
         </div>
 
         {/* Account actions */}
-        <div className="rounded-2xl p-5"
+        <div className="ghost-card rounded-2xl p-5"
           style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
           <h2 className="mono text-[11px] font-bold uppercase tracking-widest mb-4" style={{ color: 'var(--text-4)' }}>
             Account
           </h2>
           <div className="space-y-2">
             <div className="flex items-center justify-between py-2.5 px-3 rounded-xl"
-              style={{ background: 'var(--surface)' }}>
+              style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)' }}>
               <div>
                 <p className="text-sm font-medium" style={{ color: 'var(--text-2)' }}>Email</p>
                 <p className="text-xs" style={{ color: 'var(--text-4)' }}>{user.email}</p>
               </div>
               <span className="mono text-[10px] px-2 py-1 rounded"
-                style={{ background: 'rgba(79,110,247,0.08)', color: '#4f6ef7' }}>
+                style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--gold)' }}>
                 {user.email_confirmed_at ? 'VERIFIED' : 'UNVERIFIED'}
               </span>
             </div>

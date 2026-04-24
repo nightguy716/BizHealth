@@ -16,10 +16,6 @@ export default function Logo({ size = 38 }) {
           <feGaussianBlur stdDeviation="1.2" result="b"/>
           <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
         </filter>
-        <filter id="dotGlow">
-          <feGaussianBlur stdDeviation="1" result="b"/>
-          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-        </filter>
       </defs>
 
       <rect width="40" height="40" rx="10" fill="url(#logoGrad)" opacity="0.95"/>
@@ -36,15 +32,9 @@ export default function Logo({ size = 38 }) {
         strokeLinejoin="round"
         fill="none"
         filter="url(#ecgGlow)"
-      >
-        <animate attributeName="stroke-dasharray" values="0 70;70 0;70 0" keyTimes="0;0.6;1" dur="2.2s" repeatCount="indefinite" calcMode="ease-in-out"/>
-        <animate attributeName="opacity" values="0.7;1;0.7" dur="2.2s" repeatCount="indefinite"/>
-      </polyline>
+      />
 
-      <circle cx="35" cy="8" r="2.5" fill="#00e887" filter="url(#dotGlow)">
-        <animate attributeName="opacity" values="1;0.25;1" dur="1.6s" repeatCount="indefinite"/>
-        <animate attributeName="r" values="2.5;1.8;2.5" dur="1.6s" repeatCount="indefinite"/>
-      </circle>
+      <circle cx="35" cy="8" r="2.5" fill="#00e887" />
     </svg>
   );
 }

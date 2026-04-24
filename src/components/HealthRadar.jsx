@@ -15,8 +15,8 @@ const Tip = ({ active, payload }) => {
   const { subject, score } = payload[0].payload;
   return (
     <div style={{ background: 'rgba(3,7,17,0.95)', border: '1px solid rgba(34,211,238,0.25)', borderRadius: 10, padding: '8px 12px' }}>
-      <div style={{ color: '#94a3b8', fontSize: 10, fontFamily: 'JetBrains Mono,monospace', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{subject}</div>
-      <div style={{ color: '#22d3ee', fontSize: 18, fontFamily: 'JetBrains Mono,monospace', fontWeight: 700 }}>{score}<span style={{ fontSize: 11, color: '#475569' }}>/100</span></div>
+      <div style={{ color: '#94a3b8', fontSize: 10, fontFamily: 'var(--font-sans)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{subject}</div>
+      <div style={{ color: '#22d3ee', fontSize: 18, fontFamily: 'var(--font-sans)', fontWeight: 700 }}>{score}<span style={{ fontSize: 11, color: '#475569' }}>/100</span></div>
     </div>
   );
 };
@@ -28,7 +28,7 @@ export default function HealthRadar({ statuses }) {
       <ResponsiveContainer>
         <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
           <PolarGrid gridType="polygon" stroke="rgba(34,211,238,0.08)" />
-          <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 10, fontFamily: 'JetBrains Mono,monospace', fontWeight: 600 }} />
+          <PolarAngleAxis dataKey="subject" tick={{ fill: '#475569', fontSize: 10, fontFamily: 'var(--font-sans)', fontWeight: 600 }} />
           <PolarRadiusAxis angle={90} domain={[0,100]} tick={false} axisLine={false} />
           <Radar dataKey="score" stroke="#22d3ee" strokeWidth={1.5} fill="#22d3ee" fillOpacity={0.1}
             dot={{ r: 3, fill: '#22d3ee', strokeWidth: 0, style: { filter: 'drop-shadow(0 0 4px #22d3ee)' } }} />

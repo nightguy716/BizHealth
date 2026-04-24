@@ -11,7 +11,7 @@ import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Lege
 const SCENARIOS = {
   bear: {
     label: 'Bear Case',
-    icon:  '🐻',
+    icon:  'BR',
     color: '#f43f5e',
     shadow: 'rgba(244,63,94,0.3)',
     description: 'Pessimistic — revenue decline, margin compression, rising debt costs',
@@ -27,15 +27,15 @@ const SCENARIOS = {
   },
   base: {
     label: 'Base Case',
-    icon:  '⚖️',
-    color: '#4f6ef7',
+    icon:  'BS',
+    color: 'var(--gold)',
     shadow: 'rgba(79,110,247,0.3)',
     description: 'Current actuals as entered in the sidebar',
     multipliers: {},             // no change
   },
   bull: {
     label: 'Bull Case',
-    icon:  '🐂',
+    icon:  'BL',
     color: '#00e887',
     shadow: 'rgba(0,232,135,0.3)',
     description: 'Optimistic — revenue acceleration, expanding margins, debt reduction',
@@ -141,10 +141,11 @@ const METRICS = [
 
 const TT_STYLE = {
   contentStyle: {
-    background: '#06101e', border: '1px solid rgba(79,110,247,0.3)',
-    borderRadius: 8, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: '#d4ddf5',
+    background: 'var(--surface)', border: '1px solid var(--border)',
+    borderRadius: 8, fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-2)',
+    boxShadow: 'var(--shadow-lg)',
   },
-  labelStyle: { color: '#6b82a8' },
+  labelStyle: { color: 'var(--text-4)' },
 };
 
 export default function ScenarioComparison({ inputs, ratioValues }) {
@@ -188,7 +189,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
             Scenario Comparison
           </span>
         </div>
-        <p style={{ fontSize: 12, color: '#6b82a8' }}>
+        <p style={{ fontSize: 12, color: 'var(--text-4)' }}>
           Enter at least Revenue and Net Profit to run scenario analysis.
         </p>
       </section>
@@ -204,11 +205,11 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
       {/* Header */}
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
         <div className="flex items-center gap-3">
-          <span className="text-lg">🎯</span>
+          <span className="text-lg" aria-hidden="true">◎</span>
           <div>
             <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: '#22d3ee' }}>Scenario Comparison</span>
-            <p className="text-[10px] mt-0.5" style={{ color: '#6b82a8' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
               Bear / Base / Bull — side-by-side financial projection
             </p>
           </div>
@@ -220,7 +221,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
               className="px-3 py-1 rounded-md text-[10px] font-bold transition-all duration-150 mono"
               style={view === id
                 ? { background: 'rgba(34,211,238,0.15)', color: '#22d3ee', border: '1px solid rgba(34,211,238,0.3)' }
-                : { background: 'transparent', color: '#6b82a8', border: '1px solid transparent' }}>
+                : { background: 'transparent', color: 'var(--text-4)', border: '1px solid transparent' }}>
               {label}
             </button>
           ))}
@@ -244,14 +245,14 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
                 textShadow: `0 0 18px ${scoreColor}60` }}>
                 {score}
               </div>
-              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070' }}>
+              <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)' }}>
                 /100 health
               </div>
               <div className="h-1 rounded-full mt-2 overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
                 <div style={{ width: `${score}%`, height: '100%', background: scoreColor,
                   borderRadius: 9999, transition: 'width 1s ease' }} />
               </div>
-              <p className="mt-2 text-[9px] leading-relaxed" style={{ color: '#6b82a8', fontFamily: 'Inter, sans-serif' }}>
+              <p className="mt-2 text-[9px] leading-relaxed" style={{ color: 'var(--text-4)', fontFamily: 'Inter, sans-serif' }}>
                 {sc.description}
               </p>
             </div>
@@ -272,7 +273,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
               fontWeight: 700, letterSpacing: '0.1em',
               borderBottom: '1px solid rgba(255,255,255,0.06)',
             }}>
-            <span style={{ color: '#3d5070' }}>METRIC</span>
+            <span style={{ color: 'var(--text-5)' }}>METRIC</span>
             {['bear','base','bull'].map(k => (
               <span key={k} style={{ color: SCENARIOS[k].color, textAlign: 'right' }}>
                 {SCENARIOS[k].icon} {SCENARIOS[k].label.split(' ')[0].toUpperCase()}
@@ -290,7 +291,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
               }}
               onMouseEnter={e  => { e.currentTarget.style.background = 'rgba(255,255,255,0.02)'; }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}>
-              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4' }}>{label}</span>
+              <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)' }}>{label}</span>
               {['bear','base','bull'].map(k => {
                 const val  = computed[k][key];
                 const base = computed.base[key];
@@ -300,13 +301,13 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
                 return (
                   <div key={k} style={{ textAlign: 'right' }}>
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, fontWeight: 700,
-                      color: k === 'bear' ? '#f43f5e' : k === 'bull' ? '#00e887' : '#7b95fa' }}>
+                      color: k === 'bear' ? '#f43f5e' : k === 'bull' ? '#00e887' : 'var(--gold-hi)' }}>
                       {fmt(val, unit)}
                     </span>
                     {diff !== null && (
                       <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8,
                         color: isUp ? '#00e887' : '#f43f5e', marginTop: 1 }}>
-                        {isUp ? '▲' : '▼'} {Math.abs(diff).toFixed(0)}%
+                        {isUp ? 'UP' : 'DOWN'} {Math.abs(diff).toFixed(0)}%
                       </div>
                     )}
                   </div>
@@ -324,7 +325,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
             <PolarGrid stroke="rgba(255,255,255,0.07)" />
             <PolarAngleAxis
               dataKey="subject"
-              tick={{ fill: '#6b82a8', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
+              tick={{ fill: 'var(--text-4)', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' }}
             />
             <Tooltip {...TT_STYLE} formatter={(v, name) => [v.toFixed(0), SCENARIOS[name]?.label || name]} />
             <Legend
@@ -342,7 +343,7 @@ export default function ScenarioComparison({ inputs, ratioValues }) {
       )}
 
       {/* Methodology note */}
-      <p className="mt-5 text-[10px]" style={{ color: '#3d5070', fontFamily: 'Inter, sans-serif' }}>
+      <p className="mt-5 text-[10px]" style={{ color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>
         <span style={{ color: '#22d3ee' }}>Note ·</span> Bear/Bull multipliers are applied to current actuals.
         Bear assumes −20% revenue, 40% margin compression, +20% debt. Bull assumes +25% revenue, 40% margin expansion, −20% debt.
         Used by equity research analysts to frame valuation ranges in target price scenarios.

@@ -2,17 +2,17 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 const C = {
-  bg:      '#0a0d14',
-  surface: '#0f1523',
-  border:  '#1d2840',
-  text:    '#e2e8f4',
-  text2:   '#7b8eab',
-  muted:   '#4a5568',
-  blue:    '#2461d4',
+  bg:      'var(--surface)',
+  surface: 'var(--surface)',
+  border:  'var(--border)',
+  text:    'var(--text-1)',
+  text2:   'var(--text-3)',
+  muted:   'var(--text-4)',
+  blue:    'var(--gold)',
   red:     '#dc2626',
   purple:  '#7c3aed',
 };
-const mono = "'JetBrains Mono', monospace";
+const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
 
 /* Left border color per notification type */
@@ -34,7 +34,7 @@ function timeAgo(ts) {
 }
 
 export default function NotificationBell() {
-  const { isAuthenticated, getNotifications, markNotificationRead, markAllNotificationsRead } = useAuth();
+  const { isAuthenticated, getNotifications, markNotificationRead, markAllNotificationsRead, deleteReadNotifications, clearAllNotifications } = useAuth();
   const [notifs, setNotifs] = useState([]);
   const [open,   setOpen]   = useState(false);
   const ref = useRef(null);
@@ -75,6 +75,18 @@ export default function NotificationBell() {
     await markAllNotificationsRead();
     setNotifs(prev => prev.map(x => ({ ...x, read: true })));
   }
+
+  async function handleDeleteRead() {
+    await deleteReadNotifications?.();
+    setNotifs(prev => prev.filter(x => !x.read));
+  }
+
+  async function handleClearAll() {
+    await clearAllNotifications?.();
+    setNotifs([]);
+  }
+
+  const hasRead = notifs.some(n => n.read);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -121,14 +133,32 @@ export default function NotificationBell() {
             <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: C.text2, letterSpacing: '0.07em' }}>
               NOTIFICATIONS{unread > 0 && <span style={{ color: C.red, marginLeft: 6 }}>{unread}</span>}
             </span>
-            {unread > 0 && (
-              <button onClick={handleReadAll} style={{
-                background: 'none', border: 'none', fontFamily: sans,
-                color: C.blue, fontSize: 11, cursor: 'pointer', fontWeight: 500,
-              }}>
-                Mark all read
-              </button>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {unread > 0 && (
+                <button onClick={handleReadAll} style={{
+                  background: 'none', border: 'none', fontFamily: sans,
+                  color: C.blue, fontSize: 11, cursor: 'pointer', fontWeight: 500,
+                }}>
+                  Mark all read
+                </button>
+              )}
+              {hasRead && (
+                <button onClick={handleDeleteRead} style={{
+                  background: 'none', border: 'none', fontFamily: sans,
+                  color: C.text2, fontSize: 11, cursor: 'pointer', fontWeight: 500,
+                }}>
+                  Remove read
+                </button>
+              )}
+              {notifs.length > 0 && (
+                <button onClick={handleClearAll} style={{
+                  background: 'none', border: 'none', fontFamily: sans,
+                  color: C.red, fontSize: 11, cursor: 'pointer', fontWeight: 500,
+                }}>
+                  Clear all
+                </button>
+              )}
+            </div>
           </div>
 
           {/* List */}
@@ -148,12 +178,12 @@ export default function NotificationBell() {
                       padding: '9px 14px 9px 12px',
                       borderBottom: `1px solid ${C.border}`,
                       borderLeft: `3px solid ${borderColor}`,
-                      background: n.read ? 'transparent' : '#0f1523',
+                      background: n.read ? 'transparent' : 'var(--surface)',
                       cursor: 'pointer',
                       display: 'flex', flexDirection: 'column', gap: 3,
                     }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#141c2e'}
-                    onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : '#0f1523'}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-hi)'}
+                    onMouseLeave={e => e.currentTarget.style.background = n.read ? 'transparent' : 'var(--surface)'}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6 }}>
                       <span style={{ fontFamily: mono, fontSize: 11, fontWeight: 600, color: C.text }}>

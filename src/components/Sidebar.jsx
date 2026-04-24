@@ -1,6 +1,6 @@
-import { useRef } from 'react';
+﻿import { useRef } from 'react';
 import Papa from 'papaparse';
-import Logo from './Logo';
+import { FinAxisLockup } from './FinAxisLogo';
 import CompanySearch from './CompanySearch';
 import { INDUSTRY_BENCHMARKS } from '../utils/benchmarks';
 
@@ -51,10 +51,10 @@ const FIELDS = [
 ];
 
 const GROUPS = [
-  { id: 'Balance Sheet',  label: 'Balance Sheet',   color: '#4f6ef7', dot: 'rgba(79,110,247,0.8)'  },
-  { id: 'P&L',            label: 'P & L',           color: '#00e887', dot: 'rgba(0,232,135,0.8)'   },
-  { id: 'Working Capital',label: 'Working Capital', color: '#22d3ee', dot: 'rgba(34,211,238,0.8)'  },
-  { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b', dot: 'rgba(245,158,11,0.8)'  },
+  { id: 'Balance Sheet',  label: 'Balance Sheet',   color: 'var(--gold)' },
+  { id: 'P&L',            label: 'P & L',           color: '#00e887' },
+  { id: 'Working Capital',label: 'Working Capital', color: '#22d3ee' },
+  { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b' },
 ];
 
 export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded, collapsed = false, mobile = false, onClose }) {
@@ -101,10 +101,10 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
   return (
     <aside className={`flex flex-col ${mobile ? 'w-full h-full' : 'w-full lg:w-80 h-screen lg:fixed lg:left-0 lg:top-0 lg:overflow-y-auto'}`}
       style={{
-        background: 'linear-gradient(180deg, #06101e 0%, #050d1a 100%)',
-        borderRight: '1px solid rgba(79,110,247,0.18)',
+        background: 'var(--surface)',
+        borderRight: '1px solid var(--border)',
         scrollbarWidth: 'thin',
-        scrollbarColor: 'rgba(79,110,247,0.25) transparent',
+        scrollbarColor: 'var(--border-hi) transparent',
         transition: 'width 0.25s ease',
       }}>
 
@@ -113,31 +113,35 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* ── Brand ───────────────────────────────────────── */}
       <div className="px-5 pt-5 pb-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
+        style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-3">
-          <Logo size={36} />
+          <FinAxisLockup
+            size={17}
+            gap={8}
+            markSize={34}
+            finColor="var(--text-1)"
+            axisColor="var(--gold)"
+            markColor="var(--text-1)"
+          />
           <div className="flex-1">
-            <div className="font-bold text-[18px] tracking-tight leading-none" style={{ color: '#ffffff' }}>
-              Biz<span style={{ color: '#7b95fa' }}>Health</span>
-            </div>
             <div className="mono text-[9px] font-semibold uppercase tracking-[0.15em] mt-1"
-              style={{ color: 'rgba(79,110,247,0.6)' }}>
+              style={{ color: 'var(--text-4)' }}>
               Financial Intelligence
             </div>
           </div>
           {mobile && onClose ? (
             <button onClick={onClose}
               className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
-              style={{ background: 'rgba(255,255,255,0.06)', color: '#6b82a8' }}
+              style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--text-4)' }}
               onMouseEnter={e => e.currentTarget.style.color = '#f43f5e'}
-              onMouseLeave={e => e.currentTarget.style.color = '#6b82a8'}>
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-4)'}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
                 <path d="M18 6L6 18M6 6l12 12"/>
               </svg>
             </button>
           ) : (
             <span className="mono text-[9px] font-bold px-2 py-0.5 rounded"
-              style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', color: '#7b95fa' }}>
+              style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)', color: 'var(--gold-hi)' }}>
               v3
             </span>
           )}
@@ -146,9 +150,9 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* ── Company Search ──────────────────────────────── */}
       <div className="px-4 pt-4 pb-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{ borderBottom: '1px solid var(--border)' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-2.5"
-          style={{ color: '#9fb3d4' }}>
+          style={{ color: 'var(--text-3)' }}>
           Listed Company Lookup
         </p>
         <CompanySearch onSelect={(companyData) => {
@@ -170,31 +174,37 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* ── Industry + Quick Fill ───────────────────────── */}
       <div className="px-4 pt-4 pb-4 flex-shrink-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+        style={{ borderBottom: '1px solid var(--border)' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] mb-2.5"
-          style={{ color: '#9fb3d4' }}>
+          style={{ color: 'var(--text-3)' }}>
           Industry Sector
         </p>
         <select value={industry} onChange={e => setIndustry(e.target.value)} className="select-neon mb-3">
           {Object.entries(INDUSTRY_BENCHMARKS).map(([k,v]) => (
-            <option key={k} value={k} style={{ background: '#06101e', color: '#e2e8f5' }}>{v.label}</option>
+            <option key={k} value={k} style={{ background: 'var(--surface)', color: 'var(--text-1)' }}>{v.label}</option>
           ))}
         </select>
 
         <div className="flex gap-2 mt-3">
           <button onClick={() => setInputs(DEMO_DATA)}
-            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all"
+            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5"
             style={{ background: 'rgba(79,110,247,0.14)', border: '1px solid rgba(79,110,247,0.32)', color: '#9fb3f8' }}
             onMouseEnter={e => { e.currentTarget.style.background='rgba(79,110,247,0.24)'; }}
             onMouseLeave={e => { e.currentTarget.style.background='rgba(79,110,247,0.14)'; }}>
-            ⚡ Demo Data
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M13 2 4 14h7l-1 8 9-12h-7l1-8Z"/>
+            </svg>
+            Demo Data
           </button>
           <button onClick={() => fileRef.current?.click()}
-            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all"
+            className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5"
             style={{ background: 'rgba(34,211,238,0.08)', border: '1px solid rgba(34,211,238,0.22)', color: '#5de0f0' }}
             onMouseEnter={e => { e.currentTarget.style.background='rgba(34,211,238,0.16)'; }}
             onMouseLeave={e => { e.currentTarget.style.background='rgba(34,211,238,0.08)'; }}>
-            ↑ Upload CSV
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/>
+            </svg>
+            Upload CSV
           </button>
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="hidden" />
         </div>
@@ -207,7 +217,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
             Data Completeness
           </span>
           <span className="mono text-[10px] font-bold"
-            style={{ color: pct === 100 ? '#00e887' : pct >= 60 ? '#fbbf24' : '#9fb3d4' }}>
+            style={{ color: pct === 100 ? '#00e887' : pct >= 60 ? '#fbbf24' : 'var(--text-3)' }}>
             {filled} / {FIELDS.length}
           </span>
         </div>
@@ -250,19 +260,19 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
                 {groupFields.map(({ key, label }) => (
                   <div key={key}>
                     <label className="block text-[11px] font-medium mb-1"
-                      style={{ color: inputs[key] ? '#c8d8f0' : '#6b82a8' }}>
+                      style={{ color: inputs[key] ? '#c8d8f0' : 'var(--text-4)' }}>
                       {label}
                     </label>
                     <div className="relative">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 mono text-[11px] pointer-events-none select-none"
-                        style={{ color: '#3d5070' }}>
+                        style={{ color: 'var(--text-5)' }}>
                         ₹
                       </span>
                       <input type="number" min="0" placeholder="0" value={inputs[key]}
                         onChange={e => setInputs(p => ({ ...p, [key]: e.target.value }))}
                         className="input-neon" />
                       {inputs[key] && (
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pulse-dot pointer-events-none"
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full pointer-events-none"
                           style={{ background: g.color, boxShadow: `0 0 5px ${g.color}` }} />
                       )}
                     </div>
@@ -276,7 +286,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
 
       {/* ── Action buttons ──────────────────────────────── */}
       <div className="px-4 py-4 flex-shrink-0"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.12)' }}>
+        style={{ borderTop: '1px solid var(--border)' }}>
         <button onClick={onCalculate}
           className="btn-primary w-full text-white font-bold text-[13px] py-3.5 rounded-xl mb-2 flex items-center justify-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -286,9 +296,9 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         </button>
         <button onClick={onReset}
           className="w-full py-2.5 rounded-xl text-[12px] font-medium transition-all"
-          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: '#6b82a8' }}
-          onMouseEnter={e => { e.currentTarget.style.color='#9fb3d4'; e.currentTarget.style.borderColor='rgba(255,255,255,0.16)'; }}
-          onMouseLeave={e => { e.currentTarget.style.color='#6b82a8'; e.currentTarget.style.borderColor='rgba(255,255,255,0.09)'; }}>
+          style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.09)', color: 'var(--text-4)' }}
+          onMouseEnter={e => { e.currentTarget.style.color='var(--text-3)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.16)'; }}
+          onMouseLeave={e => { e.currentTarget.style.color='var(--text-4)'; e.currentTarget.style.borderColor='rgba(255,255,255,0.09)'; }}>
           Reset All Fields
         </button>
       </div>

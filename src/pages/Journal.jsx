@@ -7,7 +7,7 @@ import TickerAutocomplete from '../components/TickerAutocomplete';
 const DIR_OPTS  = ['long', 'short'];
 const OUT_OPTS  = ['open', 'win', 'loss'];
 const DIR_COLOR = { long: '#16a34a', short: '#dc2626' };
-const OUT_COLOR = { open: '#2461d4', win: '#16a34a', loss: '#dc2626' };
+const OUT_COLOR = { open: 'var(--gold)', win: '#16a34a', loss: '#dc2626' };
 const EMPTY     = {
   ticker: '', company_name: '', direction: 'long',
   entry_date: '', entry_price: '', quantity: '',
@@ -17,7 +17,7 @@ const EMPTY     = {
 function Badge({ label, color }) {
   return (
     <span style={{
-      fontFamily: "'JetBrains Mono', monospace",
+      fontFamily: "'var(--font-sans)'",
       color,
       border: `1px solid ${color}`,
       borderRadius: 3,
@@ -354,12 +354,12 @@ export default function Journal() {
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-3)' }}>{entry.company_name}</span>
                     )}
                     {pl !== null && (
-                      <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '0.88rem', color: pl >= 0 ? '#16a34a' : '#dc2626', fontFamily: "'JetBrains Mono', monospace" }}>
+                      <span style={{ marginLeft: 'auto', fontWeight: 700, fontSize: '0.88rem', color: pl >= 0 ? '#16a34a' : '#dc2626', fontFamily: "'var(--font-sans)'" }}>
                         {pl >= 0 ? '+' : ''}{pl.toFixed(2)}
                       </span>
                     )}
                     <span style={{ color: 'var(--text-4)', fontSize: '0.8rem', marginLeft: pl !== null ? '0' : 'auto' }}>
-                      {isExpanded ? '▲' : '▼'}
+                      {isExpanded ? '−' : '+'}
                     </span>
                   </div>
 

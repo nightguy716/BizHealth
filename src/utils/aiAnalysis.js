@@ -303,6 +303,9 @@ function buildActions(ratioValues, statuses, score) {
 
 function buildIndustryContext(ratioValues, statuses, score, industry) {
   const industryNotes = {
+    tech:          'Technology businesses are evaluated on growth durability, operating leverage, and cash conversion. Strong margins with disciplined receivables and sustainable ROIC usually separate resilient performers from narrative-only growth.',
+    healthcare:    'Healthcare businesses are benchmarked on margin resilience, compliance-driven cost control, and predictable cash generation. Inventory discipline and receivables quality are especially important in pharma, diagnostics, and provider models.',
+    finance:       'Financial businesses are judged on balance-sheet strength, leverage discipline, and earnings stability across cycles. Debt servicing capacity and return consistency are more critical than headline growth alone.',
     retail:        'Retail businesses typically operate on thin margins (5–15% gross) but compensate with high asset turnover. Fast inventory movement and tight receivables management are the key levers.',
     manufacturing: 'Manufacturing SMEs carry higher fixed asset bases and longer working capital cycles. The critical metrics are Gross Margin quality, Inventory Days, and Debt-to-Equity to ensure the business can weather cyclical downturns.',
     services:      'Services businesses should maintain very high gross margins (40%+) since they have low COGS. The key differentiators are revenue quality (receivables management) and return on equity.',

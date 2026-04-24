@@ -35,7 +35,7 @@ function FlagBadge({ level, label }) {
     safe:    { bg: 'rgba(0,232,135,0.1)',  border: 'rgba(0,232,135,0.3)',  color: '#00e887', dot: '#00e887' },
     warn:    { bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.3)', color: '#fbbf24', dot: '#fbbf24' },
     risk:    { bg: 'rgba(244,63,94,0.1)',  border: 'rgba(244,63,94,0.3)',  color: '#f43f5e', dot: '#f43f5e' },
-    neutral: { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', color: '#6b82a8', dot: '#3d5070' },
+    neutral: { bg: 'rgba(255,255,255,0.05)', border: 'rgba(255,255,255,0.1)', color: 'var(--text-4)', dot: 'var(--text-5)' },
   };
   const c = cfg[level] || cfg.neutral;
   return (
@@ -69,17 +69,17 @@ function MetricRow({ label, value, unit, flagLevel, flagLabel, interpretation })
         }}
         onClick={() => hasNote && setExpand(e => !e)}
       >
-        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: '#9fb3d4' }}>
+        <span style={{ fontFamily: 'Inter, sans-serif', fontSize: 11, color: 'var(--text-3)' }}>
           {label}
           {hasNote && (
-            <span style={{ marginLeft: 4, fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070' }}>
-              {expand ? '▲' : '▼'}
+            <span style={{ marginLeft: 4, fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)' }}>
+              {expand ? '−' : '+'}
             </span>
           )}
         </span>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 700,
           color: flagLevel === 'risk' ? '#f43f5e' : flagLevel === 'warn' ? '#fbbf24'
-               : flagLevel === 'safe' ? '#00e887' : '#6b82a8',
+               : flagLevel === 'safe' ? '#00e887' : 'var(--text-4)',
           textAlign: 'right' }}>
           {fmt(value, unit)}
         </span>
@@ -90,7 +90,7 @@ function MetricRow({ label, value, unit, flagLevel, flagLabel, interpretation })
       {expand && interpretation && (
         <div className="mx-3 mb-2 px-3 py-2 rounded-lg"
           style={{ background: 'rgba(79,110,247,0.06)', border: '1px solid rgba(79,110,247,0.15)' }}>
-          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#9fb3d4', lineHeight: 1.6 }}>
+          <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'var(--text-3)', lineHeight: 1.6 }}>
             {interpretation}
           </p>
         </div>
@@ -252,7 +252,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
             Earnings Quality
           </span>
         </div>
-        <p style={{ fontSize: 12, color: '#6b82a8' }}>
+        <p style={{ fontSize: 12, color: 'var(--text-4)' }}>
           Enter Net Profit and Operating Cash Flow to run earnings quality analysis.
         </p>
       </section>
@@ -272,7 +272,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
           <div>
             <span className="mono text-[11px] font-bold uppercase tracking-[0.18em]"
               style={{ color: '#f59e0b' }}>Earnings Quality Analysis</span>
-            <p className="text-[10px] mt-0.5" style={{ color: '#6b82a8' }}>
+            <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-4)' }}>
               Beneish M-Score · Accruals · CFO/NI · Forensic flags
             </p>
           </div>
@@ -289,7 +289,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
             display: 'grid', gridTemplateColumns: '1fr 80px 1fr',
             background: 'rgba(255,255,255,0.04)', gap: 12,
             fontFamily: 'JetBrains Mono, monospace', fontSize: 8,
-            fontWeight: 700, letterSpacing: '0.12em', color: '#3d5070',
+            fontWeight: 700, letterSpacing: '0.12em', color: 'var(--text-5)',
             borderBottom: '1px solid rgba(255,255,255,0.06)',
           }}>
           <span>METRIC</span>
@@ -320,7 +320,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
         {!hasPrior && (
           <div className="px-3 py-2 mx-3 mb-2 rounded-lg"
             style={{ background: 'rgba(79,110,247,0.06)', border: '1px solid rgba(79,110,247,0.15)' }}>
-            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: '#6b82a8' }}>
+            <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 10, color: 'var(--text-4)' }}>
               💡 Search a listed company to load multi-year data and unlock the full Beneish M-Score calculation.
             </p>
           </div>
@@ -330,7 +330,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
       {/* M-Score variable breakdown (if available) */}
       {hasPrior && mScore !== null && (
         <div className="mt-4 pt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-          <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: '#3d5070' }}>
+          <p className="mono text-[9px] font-bold uppercase tracking-[0.14em] mb-3" style={{ color: 'var(--text-5)' }}>
             M-SCORE VARIABLE BREAKDOWN
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -352,14 +352,14 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
                   }}>
                   <div className="flex items-center justify-between mb-1">
                     <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, fontWeight: 700,
-                      color: isRisk ? '#f43f5e' : '#6b82a8', letterSpacing: '0.1em' }}>{label}</span>
-                    {isRisk && <span style={{ fontSize: 9 }}>⚠</span>}
+                      color: isRisk ? '#f43f5e' : 'var(--text-4)', letterSpacing: '0.1em' }}>{label}</span>
+                    {isRisk && <span style={{ fontSize: 9 }}>[!]</span>}
                   </div>
                   <p style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 13, fontWeight: 700,
-                    color: isRisk ? '#f43f5e' : '#d4ddf5' }}>
+                    color: isRisk ? '#f43f5e' : 'var(--text-2)' }}>
                     {fmt(val, unit)}
                   </p>
-                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: '#6b82a8', marginTop: 2, lineHeight: 1.4 }}>
+                  <p style={{ fontFamily: 'Inter, sans-serif', fontSize: 9, color: 'var(--text-4)', marginTop: 2, lineHeight: 1.4 }}>
                     {note}
                   </p>
                 </div>
@@ -370,7 +370,7 @@ export default function EarningsQuality({ ratioValues, inputs, historical }) {
       )}
 
       {/* CFA note */}
-      <p className="mt-5 text-[10px]" style={{ color: '#3d5070', fontFamily: 'Inter, sans-serif' }}>
+      <p className="mt-5 text-[10px]" style={{ color: 'var(--text-5)', fontFamily: 'Inter, sans-serif' }}>
         <span style={{ color: '#f59e0b' }}>CFA L2 / Forensic Accounting ·</span> Earnings quality analysis
         distinguishes sustainable earnings (cash-backed, low accruals) from engineered earnings
         (accrual-heavy, aggressive recognition). Used by credit analysts and equity short-sellers.

@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { analyzeFinancials } from '../utils/aiAnalysis';
+import { ownerHeaders } from '../lib/ownerHeaders';
+import { getBackendBaseUrl } from '../lib/backendUrl';
 
 const URGENCY_BG  = { High:'rgba(244,63,94,0.1)',   Medium:'rgba(251,191,36,0.08)',  Low:'rgba(255,255,255,0.04)' };
 const URGENCY_CLR = { High:'#f43f5e',               Medium:'#fbbf24',               Low:'#8899bb' };
@@ -10,10 +12,9 @@ const VERDICT_CLR = { Strong:'#00e887', Moderate:'#fbbf24', 'Below Average':'#6b
 function Dots() {
   return (
     <div className="flex items-center gap-2">
-      {[0,1,2].map(i => (
-        <span key={i} className="w-2 h-2 rounded-full"
-          style={{ background:'#4f6ef7', boxShadow:'0 0 6px #4f6ef7', animation:`neon-bounce 1.2s ease-in-out ${i*0.2}s infinite` }} />
-      ))}
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="2" aria-hidden="true">
+        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+      </svg>
       <span className="mono text-[11px] ml-1" style={{ color: 'var(--text-dim)' }}>
         ANALYSING FINANCIALS…
       </span>
@@ -30,21 +31,32 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
 
   // Fetch quota on mount so we can show remaining count
   useState(() => {
-    const url = import.meta.env.VITE_BACKEND_URL;
+    const url = getBackendBaseUrl();
     if (!url) return;
-    fetch(`${url}/usage`).then(r => r.json()).then(d => {
+    fetch(`${url}/usage`, { headers: ownerHeaders() }).then(r => r.json()).then(d => {
       setRemaining(d.ai_analyses_remaining ?? null);
     }).catch(() => {});
   });
 
   async function run() {
     setLoading(true); setDone(false); setIns(null); setLimitMsg('');
-    const url = import.meta.env.VITE_BACKEND_URL;
+    const url = getBackendBaseUrl();
+    const normalizedIndustry = (industry && industry !== 'general')
+      ? industry
+      : (
+          companyContext?.sector?.toLowerCase().includes('tech') ? 'tech'
+          : companyContext?.sector?.toLowerCase().includes('health') ? 'healthcare'
+          : companyContext?.sector?.toLowerCase().includes('financ') ? 'finance'
+          : companyContext?.sector?.toLowerCase().includes('bank') ? 'finance'
+          : companyContext?.sector?.toLowerCase().includes('retail') ? 'retail'
+          : companyContext?.sector?.toLowerCase().includes('manufact') ? 'manufacturing'
+          : 'general'
+        );
     if (url) {
       try {
         const r = await fetch(`${url}/analyze`, {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ ratios:ratioValues, statuses, industry, score, company: companyContext }),
+          method:'POST', headers:{'Content-Type':'application/json', ...ownerHeaders()},
+          body: JSON.stringify({ ratios:ratioValues, statuses, industry: normalizedIndustry, score, company: companyContext }),
         });
         if (r.status === 429) {
           const err = await r.json();
@@ -63,7 +75,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
     }
     // Fallback to client-side analysis
     await new Promise(r => setTimeout(r, 1500));
-    const data = analyzeFinancials(ratioValues, statuses, score, industry);
+    const data = analyzeFinancials(ratioValues, statuses, score, normalizedIndustry);
     setIns(data); onInsightsReady?.(data);
     setLoading(false); setDone(true);
   }
@@ -72,10 +84,10 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
     <section className="mb-10">
       {/* Section header */}
       <div className="flex items-center gap-3 mb-6">
-        <span className="text-violet-400 text-lg">✦</span>
+        <span className="text-violet-400 text-lg">◆</span>
         <div>
           <span className="mono text-[11px] font-bold uppercase tracking-[0.18em] text-violet-400">AI Analysis</span>
-      <span className="text-[11px] ml-3" style={{ color: '#6b82a8' }}>
+      <span className="text-[11px] ml-3" style={{ color: 'var(--text-4)' }}>
           Expert insights from 14 ratio patterns
         </span>
         </div>
@@ -87,12 +99,12 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
         <div className="ghost-card rounded-2xl p-8 text-center" style={{ borderColor:'rgba(167,139,250,0.14)' }}>
           <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center text-2xl"
             style={{ background:'rgba(167,139,250,0.08)', border:'1px solid rgba(167,139,250,0.2)' }}>
-            ✦
+            ◆
           </div>
           <h3 className="font-semibold text-[15px] mb-2" style={{ color: 'var(--text)' }}>
             AI Financial Intelligence
           </h3>
-          <p className="text-[13px] max-w-sm mx-auto leading-relaxed mb-6" style={{ color: '#9fb3d4' }}>
+          <p className="text-[13px] max-w-sm mx-auto leading-relaxed mb-6" style={{ color: 'var(--text-3)' }}>
             Cross-analyses all 14 ratios to identify compound risks, hidden opportunities, and a prioritised action plan — instantly.
           </p>
 
@@ -104,12 +116,12 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           ) : (
             <button onClick={run}
               className="btn-primary inline-flex items-center gap-2 text-white font-bold text-sm px-6 py-3 rounded-xl">
-              ✦ Generate Analysis
+              Generate Analysis
             </button>
           )}
 
           {remaining !== null && !limitMsg && (
-            <p className="mt-3 text-[11px]" style={{ color:'#3d5070', fontFamily:'JetBrains Mono, monospace' }}>
+            <p className="mt-3 text-[11px]" style={{ color:'var(--text-5)', fontFamily:'JetBrains Mono, monospace' }}>
               {remaining} of 7 free analyses remaining today
             </p>
           )}
@@ -121,7 +133,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
         <div className="ghost-card rounded-2xl p-8 flex flex-col items-center gap-4"
           style={{ borderColor:'rgba(167,139,250,0.14)' }}>
           <Dots />
-          <p className="mono text-[10px]" style={{ color: '#6b82a8' }}>
+          <p className="mono text-[10px]" style={{ color: 'var(--text-4)' }}>
             CROSS-REFERENCING 14 RATIOS · IDENTIFYING RISK PATTERNS
           </p>
         </div>
@@ -135,7 +147,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           <div className="ghost-card rounded-2xl p-6" style={{ borderColor:'rgba(167,139,250,0.15)' }}>
             <div className="flex items-center justify-between mb-4">
               <span className="mono text-[10px] font-bold uppercase tracking-widest text-violet-400">
-                ✦ Executive Summary
+                Executive Summary
               </span>
               <span className="mono text-[11px] font-bold px-3 py-1 rounded-full border"
                 style={{
@@ -146,7 +158,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                 {ins.health_verdict?.toUpperCase()}
               </span>
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: '#d4ddf5' }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
               {ins.executive_summary}
             </p>
           </div>
@@ -157,7 +169,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
             {/* Risks */}
             <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(244,63,94,0.15)' }}>
               <div className="mono text-[10px] font-bold text-red-400 uppercase tracking-widest mb-4">
-                ⚠ Key Risks
+                Risk Signals
               </div>
               <div className="space-y-3">
                 {(ins.top_risks||[]).map((r,i) => (
@@ -173,7 +185,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                         {r.urgency?.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: '#9fb3d4' }}>
+                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: 'var(--text-3)' }}>
                       {r.description}
                     </p>
                   </div>
@@ -200,7 +212,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                         {o.impact?.toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: '#9fb3d4' }}>
+                    <p className="text-[11px] leading-relaxed pl-3.5" style={{ color: 'var(--text-3)' }}>
                       {o.description}
                     </p>
                   </div>
@@ -212,7 +224,7 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           {/* Priority Actions */}
           <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(79,110,247,0.18)' }}>
             <div className="mono text-[10px] font-bold uppercase tracking-widest mb-4" style={{ color:'#6b84f8' }}>
-              ⚡ Priority Action Plan
+              Priority Action Plan
             </div>
             <div className="space-y-0">
               {(ins.priority_actions||[]).map((a,i) => (
@@ -223,15 +235,15 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
                     {i+1}
                   </div>
                   <div>
-                    <p className="text-[12px] leading-relaxed" style={{ color: '#d4ddf5' }}>
+                    <p className="text-[12px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
                       {a.action}
                     </p>
                     <div className="flex flex-wrap gap-4 mt-2">
-                      <span className="mono text-[10px]" style={{ color: '#6b82a8' }}>
-                        ⏱ <span style={{ color: '#9fb3d4' }}>{a.timeline}</span>
+                      <span className="mono text-[10px]" style={{ color: 'var(--text-4)' }}>
+                        TIME <span style={{ color: 'var(--text-3)' }}>{a.timeline}</span>
                       </span>
-                      <span className="mono text-[10px]" style={{ color: '#6b82a8' }}>
-                        → <span style={{ color: '#9fb3d4' }}>{a.expected_impact}</span>
+                      <span className="mono text-[10px]" style={{ color: 'var(--text-4)' }}>
+                        IMPACT <span style={{ color: 'var(--text-3)' }}>{a.expected_impact}</span>
                       </span>
                     </div>
                   </div>
@@ -243,9 +255,9 @@ export default function AIInsights({ ratioValues, statuses, score, industry, com
           {/* Industry Context */}
           <div className="ghost-card rounded-2xl p-5" style={{ borderColor:'rgba(34,211,238,0.12)' }}>
             <div className="mono text-[10px] font-bold text-cyan-400 uppercase tracking-widest mb-3">
-              ◈ Industry Context
+              Industry Context
             </div>
-            <p className="text-[13px] leading-relaxed" style={{ color: '#d4ddf5' }}>
+            <p className="text-[13px] leading-relaxed" style={{ color: 'var(--text-2)' }}>
               {ins.industry_context}
             </p>
           </div>

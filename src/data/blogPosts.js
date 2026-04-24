@@ -21,7 +21,7 @@ export const POSTS = [
     category: 'Liquidity',
     readTime: 6,
     date: '2026-03-18',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'Before a bank approves a loan, before an investor writes a cheque, before a consultant walks into a boardroom — they check one number first. The current ratio.' },
       { type: 'h2', text: 'What Is the Current Ratio?' },
@@ -59,7 +59,7 @@ export const POSTS = [
     category: 'Profitability',
     readTime: 8,
     date: '2026-03-22',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'ROE is a single number. DuPont analysis reveals the story behind it. Two companies can post identical 20% ROE for completely different reasons — and one of them is about to collapse.' },
       { type: 'h2', text: 'The Three-Factor DuPont Formula' },
@@ -85,7 +85,7 @@ export const POSTS = [
         'Use in M&A: acquirers use DuPont to identify whether target ROE is margin-driven (stickier) or leverage-driven (riskier post-acquisition).',
         'CFA exam context: CFA Level 1 and 2 both test DuPont in detail. Understand it conceptually, not just formulaically.',
       ]},
-      { type: 'cta', text: 'Run live DuPont decomposition on any listed company — both 3-factor and 5-factor — on BizHealth.', link: '/dashboard', label: 'Analyse ROE →' },
+      { type: 'cta', text: 'Run live DuPont decomposition on any listed company — both 3-factor and 5-factor — on Valoreva.', link: '/dashboard', label: 'Analyse ROE →' },
     ],
   },
 
@@ -97,7 +97,7 @@ export const POSTS = [
     category: 'Credit Analysis',
     readTime: 7,
     date: '2026-03-29',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'In 1968, NYU professor Edward Altman published a formula that predicted 72% of corporate bankruptcies two years before they happened. Half a century later, credit analysts still use it.' },
       { type: 'h2', text: 'The Formula' },
@@ -120,7 +120,7 @@ export const POSTS = [
         'Toys R Us (2017): Persistent distress zone masked by private ownership until too late.',
         'General Electric (2018–2019): Sharp decline from safe to grey zone triggered credit downgrades.',
       ]},
-      { type: 'cta', text: 'BizHealth calculates the Altman Z-Score automatically from company financials — along with 22 other CFA-level ratios.', link: '/dashboard', label: 'Check Z-Score →' },
+      { type: 'cta', text: 'Valoreva calculates the Altman Z-Score automatically from company financials — along with 22 other CFA-level ratios.', link: '/dashboard', label: 'Check Z-Score →' },
     ],
   },
 
@@ -132,7 +132,7 @@ export const POSTS = [
     category: 'Profitability',
     readTime: 6,
     date: '2026-04-02',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'Walk into any M&A deal room, any LBO model, any credit committee meeting — and EBITDA margin is the first profitability number on the whiteboard. Here\'s why.' },
       { type: 'h2', text: 'What EBITDA Margin Measures' },
@@ -153,7 +153,7 @@ export const POSTS = [
       { type: 'callout', variant: 'warning', text: '"EBITDA is not cash." — Warren Buffett. High EBITDA companies with large capex requirements (utilities, telcos, cable operators) look better on EBITDA than free cash flow. Always cross-check with FCF yield for capital-intensive businesses.' },
       { type: 'h2', text: 'EBITDA vs Operating Margin: When to Use Each' },
       { type: 'p', text: 'Use operating margin for companies with modest capex. Use EBITDA margin for: capital-intensive businesses (where D&A distorts operating income), cross-border comparisons (tax rates differ), and M&A valuation (where you\'re buying the business regardless of capital structure).' },
-      { type: 'cta', text: 'BizHealth calculates EBITDA margin alongside 22 other ratios for any listed company — with colour-coded health benchmarks.', link: '/dashboard', label: 'Check EBITDA Margin →' },
+      { type: 'cta', text: 'Valoreva calculates EBITDA margin alongside 22 other ratios for any listed company — with colour-coded health benchmarks.', link: '/dashboard', label: 'Check EBITDA Margin →' },
     ],
   },
 
@@ -165,7 +165,7 @@ export const POSTS = [
     category: 'Efficiency',
     readTime: 7,
     date: '2026-04-05',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'A company can be profitable on paper and bankrupt in reality. The cash conversion cycle explains why — and it\'s one of the most underused metrics in financial analysis.' },
       { type: 'h2', text: 'The Formula' },
@@ -189,7 +189,7 @@ export const POSTS = [
         'Reduce DIO: implement demand-forecasting, reduce SKU count, clear slow-moving inventory with promotions.',
         'Increase DPO: renegotiate supplier payment terms to 45–60 days where possible — but don\'t stretch to the point of damaging relationships.',
       ]},
-      { type: 'cta', text: 'BizHealth calculates DSO, DIO, DPO, and the full Cash Conversion Cycle automatically from your financial inputs.', link: '/dashboard', label: 'Analyse Working Capital →' },
+      { type: 'cta', text: 'Valoreva calculates DSO, DIO, DPO, and the full Cash Conversion Cycle automatically from your financial inputs.', link: '/dashboard', label: 'Analyse Working Capital →' },
     ],
   },
 
@@ -201,7 +201,7 @@ export const POSTS = [
     category: 'Earnings Quality',
     readTime: 8,
     date: '2026-04-08',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'In 1999, a Cornell University finance professor published a model for detecting earnings manipulation. One of the examples in his paper: Enron. Two years before the company collapsed.' },
       { type: 'h2', text: 'What the M-Score Measures' },
@@ -228,7 +228,7 @@ export const POSTS = [
         'It works less well for financial companies and early-stage businesses with high growth.',
         'It is a screening tool, not a verdict. Use it to prioritise where to look harder, not to make accusations.',
       ]},
-      { type: 'cta', text: 'BizHealth automatically calculates the Beneish M-Score alongside accruals ratio and CFO/Net Income quality flags.', link: '/dashboard', label: 'Check Earnings Quality →' },
+      { type: 'cta', text: 'Valoreva automatically calculates the Beneish M-Score alongside accruals ratio and CFO/Net Income quality flags.', link: '/dashboard', label: 'Check Earnings Quality →' },
     ],
   },
 
@@ -240,7 +240,7 @@ export const POSTS = [
     category: 'Valuation',
     readTime: 7,
     date: '2026-04-10',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'A company that earns 12% on capital but pays 15% to access that capital is destroying wealth — even if it reports profit every year. ROIC vs WACC is the lens that exposes this.' },
       { type: 'h2', text: 'What Is ROIC?' },
@@ -260,7 +260,7 @@ export const POSTS = [
       ]},
       { type: 'h2', text: 'Why ROE Can Be Misleading Without ROIC' },
       { type: 'p', text: 'ROE can be inflated by leverage. A company with 40% leverage can boost ROE without creating any additional value — it is just taking on more risk. ROIC strips out the capital structure effect and measures the underlying economics of the business.' },
-      { type: 'cta', text: 'BizHealth calculates ROIC alongside EBITDA margin, WACC sensitivity, and all 22 other CFA-level ratios.', link: '/dashboard', label: 'Analyse ROIC →' },
+      { type: 'cta', text: 'Valoreva calculates ROIC alongside EBITDA margin, WACC sensitivity, and all 22 other CFA-level ratios.', link: '/dashboard', label: 'Analyse ROIC →' },
     ],
   },
 
@@ -272,7 +272,7 @@ export const POSTS = [
     category: 'Credit Analysis',
     readTime: 6,
     date: '2026-04-11',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'Almost every leveraged loan covenant, high-yield bond indenture, and LBO model has one metric at its centre: Net Debt / EBITDA. Understanding it is non-negotiable for anyone working in credit or corporate finance.' },
       { type: 'h2', text: 'The Formula' },
@@ -300,7 +300,7 @@ export const POSTS = [
         'M&A: acquisitions funded with debt immediately spike the ratio; synergies must materialise to re-delever.',
         'EBITDA add-backs: management often "adjusts" EBITDA upward, inflating apparent coverage. Always verify what\'s in the add-backs.',
       ]},
-      { type: 'cta', text: 'BizHealth calculates Net Debt/EBITDA with a full leverage health check — including Interest Coverage Ratio and Debt/Capital.', link: '/dashboard', label: 'Check Leverage →' },
+      { type: 'cta', text: 'Valoreva calculates Net Debt/EBITDA with a full leverage health check — including Interest Coverage Ratio and Debt/Capital.', link: '/dashboard', label: 'Check Leverage →' },
     ],
   },
 
@@ -312,7 +312,7 @@ export const POSTS = [
     category: 'How-To',
     readTime: 9,
     date: '2026-04-11',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'You have 10 minutes before a meeting. You need to understand the target company\'s financial health. Here is the exact sequence a trained analyst follows.' },
       { type: 'h2', text: 'Step 1: Solvency Check (60 seconds)' },
@@ -335,7 +335,7 @@ export const POSTS = [
         'The 2–3 ratios that are most divergent from peers — these become your diligence priorities.',
         'Whether weakness is structural (sector-wide) or company-specific (operational problem).',
       ]},
-      { type: 'cta', text: 'BizHealth runs this entire framework in under 10 seconds — 23 ratios, AI commentary, sector benchmarks, and trend charts in one click.', link: '/dashboard', label: 'Run Analysis →' },
+      { type: 'cta', text: 'Valoreva runs this entire framework in under 10 seconds — 23 ratios, AI commentary, sector benchmarks, and trend charts in one click.', link: '/dashboard', label: 'Run Analysis →' },
     ],
   },
 
@@ -347,7 +347,7 @@ export const POSTS = [
     category: 'Credit Analysis',
     readTime: 5,
     date: '2026-04-11',
-    author: 'BizHealth Team',
+    author: 'Valoreva Team',
     content: [
       { type: 'lead', text: 'Credit analysts half-joke that they care about one number above all others: interest coverage. If a company cannot service its debt from operations, everything else is academic.' },
       { type: 'h2', text: 'The Formula' },
@@ -365,8 +365,8 @@ export const POSTS = [
       { type: 'h2', text: 'EBITDA Coverage vs EBIT Coverage' },
       { type: 'p', text: 'Some analysts prefer EBITDA / Interest to get a cleaner cash-based metric (since D&A is non-cash). This gives a higher — more flattering — coverage number. Both have merit: EBIT coverage is more conservative and appropriate for assessing headline credit quality; EBITDA coverage is what most bond indentures actually test.' },
       { type: 'h2', text: 'Trends Matter More Than Levels' },
-      { type: 'p', text: 'A coverage of 3.5× falling from 6.0× over two years is more concerning than a stable 2.8×. Trend analysis of interest coverage over 3–5 years is standard practice in credit due diligence. BizHealth shows historical trend charts to support this analysis.' },
-      { type: 'cta', text: 'BizHealth calculates Interest Coverage Ratio and 22 other credit and financial health metrics automatically for any company.', link: '/dashboard', label: 'Check Coverage →' },
+      { type: 'p', text: 'A coverage of 3.5× falling from 6.0× over two years is more concerning than a stable 2.8×. Trend analysis of interest coverage over 3–5 years is standard practice in credit due diligence. Valoreva shows historical trend charts to support this analysis.' },
+      { type: 'cta', text: 'Valoreva calculates Interest Coverage Ratio and 22 other credit and financial health metrics automatically for any company.', link: '/dashboard', label: 'Check Coverage →' },
     ],
   },
 ];

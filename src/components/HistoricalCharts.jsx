@@ -19,12 +19,12 @@ function pct(a, b) { return b ? ((a / b) * 100) : null; }
 /* ── Shared tooltip style ── */
 const TT_STYLE = {
   contentStyle: {
-    background: '#06101e', border: '1px solid rgba(79,110,247,0.3)',
+    background: 'var(--surface)', border: '1px solid var(--border)',
     borderRadius: 8, fontSize: 11,
-    fontFamily: 'JetBrains Mono, monospace', color: '#d4ddf5',
-    boxShadow: '0 4px 24px rgba(0,0,0,0.6)',
+    fontFamily: 'JetBrains Mono, monospace', color: 'var(--text-2)',
+    boxShadow: 'var(--shadow-lg)',
   },
-  labelStyle: { color: '#6b82a8', marginBottom: 4 },
+  labelStyle: { color: 'var(--text-4)', marginBottom: 4 },
   cursor: { stroke: 'rgba(79,110,247,0.25)', strokeWidth: 1 },
 };
 
@@ -33,8 +33,8 @@ function ChartHeader({ title, sub }) {
   return (
     <div className="mb-3">
       <span className="mono text-[10px] font-bold uppercase tracking-[0.14em]"
-        style={{ color: '#9fb3d4' }}>{title}</span>
-      {sub && <span className="ml-2 text-[10px]" style={{ color: '#3d5070' }}>{sub}</span>}
+        style={{ color: 'var(--text-3)' }}>{title}</span>
+      {sub && <span className="ml-2 text-[10px]" style={{ color: 'var(--text-5)' }}>{sub}</span>}
     </div>
   );
 }
@@ -51,7 +51,7 @@ function ChartCard({ children, title, sub }) {
 
 /* ── AXIS STYLES ── */
 const AXIS_PROPS = {
-  tick:  { fill: '#3d5070', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
+  tick:  { fill: 'var(--text-5)', fontSize: 9, fontFamily: 'JetBrains Mono, monospace' },
   axisLine: false,
   tickLine: false,
 };
@@ -103,12 +103,12 @@ export default function HistoricalCharts({ historical, currency = 'USD' }) {
     <section className="mb-10">
       {/* Section header */}
       <div className="flex items-center gap-3 mb-5">
-        <span className="text-lg">📊</span>
+        <span className="text-lg">⊞</span>
         <div>
           <span className="mono text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-400">
             Historical Trends
           </span>
-          <span className="text-[11px] ml-3" style={{ color: '#6b82a8' }}>
+          <span className="text-[11px] ml-3" style={{ color: 'var(--text-4)' }}>
             {inc.length}-year financial performance
           </span>
         </div>
@@ -133,9 +133,9 @@ export default function HistoricalCharts({ historical, currency = 'USD' }) {
             </BarChart>
           </ResponsiveContainer>
           <div className="flex gap-4 mt-2">
-            {[['#4f6ef7','Revenue'],['#00e887','Net Profit']].map(([c,l]) => (
+            {[['var(--gold)','Revenue'],['#00e887','Net Profit']].map(([c,l]) => (
               <span key={l} className="flex items-center gap-1.5"
-                style={{ fontFamily:'JetBrains Mono,monospace', fontSize:9, color:'#6b82a8' }}>
+                style={{ fontFamily:'var(--font-sans)', fontSize:9, color:'var(--text-4)' }}>
                 <span style={{ width:8, height:8, borderRadius:2, background:c, display:'inline-block' }} />
                 {l}
               </span>
@@ -165,7 +165,7 @@ export default function HistoricalCharts({ historical, currency = 'USD' }) {
           <div className="flex gap-4 mt-2">
             {[['#22d3ee','Gross'],['#a78bfa','Operating'],['#00e887','Net']].map(([c,l]) => (
               <span key={l} className="flex items-center gap-1.5"
-                style={{ fontFamily:'JetBrains Mono,monospace', fontSize:9, color:'#6b82a8' }}>
+                style={{ fontFamily:'var(--font-sans)', fontSize:9, color:'var(--text-4)' }}>
                 <span style={{ width:16, height:2, background:c, display:'inline-block', borderRadius:1 }} />
                 {l}
               </span>

@@ -1,21 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
+import { getBackendBaseUrl } from '../lib/backendUrl';
 
-const API = import.meta.env.VITE_BACKEND_URL || 'https://bizhealth-production.up.railway.app';
+const API = getBackendBaseUrl();
 
 const C = {
-  bg:      '#0a0d14',
-  surface: '#0f1523',
-  surfHi:  '#141c2e',
-  border:  '#1d2840',
-  text:    '#e2e8f4',
-  text2:   '#7b8eab',
-  muted:   '#4a5568',
-  blue:    '#2461d4',
+  bg:      'var(--surface-hi)',
+  surface: 'var(--surface)',
+  surfHi:  'var(--surface-hi)',
+  border:  'var(--border)',
+  text:    'var(--text-1)',
+  text2:   'var(--text-3)',
+  muted:   'var(--text-4)',
+  blue:    'var(--gold)',
   red:     '#dc2626',
   purple:  '#7c3aed',
 };
 
-const mono = "'JetBrains Mono', monospace";
+const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
 
 /* Reveal one message every 4 seconds */
@@ -39,12 +40,13 @@ export default function DebatePanel({
   const [error,     setError]     = useState('');
   const intervalRef = useRef(null);
   const bottomRef   = useRef(null);
+  const rounds = Array.isArray(debate?.rounds) ? debate.rounds : [];
 
   /* If a saved debate is passed, reveal all immediately */
   useEffect(() => {
     if (savedDebate) {
       setDebate(savedDebate);
-      setShown(savedDebate.rounds?.length || 0);
+      setShown(Array.isArray(savedDebate.rounds) ? savedDebate.rounds.length : 0);
       setArbiter(true);
     }
   }, [savedDebate]);
@@ -56,6 +58,7 @@ export default function DebatePanel({
 
   /* Sequential reveal after fetch */
   function startReveal(data) {
+    const dataRounds = Array.isArray(data?.rounds) ? data.rounds : [];
     setDebate(data);
     setShown(0);
     setArbiter(false);
@@ -63,11 +66,11 @@ export default function DebatePanel({
     let idx = 0;
 
     intervalRef.current = setInterval(() => {
-      if (idx < data.rounds.length) {
+      if (idx < dataRounds.length) {
         setTyping(false);
         setShown(idx + 1);
         idx++;
-        if (idx < data.rounds.length) {
+        if (idx < dataRounds.length) {
           setTimeout(() => setTyping(true), 600);
         } else {
           // after last round, show typing then arbiter
@@ -118,7 +121,7 @@ export default function DebatePanel({
     }
   }
 
-  const isRunning = debate && shown < (debate.rounds?.length || 0);
+  const isRunning = !!debate && shown < rounds.length;
 
   return (
     <div style={{ fontFamily: sans, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 4 }}>
@@ -186,7 +189,7 @@ export default function DebatePanel({
       {debate && (
         <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 480, overflowY: 'auto' }}>
 
-          {debate.rounds.slice(0, shown).map((r, i) => (
+          {rounds.slice(0, shown).map((r, i) => (
             <div key={i} style={{
               borderLeft: `2px solid ${r.agent === 'bull' ? C.blue : C.red}`,
               paddingLeft: 10,
@@ -198,7 +201,7 @@ export default function DebatePanel({
                 color: r.agent === 'bull' ? C.blue : C.red,
                 letterSpacing: '0.06em', marginBottom: 3,
               }}>
-                {r.agent === 'bull' ? '▲ BULL' : '▼ BEAR'}
+                {r.agent === 'bull' ? 'BULL CASE' : 'BEAR CASE'}
               </div>
               <div style={{ fontFamily: sans, fontSize: 12, color: C.text, lineHeight: 1.55 }}>
                 {r.text}
@@ -223,7 +226,7 @@ export default function DebatePanel({
                 <div style={{
                   fontFamily: mono, fontSize: 10, fontWeight: 600,
                   color: C.purple, letterSpacing: '0.06em', marginBottom: 3,
-                }}>◆ ARBITER</div>
+                }}>ARBITER</div>
                 <div style={{ fontFamily: sans, fontSize: 12, color: C.text, lineHeight: 1.55 }}>
                   {debate.arbiter}
                 </div>

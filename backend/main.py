@@ -1,11 +1,11 @@
-"""
-BizHealth FastAPI Backend ? Anthropic Claude
+﻿"""
+Valoreva FastAPI Backend ? Anthropic Claude
 --------------------------------------------
 POST /analyze  ?  structured financial analysis via Claude claude-haiku-4-5
 
 Deploy to Render:
-1. render.com ? New Web Service ? connect nightguy716/BizHealth repo
-2. Root Directory:  backend
+1. render.com ? New Web Service ? connect nightguy716/Valoreva repo
+2. Root Directory:  backend (connect nightguy716/Valoreva repo)
 3. Build Command:   pip install -r requirements.txt
 4. Start Command:   uvicorn main:app --host 0.0.0.0 --port $PORT
 5. Environment variable: ANTHROPIC_API_KEY = sk-ant-...
@@ -20,10 +20,19 @@ import math
 import time
 import asyncio
 import requests
+import anthropic
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List
 import httpx
+
+# Load environment variables from backend/.env when running locally.
+# On Railway/production, env vars are injected by the platform so this is a no-op.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
+except ImportError:
+    pass
 # yfinance / pandas / xlsxwriter are imported lazily inside the functions that need them
 # so Uvicorn can bind and /health responds quickly on cold start (Railway healthchecks).
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -52,13 +61,28 @@ def _get_ip(request: Request) -> str:
         return forwarded.split(",")[0].strip()
     return request.client.host if request.client else "unknown"
 
-def _check_rate(ip: str, kind: str) -> None:
+def _is_owner(request: Request) -> bool:
+    """
+    Owner bypass for rate limiting. The frontend attaches the shared secret
+    `x-owner-key` header when VITE_OWNER_KEY is configured, and the backend
+    compares it to OWNER_KEY env var. If both are set and match, skip limits.
+    """
+    server_key = os.environ.get("OWNER_KEY", "").strip()
+    if not server_key:
+        return False
+    client_key = request.headers.get("x-owner-key", "").strip()
+    return bool(client_key) and client_key == server_key
+
+def _check_rate(ip: str, kind: str, request: Request | None = None) -> None:
     """
     Raise HTTP 429 if the IP has exceeded its quota.
     kind = "analyze"  ? 7 per day
     kind = "lookup"   ? 30 per hour  (full quoteSummary fetches)
     kind = "search"   ? 300 per hour (lightweight autocomplete only)
     """
+    if request is not None and _is_owner(request):
+        return  # owner bypass: unlimited
+
     now   = time.time()
     store = _rate_store[ip]
     times = store.get(kind, [])
@@ -506,7 +530,7 @@ async def _httpx_yf_fetch(sym: str) -> dict:
     return _parse_yf_response(data)
 
 
-app = FastAPI(title="BizHealth API", version="1.0.0")
+app = FastAPI(title="Valoreva API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -549,18 +573,20 @@ class CompanyCtx(BaseModel):
     ticker:   str = ''
     currency: str = 'INR'
     isListed: bool = False
+    sector:   str = ''
+    marketData: dict = {}
 
 class AnalysisRequest(BaseModel):
     ratios:   dict
     statuses: dict
-    industry: str
+    industry: str = "general"
     score:    int
     company:  CompanyCtx = CompanyCtx()
 
 
 @app.get("/")
 def root():
-    return {"status": "BizHealth API running", "model": "claude-haiku-4-5", "version": "3.3.0", "data_source": "yfinance+financialData-fallback"}
+    return {"status": "Valoreva API running", "model": "claude-haiku-4-5", "version": "3.3.0", "data_source": "yfinance+financialData-fallback"}
 
 
 @app.get("/health")
@@ -580,12 +606,28 @@ async def ping():
 @app.get("/usage")
 async def get_usage(request: Request):
     """Return remaining quota for the calling IP ? polled by the frontend."""
+    if _is_owner(request):
+        return {
+            "ai_analyses_used": 0, "ai_analyses_remaining": 9999, "ai_analyses_limit": 9999,
+            "lookups_used": 0,     "lookups_remaining":     9999, "lookups_limit":     9999,
+            "searches_used": 0,    "searches_remaining":    9999,
+            "owner": True,
+        }
     return _get_usage(_get_ip(request))
+
+
+@app.post("/admin/reset-rate-limits")
+async def reset_rate_limits(request: Request):
+    """Clear the in-memory rate-limit store (owner-only)."""
+    if not _is_owner(request):
+        raise HTTPException(status_code=403, detail="Forbidden")
+    _rate_store.clear()
+    return {"ok": True, "message": "Rate-limit store cleared"}
 
 
 @app.get("/search")
 async def search_companies(request: Request, q: str = Query(..., min_length=1)):
-    _check_rate(_get_ip(request), "search")
+    _check_rate(_get_ip(request), "search", request)
 
     # Use browser-like API headers ? YF search doesn't need cookies/crumb,
     # just a real-looking User-Agent + Referer to avoid IP blocking.
@@ -818,7 +860,7 @@ async def get_company_yf(ticker: str, request: Request):
     Priority: yfinance (no key, no rate limit) ? Alpha Vantage ? FMP
     Results cached 1 hour per ticker.
     """
-    _check_rate(_get_ip(request), "lookup")
+    _check_rate(_get_ip(request), "lookup", request)
     sym = ticker.upper().strip()
 
     # Serve from cache if still fresh
@@ -1658,6 +1700,7 @@ def _yoy(curr, prev):
 
 def build_excel(req: ExcelRequest) -> bytes:
     import xlsxwriter
+    from xlsxwriter.utility import xl_rowcol_to_cell
     from datetime import date
     output = io.BytesIO()
     wb = xlsxwriter.Workbook(output, {'in_memory': True, 'nan_inf_to_errors': True})
@@ -1758,6 +1801,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws0.write('A6', 'Model Contents', f_cover_h)
     contents = [
         ('Cover & Notes',    'This sheet ? model overview, color coding, key assumptions.'),
+        ('Model Inputs',     'Editable driver cells used by formulas in ratio and valuation sheets.'),
         ('Financial Ratios', 'Current-period ratios across Liquidity, Profitability, Efficiency & Leverage.'),
         ('Income Statement', f'Historical P&L FY{inc[0].year if inc else "?"}?FY{inc[-1].year if inc else "?"}. Revenue, Gross Profit, EBITDA, EBIT, Net Income, EPS.'),
         ('Balance Sheet',    f'Historical B/S FY{bal[0].year if bal else "?"}?FY{bal[-1].year if bal else "?"}. Assets, Liabilities, Shareholders\' Equity.'),
@@ -1775,7 +1819,7 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws0.write('A16', 'Blue text',   F(bold=True, font_color=_BLUE_INP))
     ws0.write('B16', 'Hardcoded inputs / assumptions ? change these to run scenarios', f_cover_t)
     ws0.write('A17', 'Black text',  f_cover_b)
-    ws0.write('B17', 'Calculated formulas', f_cover_t)
+    ws0.write('B17', 'Calculated formulas / linked outputs', f_cover_t)
     ws0.write('A18', 'Green fill',  F(bold=True, font_color=_WHITE, bg_color=_GREEN))
     ws0.write('B18', 'Healthy / positive indicator', f_cover_t)
     ws0.write('A19', 'Amber fill',  F(bold=True, font_color=_BLACK, bg_color=_AMBER))
@@ -1801,7 +1845,75 @@ def build_excel(req: ExcelRequest) -> bytes:
         ws0.write(22+i, 1, v, f_cover_t)
 
     # ??????????????????????????????????????????????????????????
-    # SHEET 2 ? FINANCIAL RATIOS
+    # SHEET 2 ? MODEL INPUTS (editable drivers)
+    # ??????????????????????????????????????????????????????????
+    ws_in = wb.add_worksheet('Model Inputs')
+    ws_in.set_column('A:A', 28)
+    ws_in.set_column('B:B', 18)
+    ws_in.set_column('C:C', 56)
+    ws_in.freeze_panes(3, 1)
+
+    ws_in.write(0, 0, f'{co} ({tick})' if tick else co, f_title)
+    ws_in.write(1, 0, 'Editable assumptions and current-period inputs used by formulas below.', f_sub)
+    ws_in.write_row(2, 0, ['INPUT FIELD', 'VALUE', 'NOTES'], f_hdr)
+
+    latest_inc = inc[-1] if n_inc else IncomeYear()
+    latest_bal = bal[-1] if n_bal else BalanceYear()
+    latest_cf  = cf[-1]  if n_cf else CashFlowYear()
+
+    fallback_inputs = {
+        'currentAssets': latest_bal.currentAssets,
+        'currentLiabilities': latest_bal.currentLiabilities,
+        'inventory': latest_bal.inventory,
+        'cash': latest_bal.cash,
+        'totalAssets': latest_bal.totalAssets,
+        'equity': latest_bal.equity,
+        'totalDebt': latest_bal.totalDebt if latest_bal.totalDebt is not None else ((latest_bal.currentDebt or 0) + (latest_bal.ltDebt or 0) or None),
+        'revenue': latest_inc.revenue,
+        'grossProfit': latest_inc.grossProfit,
+        'operatingExpenses': latest_inc.operatingExpenses,
+        'netProfit': latest_inc.netProfit,
+        'interestExpense': latest_inc.interestExpense,
+        'receivables': latest_bal.receivables,
+        'cogs': latest_inc.cogs,
+        'da': latest_inc.da if latest_inc.da is not None else latest_cf.da,
+        'accountsPayable': latest_bal.ap,
+        'operatingCashFlow': latest_cf.cfOps,
+    }
+
+    INPUT_FIELDS = [
+        ('Current Assets', 'currentAssets', 'Used in liquidity and working-capital ratios'),
+        ('Current Liabilities', 'currentLiabilities', 'Used in liquidity ratios'),
+        ('Inventory', 'inventory', 'Used in quick ratio and inventory days'),
+        ('Cash', 'cash', 'Used in cash ratio and net debt calculations'),
+        ('Total Assets', 'totalAssets', 'Used in ROA and turnover calculations'),
+        ('Equity', 'equity', 'Used in ROE and debt/equity calculations'),
+        ('Total Debt', 'totalDebt', 'Used in leverage calculations'),
+        ('Revenue', 'revenue', 'Used in margin and efficiency calculations'),
+        ('Gross Profit', 'grossProfit', 'Used in gross/operating margin assumptions'),
+        ('Operating Expenses', 'operatingExpenses', 'Used in operating margin and EBIT proxies'),
+        ('Net Profit', 'netProfit', 'Used in ROE/ROA and net margin'),
+        ('Interest Expense', 'interestExpense', 'Used in interest coverage'),
+        ('Receivables', 'receivables', 'Used in receivables days'),
+        ('COGS', 'cogs', 'Used in inventory days'),
+        ('D&A', 'da', 'Used in advanced EBITDA and DCF'),
+        ('Accounts Payable', 'accountsPayable', 'Used in DPO/CCC'),
+        ('Operating Cash Flow', 'operatingCashFlow', 'Used in cash-conversion quality'),
+    ]
+    input_row_map: dict[str, int] = {}
+    for i, (label, key, note) in enumerate(INPUT_FIELDS, start=3):
+        input_row_map[key] = i
+        v = req.inputs.get(key, fallback_inputs.get(key))
+        try:
+            v = float(v) if v not in (None, '') else None
+        except Exception:
+            v = None
+        ws_in.write(i, 0, label, f_lbl)
+        ws_in.write(i, 1, v, f_inp_num if v is not None else f_num)
+        ws_in.write(i, 2, note, f_txt)
+
+    # ??????????????????????????????????????????????????????????
+    # SHEET 3 ? FINANCIAL RATIOS
     # ??????????????????????????????????????????????????????????
     ws1 = wb.add_worksheet('Financial Ratios')
     ws1.set_column('A:A', 28)
@@ -1813,20 +1925,16 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws1.write(0, 0, f'{co} ({tick})' if tick else co, f_title)
     ws1.write(1, 0, f'Financial Ratios  |  {req.industry.title()}  |  Score: {req.score}/100  |  {today_str}', f_sub)
 
-    verdict = ('STRONG' if req.score >= 80 else 'MODERATE' if req.score >= 60
-               else 'BELOW AVERAGE' if req.score >= 40 else 'CRITICAL')
-    v_sfmt = f_grn if req.score >= 80 else f_amb if req.score >= 60 else f_red
-
     ws1.write(2, 0, 'Health Score', f_bold_lbl)
-    ws1.write(2, 1, f'{req.score}/100', f_ctr)
+    # Formula-driven score from status column (editable model behavior).
+    ws1.write_formula(2, 1, '=IF((COUNTIF(C6:C24,"Healthy")+COUNTIF(C6:C24,"Borderline")+COUNTIF(C6:C24,"Critical"))=0,0,ROUND(((COUNTIF(C6:C24,"Healthy")*2+COUNTIF(C6:C24,"Borderline"))/((COUNTIF(C6:C24,"Healthy")+COUNTIF(C6:C24,"Borderline")+COUNTIF(C6:C24,"Critical"))*2))*100,0))', f_ctr)
     ws1.write(2, 2, 'Verdict', f_bold_lbl)
-    ws1.merge_range(2, 3, 2, 4, verdict, v_sfmt)
+    ws1.write_formula(2, 3, '=IF(B3>=80,"STRONG",IF(B3>=60,"MODERATE",IF(B3>=40,"BELOW AVERAGE","CRITICAL")))', f_ctr)
+    ws1.write(2, 4, '', f_ctr)
 
-    counts = {'green': 0, 'amber': 0, 'red': 0, 'na': 0}
-    for s in req.statuses.values(): counts[s] = counts.get(s, 0) + 1
-    ws1.write(3, 0, 'Healthy', f_grn); ws1.write(3, 1, counts['green'], f_grn)
-    ws1.write(3, 2, 'Borderline', f_amb); ws1.write(3, 3, counts['amber'], f_amb)
-    ws1.write(3, 4, f"Critical: {counts['red']}  |  N/A: {counts['na']}", f_red)
+    ws1.write(3, 0, 'Healthy', f_grn); ws1.write_formula(3, 1, '=COUNTIF(C6:C24,"Healthy")', f_grn)
+    ws1.write(3, 2, 'Borderline', f_amb); ws1.write_formula(3, 3, '=COUNTIF(C6:C24,"Borderline")', f_amb)
+    ws1.write_formula(3, 4, '="Critical: "&COUNTIF(C6:C24,"Critical")&"  |  N/A: "&COUNTIF(C6:C24,"N/A")', f_red)
 
     ws1.write_row(4, 0, ['RATIO', 'VALUE', 'STATUS', 'BENCHMARK', 'INTERPRETATION'], f_hdr)
 
@@ -1867,21 +1975,63 @@ def build_excel(req: ExcelRequest) -> bytes:
         'interestCoverage':   'Ability to service interest payments from operating earnings.',
     }
 
+    # formulas linked to Model Inputs sheet
+    def inpref(key: str) -> str:
+        return f"'Model Inputs'!$B${input_row_map[key] + 1}"
+
+    ratio_formula = {
+        'currentRatio':        f'=IFERROR({inpref("currentAssets")}/{inpref("currentLiabilities")},"")',
+        'quickRatio':          f'=IFERROR(({inpref("currentAssets")}-{inpref("inventory")})/{inpref("currentLiabilities")},"")',
+        'cashRatio':           f'=IFERROR({inpref("cash")}/{inpref("currentLiabilities")},"")',
+        'grossMargin':         f'=IFERROR(({inpref("grossProfit")}/{inpref("revenue")})*100,"")',
+        'operatingMargin':     f'=IFERROR((({inpref("grossProfit")}-{inpref("operatingExpenses")})/{inpref("revenue")})*100,"")',
+        'netMargin':           f'=IFERROR(({inpref("netProfit")}/{inpref("revenue")})*100,"")',
+        'roe':                 f'=IFERROR(({inpref("netProfit")}/{inpref("equity")})*100,"")',
+        'roa':                 f'=IFERROR(({inpref("netProfit")}/{inpref("totalAssets")})*100,"")',
+        'assetTurnover':       f'=IFERROR({inpref("revenue")}/{inpref("totalAssets")},"")',
+        'fixedAssetTurnover':  f'=IFERROR({inpref("revenue")}/({inpref("totalAssets")}-{inpref("currentAssets")}),"")',
+        'receivablesDays':     f'=IFERROR(({inpref("receivables")}/{inpref("revenue")})*365,"")',
+        'inventoryDays':       f'=IFERROR(({inpref("inventory")}/{inpref("cogs")})*365,"")',
+        'debtToEquity':        f'=IFERROR({inpref("totalDebt")}/{inpref("equity")},"")',
+        'interestCoverage':    f'=IFERROR(({inpref("grossProfit")}-{inpref("operatingExpenses")})/{inpref("interestExpense")},"")',
+    }
+
+    def status_formula(key: str, val_cell: str) -> str:
+        higher = {
+            'currentRatio': (1.5, 1.0), 'quickRatio': (1.0, 0.7), 'cashRatio': (0.5, 0.2),
+            'grossMargin': (30, 15), 'operatingMargin': (15, 8), 'netMargin': (10, 4),
+            'roe': (15, 8), 'roa': (5, 2), 'assetTurnover': (1.0, 0.7),
+            'fixedAssetTurnover': (2.0, 1.2), 'interestCoverage': (3.0, 1.5),
+        }
+        lower = {'receivablesDays': (45, 60), 'inventoryDays': (60, 90), 'debtToEquity': (1.5, 2.5)}
+        if key in higher:
+            h, b = higher[key]
+            return f'=IF(ISNUMBER({val_cell}),IF({val_cell}>={h},"Healthy",IF({val_cell}>={b},"Borderline","Critical")),"N/A")'
+        if key in lower:
+            h, b = lower[key]
+            return f'=IF(ISNUMBER({val_cell}),IF({val_cell}<={h},"Healthy",IF({val_cell}<={b},"Borderline","Critical")),"N/A")'
+        return '= "N/A"'
+
     rr = 5
     for row_def in RATIO_ROWS:
         lbl, key, unit_r, bench = row_def
         if key is None:
             ws1.merge_range(rr, 0, rr, 4, lbl, F(bold=True, font_color=_WHITE, bg_color=_NAVY_HDR, border=1))
             rr += 1; continue
-        val    = req.ratios.get(key)
-        status = req.statuses.get(key, 'na')
-        disp   = f'{val:.2f}{unit_r}' if val is not None else 'N/A'
         ws1.write(rr, 0, lbl,   f_lbl)
-        ws1.write(rr, 1, disp,  f_ctr)
-        ws1.write(rr, 2, STATUS_LBL[status], sfmt(status))
+        vfmt = f_num if unit_r == 'x' else f_pct_num if unit_r == '%' else F(num_format='0.0', align='right', border=1)
+        cached_val = req.ratios.get(key)
+        ws1.write_formula(rr, 1, ratio_formula.get(key, '=NA()'), vfmt, cached_val if cached_val is not None else None)
+        vcell = xl_rowcol_to_cell(rr, 1)
+        ws1.write_formula(rr, 2, status_formula(key, vcell), f_ctr)
         ws1.write(rr, 3, bench, f_ctr)
         ws1.write(rr, 4, INTERP.get(key, ''), f_txt)
         rr += 1
+
+    ws1.conditional_format(6, 2, rr-1, 2, {'type': 'text', 'criteria': 'containing', 'value': 'Healthy', 'format': f_grn})
+    ws1.conditional_format(6, 2, rr-1, 2, {'type': 'text', 'criteria': 'containing', 'value': 'Borderline', 'format': f_amb})
+    ws1.conditional_format(6, 2, rr-1, 2, {'type': 'text', 'criteria': 'containing', 'value': 'Critical', 'format': f_red})
+    ws1.conditional_format(6, 2, rr-1, 2, {'type': 'text', 'criteria': 'containing', 'value': 'N/A', 'format': f_nas})
 
     ws1.freeze_panes(5, 0)
 
@@ -1891,6 +2041,9 @@ def build_excel(req: ExcelRequest) -> bytes:
     ws2 = wb.add_worksheet('Income Statement')
     ws2.set_column('A:A', 30)
     for c in range(n_inc): ws2.set_column(c+1, c+1, 13)
+    raw_inc_col = max(11, n_inc + 3)  # hidden raw data area used for formula-linked visible cells
+    if n_inc > 0:
+        ws2.set_column(raw_inc_col, raw_inc_col + n_inc - 1, 12, None, {'hidden': True})
     ws2.freeze_panes(3, 1)
 
     # Title
@@ -1906,13 +2059,18 @@ def build_excel(req: ExcelRequest) -> bytes:
     def irow(r, label, vals, lf=None, nf=None):
         ws2.write(r, 0, label, lf or f_lbl)
         for i, v in enumerate(vals):
-            ws2.write(r, i+1, v, nf or f_num)
+            # store loaded value in hidden columns and expose visible formula-linked cells
+            raw_c = raw_inc_col + i
+            ws2.write(r, raw_c, v, nf or f_num)
+            ws2.write_formula(r, i+1, f'={xl_rowcol_to_cell(r, raw_c)}', nf or f_num, v)
 
     def ipct(r, label, vals):
         """Write a % sub-row (grey italic)."""
         ws2.write(r, 0, label, f_pct_lbl)
         for i, v in enumerate(vals):
-            ws2.write(r, i+1, v, f_pct_num)
+            raw_c = raw_inc_col + i
+            ws2.write(r, raw_c, v, f_pct_num)
+            ws2.write_formula(r, i+1, f'={xl_rowcol_to_cell(r, raw_c)}', f_pct_num, v)
 
     def iyoy(r, label, raw_vals):
         """Write a YoY growth row."""
@@ -1969,6 +2127,36 @@ def build_excel(req: ExcelRequest) -> bytes:
     irow(row, '  D&A',                    [_mm(y.da) for y in inc]); row += 1
     irow(row, '  Diluted EPS',            [y.eps for y in inc], f_bold_lbl, f_eps); row += 1
     irow(row, '  Diluted Shares (B)',     [y.dilutedShares for y in inc], f_lbl, f_shr); row += 1
+
+    # Formula layer (editable model behavior): derived lines and latest-year links.
+    if n_inc > 0:
+        for c in range(1, n_inc + 1):
+            c_ref = xl_rowcol_to_cell
+            # Core derived lines
+            ws2.write_formula(9,  c, f'=IFERROR({c_ref(4,c)}-{c_ref(8,c)},"")', f_bold_num)   # Gross Profit
+            ws2.write_formula(10, c, f'=IFERROR({c_ref(9,c)}/{c_ref(4,c)},"")', f_pct_num)     # Gross Margin
+            ws2.write_formula(16, c, f'=IFERROR({c_ref(9,c)}-{c_ref(12,c)}-{c_ref(14,c)},"")', f_bold_num)  # EBIT
+            ws2.write_formula(17, c, f'=IFERROR({c_ref(16,c)}/{c_ref(4,c)},"")', f_pct_num)    # EBIT Margin
+            ws2.write_formula(22, c, f'=IFERROR({c_ref(16,c)}+{c_ref(19,c)}-{c_ref(20,c)},"")', f_bold_num) # Pre-Tax
+            ws2.write_formula(25, c, f'=IFERROR({c_ref(22,c)}-{c_ref(23,c)},"")', f_bold_num)  # Net Income
+            ws2.write_formula(26, c, f'=IFERROR({c_ref(25,c)}/{c_ref(4,c)},"")', f_pct_num)    # Net Margin
+            ws2.write_formula(29, c, f'=IFERROR({c_ref(16,c)}+{c_ref(31,c)},"")', f_bold_num)  # EBITDA
+            ws2.write_formula(30, c, f'=IFERROR({c_ref(29,c)}/{c_ref(4,c)},"")', f_pct_num)    # EBITDA Margin
+            # YoY rows become dynamic formulas
+            if c == 1:
+                ws2.write(5,  c, None, f_pct_num)   # Revenue YoY first year blank
+            else:
+                ws2.write_formula(5, c, f'=IF(OR({c_ref(4,c)}="",{c_ref(4,c-1)}="",{c_ref(4,c-1)}=0),"",({c_ref(4,c)}-{c_ref(4,c-1)})/ABS({c_ref(4,c-1)}))', gfmt(0))
+
+        # Link latest displayed year to model drivers (so user edits cascade visibly).
+        lc = n_inc
+        ws2.write_formula(4,  lc, '=IFERROR(\'Model Inputs\'!B11/1000000,"")', f_bold_num)  # Revenue
+        ws2.write_formula(8,  lc, '=IFERROR(\'Model Inputs\'!B14/1000000,"")', f_num)       # COGS
+        ws2.write_formula(12, lc, '=IFERROR(\'Model Inputs\'!B9/1000000*0.03,"")', f_num)   # R&D proxy
+        ws2.write_formula(14, lc, '=IFERROR(\'Model Inputs\'!B10/1000000,"")', f_num)       # SG&A proxy from OpEx
+        ws2.write_formula(20, lc, '=IFERROR(\'Model Inputs\'!B13/1000000,"")', f_num)       # Interest Expense
+        ws2.write_formula(23, lc, '=IFERROR(\'Model Inputs\'!B12/1000000*0.25,"")', f_num)  # Tax proxy
+        ws2.write_formula(31, lc, '=IFERROR(\'Model Inputs\'!B15/1000000,"")', f_num)       # D&A
 
     # ??????????????????????????????????????????????????????????
     # SHEET 4 ? BALANCE SHEET
@@ -2031,6 +2219,26 @@ def build_excel(req: ExcelRequest) -> bytes:
     brow(row, '  Additional Paid-In Capital',[_mm(y.apic) for y in bal]); row += 1
     brow(row, '  Retained Earnings',         [_mm(y.retainedEarnings) for y in bal]); row += 1
     brow(row, 'Total Equity',                [_mm(y.equity) for y in bal], f_bold_lbl, f_bold_num); row += 1
+
+    if n_bal > 0:
+        for c in range(1, n_bal + 1):
+            c_ref = xl_rowcol_to_cell
+            ws3.write_formula(9,  c, f'=IFERROR(SUM({c_ref(4,c)}:{c_ref(8,c)}),"")', f_bold_num)    # Total Current Assets
+            ws3.write_formula(15, c, f'=IFERROR({c_ref(9,c)}+{c_ref(11,c)}+{c_ref(12,c)}+{c_ref(13,c)}+{c_ref(14,c)},"")', f_bold_num)  # Total Assets
+            ws3.write_formula(22, c, f'=IFERROR(SUM({c_ref(18,c)}:{c_ref(21,c)}),"")', f_bold_num)   # Total Current Liabilities
+            ws3.write_formula(26, c, f'=IFERROR({c_ref(22,c)}+{c_ref(24,c)}+{c_ref(25,c)},"")', f_bold_num)  # Total Liabilities
+            ws3.write_formula(31, c, f'=IFERROR({c_ref(29,c)}+{c_ref(30,c)},"")', f_bold_num)         # Total Equity
+
+        lc = n_bal
+        ws3.write_formula(4,  lc, '=IFERROR(\'Model Inputs\'!B7/1000000,"")', f_num)        # Cash
+        ws3.write_formula(6,  lc, '=IFERROR(\'Model Inputs\'!B16/1000000,"")', f_num)       # Receivables
+        ws3.write_formula(7,  lc, '=IFERROR(\'Model Inputs\'!B6/1000000,"")', f_num)        # Inventory
+        ws3.write_formula(9,  lc, '=IFERROR(\'Model Inputs\'!B4/1000000,"")', f_bold_num)   # Current Assets
+        ws3.write_formula(15, lc, '=IFERROR(\'Model Inputs\'!B8/1000000,"")', f_bold_num)   # Total Assets
+        ws3.write_formula(19, lc, '=IFERROR(\'Model Inputs\'!B10/1000000*0.15,"")', f_num)  # Current Debt proxy
+        ws3.write_formula(22, lc, '=IFERROR(\'Model Inputs\'!B5/1000000,"")', f_bold_num)   # Current Liabilities
+        ws3.write_formula(24, lc, '=IFERROR(\'Model Inputs\'!B10/1000000*0.85,"")', f_num)  # LT Debt proxy
+        ws3.write_formula(31, lc, '=IFERROR(\'Model Inputs\'!B9/1000000,"")', f_bold_num)   # Total Equity
 
     # ??????????????????????????????????????????????????????????
     # SHEET 5 ? CASH FLOW
@@ -2117,6 +2325,27 @@ def build_excel(req: ExcelRequest) -> bytes:
         return None   # can't reliably derive without prior year
     crow(row, '  Ending Cash', [None]*n_cf); row += 1
 
+    if n_cf > 0:
+        for c in range(1, n_cf + 1):
+            c_ref = xl_rowcol_to_cell
+            ws4.write_formula(8,  c, f'=IFERROR({c_ref(9,c)}-{c_ref(4,c)}-{c_ref(5,c)}-{c_ref(6,c)}-{c_ref(7,c)},"")', f_num)     # Other Operating
+            ws4.write_formula(13, c, f'=IFERROR({c_ref(12,c)},"")', f_bold_num)                                                    # Cash from Investing
+            ws4.write_formula(18, c, f'=IFERROR({c_ref(19,c)}-{c_ref(16,c)}-{c_ref(17,c)},"")', f_num)                            # Debt/Other
+            ws4.write_formula(22, c, f'=IFERROR({c_ref(9,c)}+{c_ref(12,c)},"")', f_bold_num)                                       # FCF
+            ws4.write_formula(23, c, f'=IFERROR({c_ref(22,c)}/{c_ref(4,c)},"")', f_pct_num)                                        # FCF Conversion
+
+        lc = n_cf
+        ws4.write_formula(4,  lc, '=IFERROR(\'Model Inputs\'!B12/1000000,"")', f_num)       # Net Income
+        ws4.write_formula(5,  lc, '=IFERROR(\'Model Inputs\'!B15/1000000,"")', f_num)       # D&A
+        ws4.write_formula(7,  lc, '=IFERROR((\'Model Inputs\'!B16+\'Model Inputs\'!B6-\'Model Inputs\'!B17)/1000000,"")', f_num)  # WC proxy
+        ws4.write_formula(9,  lc, '=IFERROR(\'Model Inputs\'!B18/1000000,"")', f_bold_num)  # CFO
+        ws4.write_formula(12, lc, '=IFERROR(-ABS(\'Model Inputs\'!B11*0.04/1000000),"")', f_num)  # CapEx proxy
+        ws4.write_formula(16, lc, '=IFERROR(-ABS(\'Model Inputs\'!B10*0.02/1000000),"")', f_num)  # Buybacks proxy
+        ws4.write_formula(17, lc, '=IFERROR(-ABS(\'Model Inputs\'!B12*0.1/1000000),"")', f_num)   # Dividends proxy
+        ws4.write_formula(19, lc, '=IFERROR(-ABS(\'Model Inputs\'!B10*0.01/1000000),"")', f_bold_num)  # Financing proxy
+        if n_bal >= lc:
+            ws4.write_formula(24, lc, f'=IFERROR(\'Balance Sheet\'!{xl_rowcol_to_cell(4, lc)},"")', f_num)  # Ending cash linked to BS
+
     # ??????????????????????????????????????????????????????????
     # SHEET 6 ? DCF VALUATION
     # ??????????????????????????????????????????????????????????
@@ -2146,7 +2375,17 @@ def build_excel(req: ExcelRequest) -> bytes:
     for i, yr in enumerate(proj_yrs): ws5.write(2, i+1, yr, f_hdr)
 
     row = 3
+    base_rev = _mm(base_rev_raw) or 1000.0
+    ws5.write(row, 0, 'BASE INPUT', f_sec); row += 1
+    base_rev_row = row
+    ws5.write(row, 0, '  Base Revenue FY0 ($mm)', f_lbl)
+    ws5.write(row, 1, base_rev, f_inp_num)
+    for i in range(2, 6):
+        ws5.write(row, i, None, f_num)
+    row += 2
+
     ws5.write(row, 0, 'KEY ASSUMPTIONS  (Blue = Input)', f_sec); row += 1
+    gr_row = row
     assumption_rows = [
         ('  Revenue Growth Rate', gr,       f_inp_pct),
         ('  EBITDA Margin',       em,       f_inp_pct),
@@ -2160,75 +2399,89 @@ def build_excel(req: ExcelRequest) -> bytes:
         for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
         row += 1
 
-    # Build projected financials
-    base_rev = _mm(base_rev_raw) or 1000.0
-    rev_proj = []
-    for g in gr:
-        base_rev = round(base_rev * (1 + g), 1)
-        rev_proj.append(base_rev)
-
-    ebitda_proj = [round(rev_proj[i] * em[i], 1) for i in range(5)]
-    da_proj     = [round(rev_proj[i] * da_pct[i], 1) for i in range(5)]
-    capex_proj  = [round(rev_proj[i] * capex_pct[i], 1) for i in range(5)]
-    nwc_proj    = [round(rev_proj[i] * nwc_pct[i], 1) for i in range(5)]
-    ebit_proj   = [round(ebitda_proj[i] - da_proj[i], 1) for i in range(5)]
-    tax_proj    = [round(ebit_proj[i] * tax_rate[i], 1) for i in range(5)]
-    nopat_proj  = [round(ebit_proj[i] - tax_proj[i], 1) for i in range(5)]
-    ufcf_proj   = [round(nopat_proj[i] + da_proj[i] - capex_proj[i] - nwc_proj[i], 1) for i in range(5)]
-
     row += 1
     ws5.write(row, 0, 'PROJECTED FINANCIALS', f_sec); row += 1
-    proj_rows = [
-        ('  Revenue',          rev_proj,    f_bold_lbl, f_bold_num),
-        ('  EBITDA',           ebitda_proj, f_lbl,      f_num),
-        ('  (-) D&A',          da_proj,     f_lbl,      f_num),
-        ('EBIT',               ebit_proj,   f_bold_lbl, f_bold_num),
-        ('  (-) Taxes on EBIT',tax_proj,    f_lbl,      f_num),
-        ('NOPAT',              nopat_proj,  f_bold_lbl, f_bold_num),
-        ('  (+) D&A Add-Back', da_proj,     f_lbl,      f_num),
-        ('  (-) CapEx',        capex_proj,  f_lbl,      f_num),
-        ('  (-) Change in NWC',nwc_proj,    f_lbl,      f_num),
-    ]
-    for lbl, vals, lf, nf in proj_rows:
-        ws5.write(row, 0, lbl, lf)
-        for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
-        row += 1
+    rev_row = row
+    ws5.write(row, 0, '  Revenue', f_bold_lbl); row += 1
+    ebitda_row = row
+    ws5.write(row, 0, '  EBITDA', f_lbl); row += 1
+    da_row = row
+    ws5.write(row, 0, '  (-) D&A', f_lbl); row += 1
+    ebit_row = row
+    ws5.write(row, 0, 'EBIT', f_bold_lbl); row += 1
+    tax_row = row
+    ws5.write(row, 0, '  (-) Taxes on EBIT', f_lbl); row += 1
+    nopat_row = row
+    ws5.write(row, 0, 'NOPAT', f_bold_lbl); row += 1
+    da_add_row = row
+    ws5.write(row, 0, '  (+) D&A Add-Back', f_lbl); row += 1
+    capex_row = row
+    ws5.write(row, 0, '  (-) CapEx', f_lbl); row += 1
+    nwc_row = row
+    ws5.write(row, 0, '  (-) Change in NWC', f_lbl); row += 1
+    ufcf_row = row
     ws5.write(row, 0, 'Unlevered Free Cash Flow (UFCF)', f_bold_lbl)
-    for i, v in enumerate(ufcf_proj): ws5.write(row, i+1, v, f_bold_num)
+    for i in range(5):
+        c = i + 1
+        rev_cell = xl_rowcol_to_cell(rev_row, c)
+        growth_cell = xl_rowcol_to_cell(gr_row, c, True, False)
+        if i == 0:
+            base_cell = xl_rowcol_to_cell(base_rev_row, 1, True, True)
+            ws5.write_formula(rev_row, c, f'=IFERROR({base_cell}*(1+{growth_cell}),"")', f_bold_num)
+        else:
+            prev_rev = xl_rowcol_to_cell(rev_row, c-1)
+            ws5.write_formula(rev_row, c, f'=IFERROR({prev_rev}*(1+{growth_cell}),"")', f_bold_num)
+        ws5.write_formula(ebitda_row, c, f'=IFERROR({rev_cell}*{xl_rowcol_to_cell(gr_row+1, c, True, False)},"")', f_num)
+        ws5.write_formula(da_row, c, f'=IFERROR({rev_cell}*{xl_rowcol_to_cell(gr_row+2, c, True, False)},"")', f_num)
+        ws5.write_formula(ebit_row, c, f'=IFERROR({xl_rowcol_to_cell(ebitda_row, c)}-{xl_rowcol_to_cell(da_row, c)},"")', f_bold_num)
+        ws5.write_formula(tax_row, c, f'=IFERROR({xl_rowcol_to_cell(ebit_row, c)}*{xl_rowcol_to_cell(gr_row+5, c, True, False)},"")', f_num)
+        ws5.write_formula(nopat_row, c, f'=IFERROR({xl_rowcol_to_cell(ebit_row, c)}-{xl_rowcol_to_cell(tax_row, c)},"")', f_bold_num)
+        ws5.write_formula(da_add_row, c, f'=IFERROR({xl_rowcol_to_cell(da_row, c)},"")', f_num)
+        ws5.write_formula(capex_row, c, f'=IFERROR({rev_cell}*{xl_rowcol_to_cell(gr_row+3, c, True, False)},"")', f_num)
+        ws5.write_formula(nwc_row, c, f'=IFERROR({rev_cell}*{xl_rowcol_to_cell(gr_row+4, c, True, False)},"")', f_num)
+        ws5.write_formula(ufcf_row, c, f'=IFERROR({xl_rowcol_to_cell(nopat_row, c)}+{xl_rowcol_to_cell(da_add_row, c)}-{xl_rowcol_to_cell(capex_row, c)}-{xl_rowcol_to_cell(nwc_row, c)},"")', f_bold_num)
     row += 2
 
     # WACC & TV
     ws5.write(row, 0, 'WACC & TERMINAL VALUE', f_sec); row += 1
-    disc = [round(1 / (1+wacc)**(i+1), 4) for i in range(5)]
-    pv   = [round(ufcf_proj[i] * disc[i], 1) for i in range(5)]
-    tv   = round(ufcf_proj[-1] * (1+tgr) / (wacc - tgr), 1)
-    pv_tv= round(tv * disc[-1], 1)
-    sum_pv = round(sum(pv), 1)
-    ev   = round(sum_pv + pv_tv, 1)
-
-    wacc_rows = [
-        ('  WACC',             [wacc]*5,   f_inp_pct),
-        ('  Terminal Growth',  [tgr]*5,    f_inp_pct),
-        ('  Discount Factor',  disc,       f_inp_num),
-        ('  PV of UFCF',       pv,         f_num),
-    ]
-    for lbl, vals, nf in wacc_rows:
-        ws5.write(row, 0, lbl, f_lbl)
-        for i, v in enumerate(vals): ws5.write(row, i+1, v, nf)
-        row += 1
+    wacc_row = row
+    ws5.write(row, 0, '  WACC', f_lbl)
+    for i in range(5): ws5.write(row, i+1, wacc, f_inp_pct)
+    row += 1
+    tgr_row = row
+    ws5.write(row, 0, '  Terminal Growth', f_lbl)
+    for i in range(5): ws5.write(row, i+1, tgr, f_inp_pct)
+    row += 1
+    disc_row = row
+    ws5.write(row, 0, '  Discount Factor', f_lbl)
+    for i in range(5):
+        c = i + 1
+        ws5.write_formula(row, c, f'=IFERROR(1/(1+{xl_rowcol_to_cell(wacc_row, c)})^{i+1},"")', f_inp_num)
+    row += 1
+    pv_row = row
+    ws5.write(row, 0, '  PV of UFCF', f_lbl)
+    for i in range(5):
+        c = i + 1
+        ws5.write_formula(row, c, f'=IFERROR({xl_rowcol_to_cell(ufcf_row, c)}*{xl_rowcol_to_cell(disc_row, c)},"")', f_num)
+    row += 1
 
     row += 1
     ws5.write(row, 0, 'VALUATION SUMMARY', f_sec); row += 1
-    summ_rows = [
-        ('  Sum of PV (FCFs)',            sum_pv),
-        ('  Terminal Value (Gordon Growth)',tv),
-        ('  PV of Terminal Value',         pv_tv),
-        ('  Enterprise Value',             ev),
-    ]
-    for lbl, v in summ_rows:
-        ws5.write(row, 0, lbl, f_bold_lbl)
-        ws5.write(row, 1, v, f_bold_num)
-        row += 1
+    sum_pv_row = row
+    ws5.write(row, 0, '  Sum of PV (FCFs)', f_bold_lbl)
+    ws5.write_formula(row, 1, f'=SUM(B{pv_row+1}:F{pv_row+1})', f_bold_num)
+    row += 1
+    tv_row = row
+    ws5.write(row, 0, '  Terminal Value (Gordon Growth)', f_bold_lbl)
+    ws5.write_formula(row, 1, f'=IFERROR((F{ufcf_row+1}*(1+F{tgr_row+1}))/(F{wacc_row+1}-F{tgr_row+1}),"")', f_bold_num)
+    row += 1
+    pv_tv_row = row
+    ws5.write(row, 0, '  PV of Terminal Value', f_bold_lbl)
+    ws5.write_formula(row, 1, f'=IFERROR(B{tv_row+1}*F{disc_row+1},"")', f_bold_num)
+    row += 1
+    ws5.write(row, 0, '  Enterprise Value', f_bold_lbl)
+    ws5.write_formula(row, 1, f'=IFERROR(B{sum_pv_row+1}+B{pv_tv_row+1},"")', f_bold_num)
+    row += 1
 
     # ??????????????????????????????????????????????????????????
     # SHEET 7 ? COMPS
@@ -2319,8 +2572,8 @@ async def export_excel(req: ExcelRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-    co   = (req.company.name or 'BizHealth').replace(' ', '-')
-    name = f"BizHealth-{co}-Analysis.xlsx"
+    co   = (req.company.name or 'Valoreva').replace(' ', '-')
+    name = f"Valoreva-{co}-Analysis.xlsx"
     return StreamingResponse(
         io.BytesIO(data),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -2331,7 +2584,7 @@ async def export_excel(req: ExcelRequest):
 
 @app.post("/analyze")
 async def analyze(req: AnalysisRequest, request: Request):
-    _check_rate(_get_ip(request), "analyze")
+    _check_rate(_get_ip(request), "analyze", request)
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
@@ -2356,14 +2609,26 @@ async def analyze(req: AnalysisRequest, request: Request):
     entity_label = f"{co.name} ({co.ticker})" if co.ticker else (co.name or "the business")
     entity_type  = "Listed company" if co.isListed else "SME / private business"
     currency_note = f"Currency: {co.currency}" if co.currency else ""
+    sector_note = f"Company sector: {co.sector}" if co.sector else ""
+    market_data_note = ""
+    if isinstance(co.marketData, dict) and co.marketData:
+        md_lines = []
+        for k in ("market_cap", "enterprise_value", "pe", "pb", "ev_ebitda"):
+            v = co.marketData.get(k)
+            if v is not None and v != "":
+                md_lines.append(f"{k}: {v}")
+        if md_lines:
+            market_data_note = "Market data:\n" + "\n".join(f"  - {x}" for x in md_lines)
 
     user_message = f"""Please analyse this entity's financial health and return your JSON response.
 
 Entity:        {entity_label}
 Type:          {entity_type}
 Industry:      {req.industry}
+{sector_note}
 {currency_note}
 Health Score:  {req.score}/100 ({verdict_word})
+{market_data_note}
 
 Financial Ratios:
 {"  RATIO                  VALUE        STATUS"}
@@ -2408,98 +2673,151 @@ class DebateRequest(BaseModel):
     sector: str | None = None
     thesis: str           # user's investment thesis / trade idea
     financials: dict | None = None  # optional key ratios for richer context
+    max_rounds: int | None = None   # optional: 4-5 only (capped server-side)
 
 @app.post("/debate")
 async def debate(req: DebateRequest, request: Request):
-    import anthropic
-    _check_rate(_get_ip(request), "analyze")
+    _check_rate(_get_ip(request), "analyze", request)
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
 
     client = anthropic.Anthropic(api_key=api_key)
 
+    # ---- Cost & safety guards -------------------------------------------------
+    def _env_int(name: str, default: int, lo: int, hi: int) -> int:
+        raw = os.environ.get(name, "").strip()
+        try:
+            val = int(raw) if raw else default
+        except Exception:
+            val = default
+        return max(lo, min(hi, val))
+
+    debate_model = os.environ.get("ANTHROPIC_DEBATE_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+    bullbear_max_tokens = _env_int("ANTHROPIC_DEBATE_BULLBEAR_MAX_TOKENS", 140, 80, 220)
+    arbiter_max_tokens = _env_int("ANTHROPIC_DEBATE_ARBITER_MAX_TOKENS", 220, 120, 320)
+    total_output_token_budget = _env_int("ANTHROPIC_DEBATE_TOTAL_OUTPUT_TOKEN_BUDGET", 1000, 400, 2200)
+    max_financial_lines = _env_int("ANTHROPIC_DEBATE_MAX_FINANCIAL_LINES", 12, 6, 24)
+    thesis_max_chars = _env_int("ANTHROPIC_DEBATE_MAX_THESIS_CHARS", 700, 220, 1600)
+    prompt_tail_chars = _env_int("ANTHROPIC_DEBATE_PROMPT_TAIL_CHARS", 1800, 800, 3200)
+
+    max_rounds = req.max_rounds if isinstance(req.max_rounds, int) else 4
+    max_rounds = max(4, min(5, max_rounds))
+
+    thesis = (req.thesis or "").strip()
+    if not thesis:
+        raise HTTPException(status_code=400, detail="thesis is required")
+    if len(thesis) > thesis_max_chars:
+        raise HTTPException(
+            status_code=400,
+            detail=f"thesis is too long (max {thesis_max_chars} characters)",
+        )
+
     entity = f"{req.company_name} ({req.ticker.upper()})"
     sector = req.sector or "General"
     fin_block = ""
     if req.financials:
-        lines = [f"  {k}: {v}" for k, v in req.financials.items() if v is not None]
+        lines = []
+        for k, v in req.financials.items():
+            if v is None:
+                continue
+            sval = str(v)
+            if len(sval) > 120:
+                sval = sval[:117] + "..."
+            lines.append(f"  {k}: {sval}")
+            if len(lines) >= max_financial_lines:
+                break
         fin_block = "\nKey financials:\n" + "\n".join(lines)
 
     context_header = (
         f"Company: {entity}\nSector: {sector}{fin_block}\n"
-        f"Investment thesis: {req.thesis}\n\n"
+        f"Investment thesis: {thesis}\n\n"
     )
 
     # Each agent receives the full conversation so far and responds in 2-3 sentences max.
     BULL_SYSTEM = (
         "You are a bull-side equity analyst in a live investment debate. "
         "Be sharp, specific, and respond directly to what your opponent just said. "
-        "2-3 sentences maximum. No bullet points. No preamble. No sign-off."
+        "Exactly ONE compact argument block, 2-3 sentences max. "
+        "No bullet points. No preamble. No sign-off."
     )
     BEAR_SYSTEM = (
         "You are a bear-side risk analyst in a live investment debate. "
         "Be sharp, specific, and respond directly to what your opponent just said. "
-        "2-3 sentences maximum. No bullet points. No preamble. No sign-off."
+        "Exactly ONE compact argument block, 2-3 sentences max. "
+        "No bullet points. No preamble. No sign-off."
     )
     ARBITER_SYSTEM = (
         "You are a CFA-level portfolio manager acting as impartial arbiter. "
-        "You have read the full debate transcript. Deliver a decisive verdict: "
-        "state your overall bias (Bullish / Neutral / Bearish), the single strongest bull point, "
-        "the single most important bear risk, and one actionable recommendation. "
-        "3-4 sentences. No preamble. No sign-off."
+        "You have read the full debate transcript. Return ONLY valid JSON with keys: "
+        "bias (Bullish|Neutral|Bearish), confidence (0-100 int), strongest_bull_point, "
+        "key_bear_risk, recommendation, journal_verdict (2-3 sentences suitable for a trading journal). "
+        "No markdown, no extra text."
     )
 
-    def _call(system: str, messages: list) -> str:
+    def _trim_history(history: list[dict]) -> list[dict]:
+        # Keep the most recent context to prevent prompt growth and token spikes.
+        trimmed = []
+        total_chars = 0
+        for msg in reversed(history):
+            content = str(msg.get("content", ""))
+            total_chars += len(content)
+            if total_chars > prompt_tail_chars:
+                break
+            trimmed.append(msg)
+        return list(reversed(trimmed))
+
+    def _call(system: str, messages: list, max_tokens: int) -> tuple[str, int]:
         msg = client.messages.create(
-            model="claude-haiku-4-5",
-            max_tokens=220,
+            model=debate_model,
+            max_tokens=max_tokens,
+            temperature=0.2,
             system=system,
-            messages=messages,
+            messages=_trim_history(messages),
         )
-        return msg.content[0].text.strip()
+        text = msg.content[0].text.strip()
+        out_toks = int(getattr(getattr(msg, "usage", None), "output_tokens", 0) or 0)
+        return text, out_toks
 
     try:
         rounds = []
         # conversation history for each agent (shared context)
         conversation: list[dict] = []
+        output_tokens_used = 0
 
-        # Round 1 - Bull opens
-        bull_prompt = context_header + "Open the debate with your strongest bull argument for this investment."
-        conversation.append({"role": "user", "content": bull_prompt})
-        bull_r1 = _call(BULL_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bull_r1})
-        rounds.append({"agent": "bull", "text": bull_r1})
+        opening = context_header + "Open the debate with your strongest bull argument for this investment."
+        conversation.append({"role": "user", "content": opening})
 
-        # Round 2 - Bear counters
-        conversation.append({"role": "user", "content": "Bear analyst, counter the bull's opening argument."})
-        bear_r1 = _call(BEAR_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bear_r1})
-        rounds.append({"agent": "bear", "text": bear_r1})
+        for i in range(max_rounds):
+            agent = "bull" if i % 2 == 0 else "bear"
+            is_opening = i == 0
+            is_last = i == (max_rounds - 1)
+            if is_opening:
+                prompt = opening
+            elif agent == "bull":
+                prompt = "Bull analyst, rebut the latest bear point with one high-conviction argument."
+            else:
+                prompt = "Bear analyst, rebut the latest bull point with one high-conviction risk argument."
+            if is_last:
+                prompt += " Keep this as your final closing argument."
 
-        # Round 3 - Bull rebuts
-        conversation.append({"role": "user", "content": "Bull analyst, rebut the bear's counter."})
-        bull_r2 = _call(BULL_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bull_r2})
-        rounds.append({"agent": "bull", "text": bull_r2})
+            if not is_opening:
+                conversation.append({"role": "user", "content": prompt})
 
-        # Round 4 - Bear rebuts
-        conversation.append({"role": "user", "content": "Bear analyst, rebut the bull's rebuttal."})
-        bear_r2 = _call(BEAR_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bear_r2})
-        rounds.append({"agent": "bear", "text": bear_r2})
+            if output_tokens_used >= total_output_token_budget:
+                break
 
-        # Round 5 - Bull closes
-        conversation.append({"role": "user", "content": "Bull analyst, make your closing statement."})
-        bull_r3 = _call(BULL_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bull_r3})
-        rounds.append({"agent": "bull", "text": bull_r3})
+            text, out_toks = _call(
+                BULL_SYSTEM if agent == "bull" else BEAR_SYSTEM,
+                conversation,
+                bullbear_max_tokens,
+            )
+            output_tokens_used += out_toks
+            conversation.append({"role": "assistant", "content": text})
+            rounds.append({"agent": agent, "text": text})
 
-        # Round 6 - Bear closes
-        conversation.append({"role": "user", "content": "Bear analyst, make your closing statement."})
-        bear_r3 = _call(BEAR_SYSTEM, conversation)
-        conversation.append({"role": "assistant", "content": bear_r3})
-        rounds.append({"agent": "bear", "text": bear_r3})
+            if output_tokens_used >= total_output_token_budget:
+                break
 
         # Arbiter reads the full transcript and delivers verdict
         transcript = "\n".join(
@@ -2509,11 +2827,71 @@ async def debate(req: DebateRequest, request: Request):
         arbiter_messages = [{"role": "user", "content": (
             f"{context_header}"
             f"Full debate transcript:\n{transcript}\n\n"
-            "Deliver your verdict as arbiter."
+            "Deliver your verdict for direct insertion into a trading journal."
         )}]
-        arbiter_text = _call(ARBITER_SYSTEM, arbiter_messages)
+        arbiter_raw, arbiter_toks = _call(ARBITER_SYSTEM, arbiter_messages, arbiter_max_tokens)
+        output_tokens_used += arbiter_toks
 
-        return {"rounds": rounds, "arbiter": arbiter_text}
+        def _clean_json_text(raw: str) -> str:
+            t = (raw or "").strip()
+            if t.startswith("```"):
+                t = t.strip("`")
+                if t.lower().startswith("json"):
+                    t = t[4:]
+                t = t.strip()
+            return t
+
+        try:
+            arb = json.loads(_clean_json_text(arbiter_raw))
+            bias = str(arb.get("bias", "Neutral")).strip().title()
+            if bias not in ("Bullish", "Neutral", "Bearish"):
+                bias = "Neutral"
+            confidence = arb.get("confidence", 55)
+            try:
+                confidence = int(confidence)
+            except Exception:
+                confidence = 55
+            confidence = max(0, min(100, confidence))
+            strongest_bull_point = str(arb.get("strongest_bull_point", "")).strip()
+            key_bear_risk = str(arb.get("key_bear_risk", "")).strip()
+            recommendation = str(arb.get("recommendation", "")).strip()
+            journal_verdict = str(arb.get("journal_verdict", "")).strip()
+        except Exception:
+            bias = "Neutral"
+            confidence = 55
+            strongest_bull_point = ""
+            key_bear_risk = ""
+            recommendation = ""
+            journal_verdict = arbiter_raw.strip()
+
+        if not journal_verdict:
+            journal_verdict = (
+                f"Bias: {bias}. Bull strength: {strongest_bull_point or 'earnings resilience and upside case.'} "
+                f"Main risk: {key_bear_risk or 'downside scenario could compress valuation quickly.'} "
+                f"Action: {recommendation or 'size position conservatively and reassess on next result cycle.'}"
+            )
+
+        arbiter_structured = {
+            "bias": bias,
+            "confidence": confidence,
+            "strongest_bull_point": strongest_bull_point,
+            "key_bear_risk": key_bear_risk,
+            "recommendation": recommendation,
+            "journal_verdict": journal_verdict,
+        }
+
+        return {
+            "rounds": rounds,
+            "arbiter": journal_verdict,  # back-compat for current UI
+            "arbiter_structured": arbiter_structured,
+            "meta": {
+                "model": debate_model,
+                "rounds_requested": max_rounds,
+                "rounds_completed": len(rounds),
+                "output_tokens_used_estimate": output_tokens_used,
+                "output_token_budget": total_output_token_budget,
+            },
+        }
 
     except anthropic.APIError as e:
         raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
@@ -2528,7 +2906,10 @@ async def debate(req: DebateRequest, request: Request):
 _STOCK_CACHE: dict = {"nse": [], "loaded_at": 0.0}
 _STOCK_CACHE_TTL = 24 * 60 * 60
 
-_NSE_CSV_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+_NSE_CSV_URLS = [
+    "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+    "https://archives.nseindia.com/content/equities/EQUITY_L.csv",
+]
 _NSE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,*/*",
@@ -2540,15 +2921,32 @@ async def _load_nse_stock_list():
     now = time.time()
     if _STOCK_CACHE["nse"] and now - _STOCK_CACHE["loaded_at"] < _STOCK_CACHE_TTL:
         return _STOCK_CACHE["nse"]
+    text = ""
+    errors = []
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
-            resp = await client.get(_NSE_CSV_URL, headers=_NSE_HEADERS)
-            resp.raise_for_status()
-            text = resp.text
+            # Prime NSE cookies once; helps avoid 403 on some regions/IPs.
+            try:
+                await client.get("https://www.nseindia.com/", headers=_NSE_HEADERS)
+            except Exception:
+                pass
+            for csv_url in _NSE_CSV_URLS:
+                try:
+                    resp = await client.get(csv_url, headers=_NSE_HEADERS)
+                    resp.raise_for_status()
+                    text = resp.text
+                    if text:
+                        break
+                except Exception as exc:
+                    errors.append(f"{csv_url}: {exc}")
     except Exception as exc:
+        errors.append(str(exc))
+
+    if not text:
         if _STOCK_CACHE["nse"]:
             return _STOCK_CACHE["nse"]
-        raise HTTPException(status_code=503, detail=f"Could not load NSE stock list: {exc}")
+        raise HTTPException(status_code=503, detail=f"Could not load NSE stock list: {' | '.join(errors)}")
+
     stocks = []
     reader = csv.DictReader(io.StringIO(text))
     VALID_SERIES = {"EQ","BE","SM","ST","N1","N2","N3","N4","N5","N6","N7","N8","N9",""}
@@ -2566,6 +2964,57 @@ async def _load_nse_stock_list():
         _STOCK_CACHE["loaded_at"] = now
     return stocks
 
+def _fallback_search_yahoo(q: str, limit: int) -> list[dict]:
+    """
+    Fallback autocomplete when NSE CSV is unavailable.
+    Uses Yahoo Finance public search endpoint.
+    """
+    query = q.strip()
+    if not query:
+        return []
+    try:
+        resp = requests.get(
+            "https://query2.finance.yahoo.com/v1/finance/search",
+            params={"q": query, "quotesCount": max(limit * 4, 20), "newsCount": 0},
+            headers={"User-Agent": _NSE_HEADERS["User-Agent"], "Referer": "https://finance.yahoo.com/"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json() if resp.content else {}
+    except Exception:
+        return []
+
+    out = []
+    seen = set()
+    for quote in (data.get("quotes") or []):
+        if quote.get("quoteType") != "EQUITY":
+            continue
+        sym = str(quote.get("symbol") or "").strip().upper()
+        name = str(quote.get("shortname") or quote.get("longname") or "").strip()
+        exch = str(quote.get("exchangeDisp") or quote.get("exchange") or "").strip().upper()
+        if not sym or not name:
+            continue
+
+        # Keep India-focused search behavior for dashboard/watchlist flows.
+        is_india = sym.endswith(".NS") or sym.endswith(".BO") or "NSE" in exch or "BSE" in exch or "INDIA" in exch
+        if not is_india:
+            continue
+
+        # Normalize unsuffixed NSE/BSE symbols where possible.
+        if not (sym.endswith(".NS") or sym.endswith(".BO")):
+            if "BSE" in exch:
+                sym = f"{sym}.BO"
+            else:
+                sym = f"{sym}.NS"
+
+        if sym in seen:
+            continue
+        seen.add(sym)
+        out.append({"ticker": sym, "name": name, "exchange": "NSE" if sym.endswith(".NS") else "BSE", "sector": ""})
+        if len(out) >= limit:
+            break
+    return out
+
 @app.get("/stocks/search")
 async def stocks_search(
     request: Request,
@@ -2573,9 +3022,13 @@ async def stocks_search(
     limit: int = Query(default=10, le=20),
 ):
     """Fuzzy search over all NSE-listed equities."""
-    _check_rate(_get_ip(request), "search")
+    _check_rate(_get_ip(request), "search", request)
     q_lower = q.strip().lower()
-    stocks  = await _load_nse_stock_list()
+    try:
+        stocks = await _load_nse_stock_list()
+    except HTTPException:
+        # Do not break UI if NSE archive is temporarily blocked.
+        return _fallback_search_yahoo(q, limit)
     exact_t = []; exact_n = []; starts_t = []; starts_n = []; contains = []
     for s in stocks:
         t = s["ticker"].lower().replace(".ns", "")
@@ -2678,16 +3131,43 @@ def _fetch_price_yf(sym: str) -> dict:
         return {"price": 0, "change": 0, "change_pct": 0, "prev_close": 0, "volume": 0, "source": "YF"}
 
 def _fetch_price(sym: str) -> dict:
+    """
+    Resolve live price with robust symbol fallbacks.
+    - If ticker has .NS/.BO, prefer BSE first, then YF.
+    - If ticker has no suffix, try as-is, then .NS, then .BO.
+    """
+    # Exchange-suffixed symbols: keep existing fast path.
     if _is_indian_ticker(sym):
         result = _fetch_price_bse(sym)
         if result and result["price"] > 0:
             return result
-    return _fetch_price_yf(sym)
+        yf_result = _fetch_price_yf(sym)
+        if yf_result.get("price", 0) > 0:
+            return yf_result
+        # Last fallback: strip suffix in case stored ticker is malformed.
+        bare = sym.replace(".NS", "").replace(".BO", "")
+        return _fetch_price_yf(bare)
+
+    # Unsuffixed symbols: try direct first (works for US/global tickers).
+    primary = _fetch_price_yf(sym)
+    if primary.get("price", 0) > 0:
+        return primary
+
+    # Indian fallback path for unsuffixed symbols.
+    for candidate in (f"{sym}.NS", f"{sym}.BO"):
+        bse_result = _fetch_price_bse(candidate)
+        if bse_result and bse_result.get("price", 0) > 0:
+            return bse_result
+        yf_result = _fetch_price_yf(candidate)
+        if yf_result.get("price", 0) > 0:
+            return yf_result
+
+    return primary
 
 @app.get("/stocks/price/{ticker}")
 async def stocks_price(ticker: str, request: Request):
     """Live price for a stock. Indian tickers use BSE API, others use yfinance."""
-    _check_rate(_get_ip(request), "search")
+    _check_rate(_get_ip(request), "search", request)
     sym = ticker.upper().strip()
     cached = _PRICE_CACHE.get(sym)
     if cached and time.time() - cached["ts"] < _PRICE_TTL:
@@ -2729,7 +3209,7 @@ def _fetch_news(sym: str) -> list:
 @app.get("/stocks/news/{ticker}")
 async def stocks_news(ticker: str, request: Request):
     """Recent news headlines for a ticker. Cached 10 minutes."""
-    _check_rate(_get_ip(request), "search")
+    _check_rate(_get_ip(request), "search", request)
     sym = ticker.upper().strip()
     cached = _NEWS_CACHE.get(sym)
     if cached and time.time() - cached["ts"] < _NEWS_TTL:
@@ -2741,3 +3221,4 @@ async def stocks_news(ticker: str, request: Request):
     )
     _NEWS_CACHE[sym] = {"data": result, "ts": time.time()}
     return result
+

@@ -4,7 +4,7 @@
  * Evaluates the 5 ratios that Indian banks (SBI, HDFC, ICICI) most commonly
  * check before approving a business loan. Gives an overall readiness score out of 100.
  *
- * This is unique to BizHealth — no other SME tool does this for private businesses.
+ * This is unique to Valoreva — no other SME tool does this for private businesses.
  */
 
 const BANK_CHECKS = [

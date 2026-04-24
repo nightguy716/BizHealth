@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 
 const STATUS = {
   green: { card:'card-green', bar:'bar-green', val:'val-green', dot:'#16a34a', label:'PASS',   signalClass:'signal-pass'   },
   amber: { card:'card-amber', bar:'bar-amber', val:'val-amber', dot:'#b45309', label:'WATCH',  signalClass:'signal-watch'  },
   red:   { card:'card-red',   bar:'bar-red',   val:'val-red',   dot:'#dc2626', label:'BREACH', signalClass:'signal-breach' },
-  na:    { card:'card-na',    bar:'bar-na',    val:'val-na',    dot:'#4a5568', label:'N/A',    signalClass:'signal-na'     },
+  na:    { card:'card-na',    bar:'bar-na',    val:'val-na',    dot:'var(--text-4)', label:'N/A',    signalClass:'signal-na'     },
 };
 
 function useCountUp(target, delay = 0) {
@@ -57,8 +57,10 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
         <span className={cfg.signalClass}>{cfg.label}</span>
       </div>
 
+      <div className="rgb-chip mb-3" />
+
       {/* Value — large number + small suffix */}
-      <div className="flex items-end gap-1 mb-1" style={{ fontFamily: 'JetBrains Mono, monospace' }}>
+      <div className="flex items-end gap-1 mb-1" style={{ fontFamily: 'var(--font-sans)' }}>
         <span className={`font-bold leading-none ${cfg.val}`}
           style={{ fontSize: num.length > 5 ? '1.9rem' : '2.4rem' }}>
           {num}
@@ -71,33 +73,33 @@ export default function RatioCard({ name, value, unit, status, interpretation, r
       </div>
 
       {/* Raw value */}
-      <div className="mb-4" style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#3d5070' }}>
+      <div className="mb-4" style={{ fontFamily: 'var(--font-sans)', fontSize: 10, color: 'var(--text-4)' }}>
         {isValid ? `RAW · ${Number(value).toFixed(4)}` : 'AWAITING INPUT'}
       </div>
 
       {/* Progress bar */}
       <div className="mb-4">
-        <div className="h-[2px] rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+        <div className="h-[2px] rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
           <div className={`bar-fill ${cfg.bar}`}
             style={{ width: `${barWidth}%`, transitionDelay: `${delay + 200}ms` }} />
         </div>
         <div className="flex justify-between mt-1">
           {['MIN', 'THRESHOLD', 'MAX'].map(t => (
-            <span key={t} style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070' }}>{t}</span>
+            <span key={t} style={{ fontFamily: 'var(--font-sans)', fontSize: 8, color: 'var(--text-5)' }}>{t}</span>
           ))}
         </div>
       </div>
 
       {/* Interpretation */}
-      <p className="leading-relaxed" style={{ fontSize: 11, color: '#9fb3d4' }}>
+      <p className="leading-relaxed" style={{ fontSize: 12, color: 'var(--text-3)' }}>
         {interpretation}
       </p>
 
       {/* Recommendation — amber/red only */}
       {recommendation && (status === 'amber' || status === 'red') && (
-        <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: '1px solid #1d2840' }}>
-          <span style={{ color: '#2461d4', fontSize: 13, flexShrink: 0, marginTop: 1 }}>→</span>
-          <p style={{ fontSize: 11, lineHeight: 1.5, color: '#7b8eab' }}>{recommendation}</p>
+        <div className="mt-3 pt-3 flex gap-2" style={{ borderTop: '1px solid var(--border)' }}>
+          <span style={{ color: 'var(--gold)', fontSize: 13, flexShrink: 0, marginTop: 1 }}>→</span>
+          <p style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--text-3)' }}>{recommendation}</p>
         </div>
       )}
     </div>

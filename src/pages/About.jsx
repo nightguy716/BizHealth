@@ -59,8 +59,8 @@ const ROADMAP = [
 
 const statusStyle = {
   live:    { bg: 'rgba(0,232,135,0.1)',    border: 'rgba(0,232,135,0.25)',   color: '#00e887',  dot: '#00e887',  label: 'LIVE'    },
-  soon:    { bg: 'rgba(79,110,247,0.1)',   border: 'rgba(79,110,247,0.25)',  color: '#4f6ef7',  dot: '#4f6ef7',  label: 'SOON'    },
-  planned: { bg: 'rgba(107,130,168,0.08)', border: 'rgba(107,130,168,0.15)', color: 'var(--text-4)',  dot: '#3d5070',  label: 'PLANNED' },
+  soon:    { bg: 'rgba(79,110,247,0.1)',   border: 'rgba(79,110,247,0.25)',  color: 'var(--gold)',  dot: 'var(--gold)',  label: 'SOON'    },
+  planned: { bg: 'rgba(107,130,168,0.08)', border: 'rgba(107,130,168,0.15)', color: 'var(--text-4)',  dot: 'var(--text-5)',  label: 'PLANNED' },
 };
 
 export default function About() {
@@ -74,7 +74,7 @@ export default function About() {
         }} />
         <div className="relative max-w-2xl mx-auto">
           <p className="text-xs font-medium tracking-widest uppercase mb-4"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             OUR MISSION
           </p>
           <h1 className="font-black mb-6"
@@ -94,7 +94,7 @@ export default function About() {
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div>
             <p className="text-xs font-medium tracking-widest uppercase mb-3"
-              style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+              style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
               THE PROBLEM
             </p>
             <h2 className="font-black mb-5"
@@ -125,7 +125,7 @@ export default function About() {
               { label: 'Bloomberg Terminal annual cost',    val: '$24,000',  sub: 'per user per year'           },
               { label: 'Time to build a manual IB model',  val: '4–8 hrs',  sub: 'for a single company'        },
               { label: 'Ratios needed for a full picture',  val: '20+',      sub: 'most tools show 5–6'         },
-              { label: 'With BizHealth',                   val: '< 10 sec', sub: 'ticker to full report', hi: true },
+              { label: 'With Valoreva',                  val: '< 10 sec', sub: 'ticker to full report', hi: true },
             ].map(r => (
               <div key={r.label} className="flex items-center justify-between px-5 py-4 rounded-xl"
                 style={{
@@ -137,7 +137,7 @@ export default function About() {
                   <div className="text-[11px]" style={{ color: 'var(--text-4)' }}>{r.sub}</div>
                 </div>
                 <div className="font-black text-lg"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', color: r.hi ? '#4f6ef7' : 'var(--text-1)' }}>
+                  style={{ fontFamily: 'JetBrains Mono, monospace', color: r.hi ? 'var(--gold)' : 'var(--text-1)' }}>
                   {r.val}
                 </div>
               </div>
@@ -150,8 +150,8 @@ export default function About() {
       <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
         <div className="max-w-5xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
-            WHY BIZHEALTH
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            WHY VALOREVA
           </p>
           <h2 className="text-center font-black mb-14"
             style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
@@ -162,7 +162,7 @@ export default function About() {
               <div key={d.title} className="flex gap-5 p-6 rounded-xl"
                 style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(79,110,247,0.1)', color: '#4f6ef7' }}>
+                  style={{ background: 'rgba(79,110,247,0.1)', color: 'var(--gold)' }}>
                   {d.icon}
                 </div>
                 <div>
@@ -179,7 +179,7 @@ export default function About() {
       <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
         <div className="max-w-4xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             WHO IT'S FOR
           </p>
           <h2 className="text-center font-black mb-10"
@@ -207,7 +207,7 @@ export default function About() {
               <div key={c.role} className="p-6 rounded-xl"
                 style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
                 <h3 className="font-bold mb-0.5" style={{ color: 'var(--text-1)', fontSize: '0.9rem' }}>{c.role}</h3>
-                <p className="text-xs mb-4" style={{ color: '#4f6ef7' }}>{c.tag}</p>
+                <p className="text-xs mb-4" style={{ color: 'var(--gold)' }}>{c.tag}</p>
                 <ul className="space-y-2">
                   {c.points.map(p => (
                     <li key={p} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-3)' }}>
@@ -229,7 +229,7 @@ export default function About() {
       <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             ROADMAP
           </p>
           <h2 className="text-center font-black mb-10"

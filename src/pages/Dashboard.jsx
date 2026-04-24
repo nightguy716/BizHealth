@@ -1,4 +1,4 @@
-/**
+﻿/**
  * App.jsx — Root component.
  * Orchestrates state, calculations, PDF export, and the full page layout.
  */
@@ -36,8 +36,10 @@ import RelativeValuation   from '../components/RelativeValuation';
 import BankReadiness    from '../components/BankReadiness';
 import SectorComparison from '../components/SectorComparison';
 import AIInsights       from '../components/AIInsights';
-import Logo             from '../components/Logo';
+import { FinAxisLockup } from '../components/FinAxisLogo';
 import TourOverlay, { useShouldShowTour } from '../components/TourOverlay';
+import { ownerHeaders } from '../lib/ownerHeaders';
+import { getBackendBaseUrl } from '../lib/backendUrl';
 
 import { SECTOR_COMPANIES, COMPARISON_RATIOS } from '../data/sectorData';
 
@@ -122,6 +124,44 @@ export default function App() {
     setTimeout(() => { calculateRef.current?.(); }, 200);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /* ── Deep-link company load from ?symbol=TICKER ── */
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const s = params.get('s');
+    const symbol = (params.get('symbol') || '').trim();
+    const prefillName = (params.get('name') || '').trim();
+    if (s || !symbol) return;
+    const backend = getBackendBaseUrl();
+    if (!backend) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${backend}/company/yf/${encodeURIComponent(symbol)}`, {
+          headers: ownerHeaders(),
+        });
+        if (!res.ok) return;
+        const d = await res.json();
+        if (cancelled) return;
+        if (d?.data && typeof d.data === 'object') setInputs((p) => ({ ...p, ...d.data }));
+        if (d?.industry && INDUSTRY_BENCHMARKS[d.industry]) setIndustry(d.industry);
+        setCompanyContext({
+          name: d?.name || prefillName || symbol,
+          ticker: d?.ticker || symbol.toUpperCase(),
+          currency: d?.currency || 'USD',
+          isListed: true,
+          sector: d?.sector || '',
+          marketData: d?.market_data || {},
+        });
+        if (d?.historical) setHistorical(d.historical);
+        setTimeout(() => { calculateRef.current?.(); }, 200);
+      } catch {
+        // silent fail, dashboard still opens
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [location.search]);
+
   const calculateRef = useRef(null);
   /* Keep calculateRef current after every render so the URL-load effect can call it */
   useEffect(() => { calculateRef.current = handleCalculate; });
@@ -189,7 +229,7 @@ export default function App() {
 
   async function handleExportExcel() {
     if (!results) return;
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const backendUrl = getBackendBaseUrl();
     if (!backendUrl) { alert('Backend not connected'); return; }
     setExporting(true);
     try {
@@ -212,9 +252,9 @@ export default function App() {
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
-      const co   = companyContext.name || 'BizHealth';
+      const co   = companyContext.name || 'Valoreva';
       a.href     = url;
-      a.download = `BizHealth-${co.replace(/\s+/g,'-')}-Analysis.xlsx`;
+      a.download = `Valoreva-${co.replace(/\s+/g,'-')}-Analysis.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -224,9 +264,39 @@ export default function App() {
     }
   }
 
-  function handleExportPDF() {
+  async function handleExportPDF() {
     if (!results) return;
     try {
+    async function renderFinAxisMarkPng(sizePx = 72, strokeColor = '#FFFFFF') {
+      const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="${sizePx}" height="${sizePx}" viewBox="0 0 48 48" fill="none">
+          <path d="M24 6c5.5 0 10 4.5 10 10v3h-8v-3a2 2 0 0 0-4 0v8h-8v-8c0-5.5 4.5-10 10-10Z" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 24c0-5.5 4.5-10 10-10h2v8h-2a2 2 0 0 0 0 4h8v8h-8c-5.5 0-10-4.5-10-10Z" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24 42c-5.5 0-10-4.5-10-10v-3h8v3a2 2 0 0 0 4 0v-8h8v8c0 5.5-4.5 10-10 10Z" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M38 24c0 5.5-4.5 10-10 10h-2v-8h2a2 2 0 0 0 0-4h-8v-8h8c5.5 0 10 4.5 10 10Z" stroke="${strokeColor}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M15 31l5-7 5 4 8-10" stroke="#F2C94C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="33" cy="18" r="1.8" fill="#F2C94C"/>
+        </svg>
+      `.trim();
+      const encoded = encodeURIComponent(svg);
+      const url = `data:image/svg+xml;charset=utf-8,${encoded}`;
+      return await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = sizePx;
+          c.height = sizePx;
+          const ctx = c.getContext('2d');
+          if (!ctx) return resolve(null);
+          ctx.drawImage(img, 0, 0, sizePx, sizePx);
+          resolve(c.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+      });
+    }
+
+    const brandMarkPng = await renderFinAxisMarkPng(72, '#FFFFFF');
     const pdf  = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const W    = 210; const H = 297; const M = 14;
     const col  = W - M * 2;
@@ -252,6 +322,7 @@ export default function App() {
     };
     const STATUS_COLOR = { green:C.green, amber:C.amber, red:C.red, na:C.muted };
     const STATUS_LABEL = { green:'Healthy', amber:'Borderline', red:'Critical', na:'N/A' };
+    const prettyKey = k => String(k || '').replace(/([A-Z])/g, ' $1').replace(/^./, s => s.toUpperCase());
 
     // ── Helpers ───────────────────────────────────────────
     const bg  = () => { pdf.setFillColor(...C.bg); pdf.rect(0,0,W,H,'F'); };
@@ -262,12 +333,23 @@ export default function App() {
       pdf.rect(0, 1.5, W, 10, 'F');
       pdf.setFillColor(15,22,48);
       pdf.rect(0, 11, W, 1, 'F');
+      if (brandMarkPng) {
+        pdf.addImage(brandMarkPng, 'PNG', W - M - 46.5, 3.1, 7.2, 7.2);
+      }
+      pdf.setFont('helvetica', 'bold');
+      pdf.setFontSize(8.5);
+      const wordX = W - M - 38.5;
+      pdf.setTextColor(...C.white);
+      pdf.text('Valo', wordX, 8.4);
+      const finW = pdf.getTextWidth('Valo');
+      pdf.setTextColor(...C.amber);
+      pdf.text('reva', wordX + finW, 8.4);
     };
     const footer = (page, total) => {
       pdf.setFillColor(...C.dim);
       pdf.rect(0, H - 10, W, 10, 'F');
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-      pdf.text('BizHealth Financial Intelligence  ·  For informational purposes only  ·  biz-health.vercel.app', M, H - 4);
+      pdf.text('Valoreva Financial Intelligence  ·  For informational purposes only  ·  biz-health.vercel.app', M, H - 4);
       pdf.text(`Page ${page} / ${total}`, W - M, H - 4, { align:'right' });
     };
     const fmt = (v, unit) => {
@@ -319,7 +401,10 @@ export default function App() {
 
     // ── Sector peers for comparison page ──────────────────
     const sectorPeers = (SECTOR_COMPANIES[industry] || SECTOR_COMPANIES.general).slice(0, 4);
-    const hasPeers    = sectorPeers.length > 0;
+    const peersForPdf = sectorPeers.filter(p =>
+      COMPARISON_RATIOS.some(({ key }) => p?.[key] !== null && p?.[key] !== undefined && !isNaN(p?.[key]))
+    );
+    const hasPeers    = peersForPdf.length > 0;
 
     // ── DCF assumptions ───────────────────────────────────
     const DCF_GROWTH = { tech:[0.30,0.22,0.18,0.14,0.12], healthcare:[0.12,0.10,0.09,0.08,0.07],
@@ -334,6 +419,7 @@ export default function App() {
     const hasDCF = baseRevRaw > 0;
 
     const totalPages = 3 + (hasHist ? 1 : 0) + (hasPeers ? 1 : 0) + (hasDCF ? 1 : 0);
+    let pageNo = 1;
 
     // ══════════════════════════════════════════════════════
     //  PAGE 1 — Executive Dashboard
@@ -342,19 +428,22 @@ export default function App() {
 
     // Header strip text
     pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-    pdf.text('BIZHEALTH  ·  FINANCIAL INTELLIGENCE', M, 8);
+    pdf.text('VALOREVA  ·  FINANCIAL INTELLIGENCE', M, 8);
     pdf.text(date, W - M, 8, { align:'right' });
 
-    // Company name
+    // Company name (width-limited to avoid overlap with score ring)
+    const companyMaxW = W - (M + 58) - M;
+    const coLine = (pdf.splitTextToSize(co, companyMaxW)[0] || co);
     pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(20);
-    pdf.text(co, M, 30);
+    pdf.text(coLine, M, 30);
     if (companyContext.ticker) {
       pdf.setTextColor(...C.cyan); pdf.setFontSize(9); pdf.setFont('helvetica','normal');
       pdf.text(companyContext.ticker + (companyContext.sector ? '  ·  ' + companyContext.sector : ''), M, 37);
     }
 
     // ── Score ring (drawn arcs) ──────────────────────────
-    const cx = W - M - 26; const cy = 31; const rr = 19;
+    // Position tuned to avoid overlap with company title and top header lockup.
+    const cx = W - M - 25; const cy = 33; const rr = 16.5;
     // Background ring
     drawArc(cx, cy, rr, 0, 360, C.border, 2.5);
     // Score arc (0 = top, clockwise)
@@ -427,7 +516,7 @@ export default function App() {
     pdf.text('EXECUTIVE SUMMARY', M, sumY + 7);
 
     const summaryText = aiInsights?.executive_summary
-      || `${co} has a BizHealth score of ${healthScore}/100, with ${counts.green} of ${14 - counts.na} ratios in the healthy range. ` +
+      || `${co} has a Valoreva score of ${healthScore}/100, with ${counts.green} of ${14 - counts.na} ratios in the healthy range. ` +
          `${counts.red > 0 ? counts.red + ' ratio(s) require immediate attention.' : 'No critical ratios detected at this time.'} ` +
          `Industry benchmarked against ${industry} sector standards.`;
 
@@ -456,14 +545,14 @@ export default function App() {
       });
     }
 
-    footer(1, totalPages);
+    footer(pageNo, totalPages);
 
     // ══════════════════════════════════════════════════════
     //  PAGE 2 — Ratio Analysis (bars for all 14 ratios)
     // ══════════════════════════════════════════════════════
-    pdf.addPage(); bg(); hdr();
+    pdf.addPage(); pageNo += 1; bg(); hdr();
     pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-    pdf.text('BIZHEALTH  ·  RATIO ANALYSIS', M, 8);
+    pdf.text('VALOREVA  ·  RATIO ANALYSIS', M, 8);
     pdf.text(date, W - M, 8, { align:'right' });
 
     pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
@@ -538,15 +627,15 @@ export default function App() {
       ry2 += 3;
     });
 
-    footer(2, totalPages);
+    footer(pageNo, totalPages);
 
     // ══════════════════════════════════════════════════════
     //  PAGE 3 — Historical Trend Charts (if available)
     // ══════════════════════════════════════════════════════
     if (hasHist) {
-      pdf.addPage(); bg(); hdr();
+      pdf.addPage(); pageNo += 1; bg(); hdr();
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-      pdf.text('BIZHEALTH  ·  HISTORICAL TRENDS', M, 8);
+      pdf.text('VALOREVA  ·  HISTORICAL TRENDS', M, 8);
       pdf.text(date, W - M, 8, { align:'right' });
 
       pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
@@ -712,19 +801,16 @@ export default function App() {
         });
       }
 
-      footer(3, totalPages);
+      footer(pageNo, totalPages);
     }
 
     // ══════════════════════════════════════════════════════
     //  PAGE — Sector Peer Comparison
     // ══════════════════════════════════════════════════════
-    let currentPage = hasHist ? 4 : 3;
-
     if (hasPeers) {
-      currentPage++;
-      pdf.addPage(); bg(); hdr();
+      pdf.addPage(); pageNo += 1; bg(); hdr();
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-      pdf.text('BIZHEALTH  ·  PEER BENCHMARKING', M, 8);
+      pdf.text('VALOREVA  ·  PEER BENCHMARKING', M, 8);
       pdf.text(date, W - M, 8, { align:'right' });
 
       pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
@@ -733,7 +819,7 @@ export default function App() {
       pdf.text(`Benchmarked vs ${industry.charAt(0).toUpperCase()+industry.slice(1)} peers  ·  FY2024 public data  ·  Indicative`, M, 33);
 
       // Table header
-      const colW4 = [52, ...sectorPeers.map(() => (col - 52) / sectorPeers.length)];
+      const colW4 = [52, ...peersForPdf.map(() => (col - 52) / peersForPdf.length)];
       const colX4 = [M];
       colW4.slice(0,-1).forEach((w,i) => colX4.push(colX4[i] + w));
 
@@ -743,7 +829,7 @@ export default function App() {
       pdf.setFillColor(...C.accent); pdf.rect(M, tr, col, 0.8, 'F');
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','bold'); pdf.setFontSize(6);
       pdf.text('METRIC', colX4[0] + 2, tr + 4.8);
-      sectorPeers.forEach((p, i) => {
+      peersForPdf.forEach((p, i) => {
         const cx = colX4[i+1] + colW4[i+1]/2;
         pdf.setTextColor(...C.body);
         pdf.text(p.ticker, cx, tr + 3.2, { align:'center' });
@@ -758,7 +844,7 @@ export default function App() {
       pdf.setFillColor(...C.surface); pdf.rect(M, tr-1, col, 6, 'F');
       pdf.setTextColor(...C.cyan); pdf.setFont('helvetica','bold'); pdf.setFontSize(5.5);
       pdf.text('YOUR COMPANY →', colX4[0]+2, tr+3);
-      sectorPeers.forEach((_, i) => {
+      peersForPdf.forEach((_, i) => {
         pdf.setTextColor(40,60,100); pdf.text('─', colX4[i+1]+colW4[i+1]/2, tr+3, {align:'center'});
       });
       tr += 7;
@@ -783,7 +869,7 @@ export default function App() {
           pdf.setTextColor(...C.dim); pdf.text('—', colX4[0]+36+(colX4[1]-colX4[0]-38)/2, tr+4.5, {align:'center'});
         }
 
-        sectorPeers.forEach((peer, i) => {
+        peersForPdf.forEach((peer, i) => {
           const pv = peer[key];
           const cx = colX4[i+1] + colW4[i+1]/2;
           if (pv === null || pv === undefined) {
@@ -815,17 +901,16 @@ export default function App() {
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal');
       pdf.text('  ·  N/A = not applicable for this business type  ·  Data: public annual reports FY2024', M+70, tr);
 
-      footer(currentPage, totalPages);
+      footer(pageNo, totalPages);
     }
 
     // ══════════════════════════════════════════════════════
     //  PAGE — DCF Valuation Snapshot
     // ══════════════════════════════════════════════════════
     if (hasDCF) {
-      currentPage++;
-      pdf.addPage(); bg(); hdr();
+      pdf.addPage(); pageNo += 1; bg(); hdr();
       pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-      pdf.text('BIZHEALTH  ·  DCF VALUATION', M, 8);
+      pdf.text('VALOREVA  ·  DCF VALUATION', M, 8);
       pdf.text(date, W - M, 8, { align:'right' });
 
       pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
@@ -928,16 +1013,15 @@ export default function App() {
       const dcfNote = 'DCF based on user-provided revenue; projections use industry-standard growth and margin assumptions. This is a directional estimate, not investment advice.';
       pdf.text(pdf.splitTextToSize(dcfNote, col), M, dr);
 
-      footer(currentPage, totalPages);
+      footer(pageNo, totalPages);
     }
 
     // ══════════════════════════════════════════════════════
     //  PAGE 4 (or 3) — AI Insights
     // ══════════════════════════════════════════════════════
-    pdf.addPage(); bg(); hdr();
-    const pgNum = currentPage + 1;
+    pdf.addPage(); pageNo += 1; bg(); hdr();
     pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.5);
-    pdf.text('BIZHEALTH  ·  AI INSIGHTS', M, 8);
+    pdf.text('VALOREVA  ·  AI INSIGHTS', M, 8);
     pdf.text(date, W - M, 8, { align:'right' });
 
     pdf.setTextColor(...C.white); pdf.setFont('helvetica','bold'); pdf.setFontSize(16);
@@ -946,9 +1030,54 @@ export default function App() {
     pdf.text('Powered by Claude AI  ·  Benchmarked to ' + industry + ' industry standards', M, 33);
 
     let aiY = 42;
+    const aiSummary =
+      aiInsights?.executive_summary
+      || `${co} scores ${healthScore}/100 in ${industry} benchmarks with ${counts.green} healthy, ${counts.amber} borderline, and ${counts.red} critical ratio signals.`;
+    const aiIndustryContext =
+      aiInsights?.industry_context
+      || `This profile is benchmarked against ${industry} peers. Focus should remain on ratio trend consistency, cash conversion quality, and leverage resilience.`;
+
+    const fallbackRiskRows = Object.entries(results.statuses)
+      .filter(([, s]) => s === 'red' || s === 'amber')
+      .slice(0, 4)
+      .map(([k, s]) => ({
+        title: `${prettyKey(k)} ${s === 'red' ? 'risk' : 'watchpoint'}`,
+        description: getInterpretation(k, results.ratioValues[k], s, INDUSTRY_BENCHMARKS[industry]?.[k]?.threshold),
+      }));
+    const fallbackOppRows = Object.entries(results.statuses)
+      .filter(([, s]) => s === 'green')
+      .slice(0, 3)
+      .map(([k]) => ({
+        title: `${prettyKey(k)} strength`,
+        description: `${prettyKey(k)} is currently in the healthy range and can support valuation confidence if sustained.`,
+      }));
+    const fallbackActionRows = Object.entries(results.statuses)
+      .filter(([, s]) => s === 'red' || s === 'amber')
+      .slice(0, 5)
+      .map(([k]) => ({
+        action: RECOMMENDATIONS[k] || `Improve ${prettyKey(k)} with a time-bound operating action plan.`,
+        timeline: 'Next 30 days',
+        expected_impact: `Stabilise ${prettyKey(k)} toward industry-compliant levels.`,
+      }));
+
+    // ── Executive Summary (always rendered) ─────────────────
+    pdf.setFillColor(...C.surface); pdf.rect(M, aiY, col, 7, 'F');
+    pdf.setFillColor(...C.accent); pdf.rect(M, aiY, 2.5, 7, 'F');
+    pdf.setTextColor(...C.accent); pdf.setFont('helvetica','bold'); pdf.setFontSize(7);
+    pdf.text('EXECUTIVE SUMMARY', M + 5, aiY + 4.8);
+    aiY += 9;
+    pdf.setTextColor(...C.body); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.8);
+    const summaryLines = pdf.splitTextToSize(aiSummary, col - 6);
+    pdf.text(summaryLines.slice(0, 6), M + 3, aiY + 4.5);
+    aiY += 8 + Math.min(summaryLines.length, 6) * 3.5;
+
+    pdf.setTextColor(...C.muted); pdf.setFont('helvetica','normal'); pdf.setFontSize(6.3);
+    const ctxLines = pdf.splitTextToSize(aiIndustryContext, col - 6);
+    pdf.text(ctxLines.slice(0, 4), M + 3, aiY + 4);
+    aiY += 6 + Math.min(ctxLines.length, 4) * 3.4;
 
     // ── Risks ──────────────────────────────────────────────
-    const risks = aiInsights?.risks || [];
+    const risks = (aiInsights?.top_risks || aiInsights?.risks || fallbackRiskRows);
     if (risks.length) {
       pdf.setFillColor(...C.surface); pdf.rect(M, aiY, col, 7, 'F');
       pdf.setFillColor(...C.red); pdf.rect(M, aiY, 2.5, 7, 'F');
@@ -968,7 +1097,7 @@ export default function App() {
     }
 
     // ── Opportunities ──────────────────────────────────────
-    const opps = aiInsights?.opportunities || [];
+    const opps = (aiInsights?.top_opportunities || aiInsights?.opportunities || fallbackOppRows);
     if (opps.length) {
       pdf.setFillColor(...C.surface); pdf.rect(M, aiY, col, 7, 'F');
       pdf.setFillColor(...C.green); pdf.rect(M, aiY, 2.5, 7, 'F');
@@ -987,7 +1116,7 @@ export default function App() {
     }
 
     // ── Priority Actions ───────────────────────────────────
-    const actions = aiInsights?.priority_actions || [];
+    const actions = (aiInsights?.priority_actions || fallbackActionRows);
     if (actions.length) {
       pdf.setFillColor(...C.surface); pdf.rect(M, aiY, col, 7, 'F');
       pdf.setFillColor(...C.accent); pdf.rect(M, aiY, 2.5, 7, 'F');
@@ -995,7 +1124,7 @@ export default function App() {
       pdf.text('PRIORITY ACTIONS', M + 5, aiY + 4.8);
       aiY += 9;
       actions.slice(0, 5).forEach((act, ai) => {
-        const impact   = act.impact    || '';
+        const impact   = act.expected_impact || act.impact || '';
         const timeline = act.timeline  || '';
           const abg = act.priority === 'high' ? C.red.map(c=>Math.round(c*0.15)) : C.accent.map(c=>Math.round(c*0.12));
           pdf.setFillColor(...abg);
@@ -1027,9 +1156,9 @@ export default function App() {
       pdf.text(pdf.splitTextToSize(disc, col - 8), M + 4, aiY + 10);
     }
 
-    footer(pgNum, totalPages);
+    footer(pageNo, totalPages);
 
-    pdf.save(`BizHealth-${co.replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);
+    pdf.save(`Valoreva-${co.replace(/\s+/g,'-')}-${new Date().toISOString().slice(0,10)}.pdf`);
     } catch (err) {
       console.error('PDF generation failed:', err);
       alert('PDF generation failed: ' + (err.message || err));
@@ -1112,14 +1241,14 @@ export default function App() {
         className="hidden lg:flex fixed top-20 z-40 items-center justify-center w-5 h-8 rounded-r"
         style={{
           left: sidebarOpen ? '318px' : '0px',
-          background: '#141c2e',
+          background: 'var(--surface-hi)',
           border: '1px solid #243354',
           borderLeft: 'none',
           transition: 'left 0.25s ease',
         }}
         title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
       >
-        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#7b8eab" strokeWidth="2.5"
+        <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="2.5"
           style={{ transform: sidebarOpen ? 'none' : 'rotate(180deg)', transition: 'transform 0.25s' }}>
           <path d="M15 18l-6-6 6-6"/>
         </svg>
@@ -1142,8 +1271,8 @@ export default function App() {
           style={{
             height: '88vh',
             transform: mobileOpen ? 'translateY(0)' : 'translateY(100%)',
-            background: '#0a0d14',
-            border: '1px solid #1d2840',
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
             borderBottom: 'none',
           }}>
           {/* Drag handle */}
@@ -1165,7 +1294,7 @@ export default function App() {
         style={{
           bottom: 20,
           right: 20,
-          background: '#2461d4',
+          background: 'var(--gold)',
           borderRadius: 4,
           padding: '10px 16px',
         }}
@@ -1191,20 +1320,20 @@ export default function App() {
             <div className="flex items-center gap-0 overflow-x-auto scrollbar-none"
               style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, whiteSpace: 'nowrap', scrollbarWidth: 'none' }}>
               {[
-                { val: companyContext.ticker || '—',                           color: '#4f6ef7' },
+                { val: companyContext.ticker || '—',                           color: 'var(--gold)' },
                 { val: companyContext.name   || '—',                           color: '#f1f5f9' },
-                { val: (industry || 'general').toUpperCase(),                  color: '#9fb3d4' },
+                { val: (industry || 'general').toUpperCase(),                  color: 'var(--text-3)' },
                 { val: companyContext.currency || 'USD',                       color: '#22d3ee' },
-                { val: today,                                                  color: '#6b82a8' },
+                { val: today,                                                  color: 'var(--text-4)' },
               ].map((item, i) => (
                 <span key={i} className="flex items-center">
-                  {i > 0 && <span style={{ color: '#3d5070', margin: '0 8px' }}>·</span>}
+                  {i > 0 && <span style={{ color: 'var(--text-5)', margin: '0 8px' }}>·</span>}
                   <span style={{ color: item.color }}>{item.val}</span>
                 </span>
               ))}
               {calculated && results && (
                 <>
-                  <span style={{ color: '#3d5070', margin: '0 8px' }}>·</span>
+                  <span style={{ color: 'var(--text-5)', margin: '0 8px' }}>·</span>
                   <span style={{ color: healthScore >= 70 ? '#00e887' : healthScore >= 40 ? '#fbbf24' : '#f43f5e' }}>
                     SCORE {healthScore}/100
                   </span>
@@ -1219,15 +1348,20 @@ export default function App() {
           {/* ── Welcome state ── */}
           {!calculated && (
             <div className="flex flex-col items-center justify-center min-h-[80vh] text-center select-none">
-              {/* Glow halo behind logo */}
+              {/* Brand lockup */}
               <div className="relative mb-6">
-                <div className="absolute inset-0 rounded-full blur-2xl" style={{ background:'radial-gradient(circle, rgba(79,110,247,0.35) 0%, transparent 70%)', transform:'scale(2.5)' }} />
-                <Logo size={80} />
+                <div className="absolute inset-0 rounded-full blur-2xl" style={{ background:'radial-gradient(circle, rgba(79,110,247,0.28) 0%, transparent 72%)', transform:'scale(2.6)' }} />
+                <div className="relative">
+                  <FinAxisLockup
+                    size={34}
+                    gap={14}
+                    markSize={74}
+                    finColor="var(--text-1)"
+                    axisColor="var(--gold)"
+                    markColor="var(--text-1)"
+                  />
+                </div>
               </div>
-
-              <h1 className="font-bold tracking-tight mb-1" style={{ fontSize:'clamp(2rem,8vw,2.8rem)', lineHeight:1.1 }}>
-                <span className="text-white">Biz</span><span style={{ color:'#22d3ee', textShadow:'0 0 30px rgba(34,211,238,0.6)' }}>Health</span>
-              </h1>
               <p className="mono text-[11px] font-bold uppercase tracking-widest mb-6" style={{ color:'rgba(34,211,238,0.45)' }}>
                 Financial Intelligence Platform · v3.0
               </p>
@@ -1244,40 +1378,24 @@ export default function App() {
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="2" strokeLinecap="round">
                     <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
                   </svg>
-                  <span className="mono text-sm" style={{ color: '#6b82a8' }}>Search a company or enter financials…</span>
+                  <span className="mono text-sm" style={{ color: 'var(--text-4)' }}>Search a company or enter financials…</span>
                 </button>
               </div>
 
-              <p className="text-sm max-w-md leading-relaxed mb-2 hidden lg:block" style={{ color: '#d4ddf5' }}>
-                Enter your financials, or hit <span style={{ color:'#7b95fa' }}>⚡ Demo</span> in the sidebar for instant results.
+              <p className="text-sm max-w-md leading-relaxed mb-2 hidden lg:block" style={{ color: 'var(--text-2)' }}>
+                Enter your financials, or use <span style={{ color:'var(--gold-hi)' }}>Demo Data</span> in the sidebar for instant results.
               </p>
-              <p className="text-sm max-w-xs leading-relaxed mb-2 lg:hidden" style={{ color: '#6b82a8' }}>
-                Tap <strong style={{ color: '#7b95fa' }}>Enter Financials</strong> below to search a company or enter your own numbers.
+              <p className="text-sm max-w-xs leading-relaxed mb-2 lg:hidden" style={{ color: 'var(--text-4)' }}>
+                Tap <strong style={{ color: 'var(--gold-hi)' }}>Enter Financials</strong> below to search a company or enter your own numbers.
               </p>
-              <p className="mono text-[10px] mb-10" style={{ color: '#6b82a8' }}>14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
-
-              {/* Feature grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full max-w-lg mb-8">
-                {[
-                  { icon:'💧', label:'Liquidity',     count:'3 ratios', color:'#22d3ee' },
-                  { icon:'📈', label:'Profitability', count:'5 ratios', color:'#00e887' },
-                  { icon:'⚙️', label:'Efficiency',    count:'4 ratios', color:'#a78bfa' },
-                  { icon:'⚖️', label:'Leverage',      count:'2 ratios', color:'#fbbf24' },
-                ].map(({ icon, label, count, color }) => (
-                  <div key={label} className="ghost-card rounded-2xl p-4 text-center" style={{ borderColor:`${color}25` }}>
-                    <div className="text-2xl mb-1">{icon}</div>
-                    <div className="text-slate-300 text-xs font-semibold">{label}</div>
-                    <div className="mono text-[10px]" style={{ color:`${color}80` }}>{count}</div>
-                  </div>
-                ))}
-              </div>
+              <p className="mono text-[10px] mb-10" style={{ color: 'var(--text-4)' }}>14 RATIOS · AI ENGINE · BANK READINESS · SECTOR COMPARISON · PDF</p>
 
               {/* Status legend */}
               <div className="flex items-center gap-6 text-[11px]">
                 {[['#00e887','Healthy'],['#fbbf24','Borderline'],['#f43f5e','Critical']].map(([c,l]) => (
                   <div key={l} className="flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ background:c, boxShadow:`0 0 6px ${c}` }} />
-                    <span className="mono text-[11px]" style={{ color: '#9fb3d4' }}>{l}</span>
+                    <span className="mono text-[11px]" style={{ color: 'var(--text-3)' }}>{l}</span>
                   </div>
                 ))}
               </div>
@@ -1301,7 +1419,7 @@ export default function App() {
               {/* ── View toggle ── */}
               <div className="flex items-center justify-between mb-6">
                 <span className="mono text-[10px] font-bold uppercase tracking-[0.14em]"
-                  style={{ color: '#6b82a8' }}>
+                  style={{ color: 'var(--text-4)' }}>
                   {GROUPS.reduce((a, g) => a + g.ratios.length, 0)} RATIOS COMPUTED
                 </span>
                 <div className="flex items-center gap-1 p-1 rounded-xl"
@@ -1320,8 +1438,8 @@ export default function App() {
                     <button key={id} onClick={() => setViewMode(id)}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-150"
                       style={viewMode === id
-                        ? { background: 'rgba(79,110,247,0.2)', color: '#7b95fa', border: '1px solid rgba(79,110,247,0.35)' }
-                        : { background: 'transparent', color: '#6b82a8', border: '1px solid transparent' }}>
+                        ? { background: 'rgba(79,110,247,0.2)', color: 'var(--gold-hi)', border: '1px solid rgba(79,110,247,0.35)' }
+                        : { background: 'transparent', color: 'var(--text-4)', border: '1px solid transparent' }}>
                       {icon}{label}
                     </button>
                   ))}
@@ -1396,8 +1514,8 @@ export default function App() {
 
               <SectorComparison ratioValues={results.ratioValues} industry={industry} />
 
-              <div className="text-center text-[11px] mt-8 pb-8" style={{ color: '#3d5070' }}>
-                BizHealth · {new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} · For informational purposes only
+              <div className="text-center text-[11px] mt-8 pb-8" style={{ color: 'var(--text-5)' }}>
+                Valoreva · {new Date().toLocaleDateString('en-IN', { day:'numeric', month:'long', year:'numeric' })} · For informational purposes only
               </div>
             </>
           )}

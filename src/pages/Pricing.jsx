@@ -14,7 +14,7 @@ const Cross = () => (
 );
 const Soon = () => (
   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-    style={{ background: 'rgba(79,110,247,0.1)', color: '#4f6ef7',
+    style={{ background: 'rgba(79,110,247,0.1)', color: 'var(--gold)',
       border: '1px solid rgba(79,110,247,0.2)', fontFamily: 'JetBrains Mono, monospace' }}>
     SOON
   </span>
@@ -119,7 +119,7 @@ const FAQS = [
     a: 'Financial statements are pulled from Yahoo Finance via the yfinance library. AI insights are powered by Anthropic\'s Claude Haiku model. All ratio calculations follow CFA Institute methodology.',
   },
   {
-    q: 'Can I use BizHealth for client work?',
+    q: 'Can I use Valoreva for client work?',
     a: 'Yes. The Pro tier is designed exactly for this — consultants and analysts regularly export the IB-style Excel model or PDF report for client presentations.',
   },
   {
@@ -151,7 +151,7 @@ export default function Pricing() {
         }} />
         <div className="relative">
           <p className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             PRICING
           </p>
           <h1 className="font-black mb-4"
@@ -224,7 +224,7 @@ export default function Pricing() {
                   </div>
                   <p className="text-xs leading-relaxed" style={{ color: 'var(--text-3)' }}>
                     First <span style={{ color: 'var(--text-1)', fontWeight: 700 }}>{CHARTER_LIMIT} members</span> lock in{' '}
-                    <span style={{ color: '#4f6ef7', fontWeight: 700 }}>Pro at $9/mo forever</span>{' '}
+                    <span style={{ color: 'var(--gold)', fontWeight: 700 }}>Pro at $9/mo forever</span>{' '}
                     — even when the price rises to $19. Charter pricing never expires.
                   </p>
                 </div>
@@ -275,7 +275,7 @@ export default function Pricing() {
                 {tier.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest"
-                      style={{ background: '#4f6ef7', color: '#fff',
+                      style={{ background: 'var(--gold)', color: '#fff',
                         fontFamily: 'JetBrains Mono, monospace' }}>
                       {tier.badge}
                     </span>
@@ -297,7 +297,7 @@ export default function Pricing() {
                   </div>
                   <div className="flex items-end gap-1.5 mb-3">
                     <span className="font-black"
-                      style={{ fontSize: '2.4rem', color: isPro ? '#4f6ef7' : 'var(--text-1)',
+                      style={{ fontSize: '2.4rem', color: isPro ? 'var(--gold)' : 'var(--text-1)',
                         fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>
                       {price === 0 ? '$0' : `$${price}`}
                     </span>
@@ -317,7 +317,7 @@ export default function Pricing() {
                 <ul className="space-y-2.5 flex-1 mb-6">
                   {tier.features.map(f => (
                     <li key={f.label} className="flex items-center gap-2.5 text-xs"
-                      style={{ color: f.state === 'cross' ? '#3d5070' : 'var(--text-2)' }}>
+                      style={{ color: f.state === 'cross' ? 'var(--text-5)' : 'var(--text-2)' }}>
                       <span className="flex-shrink-0">
                         {f.state === 'check' && <Check />}
                         {f.state === 'cross' && <Cross />}
@@ -361,7 +361,7 @@ export default function Pricing() {
                     </button>
                     {isPro && (
                       <p className="text-center text-[10px] mt-2"
-                        style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+                        style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
                         ★ Charter Members lock in $9/mo forever
                       </p>
                     )}
@@ -378,7 +378,7 @@ export default function Pricing() {
         style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
         <div className="max-w-4xl mx-auto pt-16">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
             COMPARE PLANS
           </p>
           <h2 className="text-center font-black mb-10"
@@ -394,7 +394,7 @@ export default function Pricing() {
                     style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>Feature</th>
                   {['Free', 'Pro', 'Premium'].map(t => (
                     <th key={t} className="py-3 px-4 text-center font-bold text-sm"
-                      style={{ color: t === 'Pro' ? '#4f6ef7' : 'var(--text-1)' }}>{t}</th>
+                      style={{ color: t === 'Pro' ? 'var(--gold)' : 'var(--text-1)' }}>{t}</th>
                   ))}
                 </tr>
               </thead>
@@ -428,7 +428,7 @@ export default function Pricing() {
                         {val === 'Soon' && <span className="flex justify-center"><Soon /></span>}
                         {typeof val === 'string' && val !== 'Soon' && (
                           <span className="text-xs font-medium"
-                            style={{ color: ci === 1 ? '#4f6ef7' : 'var(--text-2)',
+                            style={{ color: ci === 1 ? 'var(--gold)' : 'var(--text-2)',
                               fontFamily: 'JetBrains Mono, monospace' }}>
                             {val}
                           </span>
@@ -448,7 +448,7 @@ export default function Pricing() {
         style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
         <div className="max-w-2xl mx-auto pt-16">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: '#4f6ef7', fontFamily: 'JetBrains Mono, monospace' }}>FAQ</p>
+            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>FAQ</p>
           <h2 className="text-center font-black mb-10"
             style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Common questions

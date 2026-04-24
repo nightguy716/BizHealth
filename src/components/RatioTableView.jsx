@@ -2,7 +2,7 @@ const STATUS = {
   green: { label: 'Healthy',         color: '#00e887', bg: 'rgba(0,232,135,0.1)',  border: 'rgba(0,232,135,0.28)'  },
   amber: { label: 'Borderline',      color: '#fbbf24', bg: 'rgba(251,191,36,0.1)', border: 'rgba(251,191,36,0.28)' },
   red:   { label: 'Needs Attention', color: '#f43f5e', bg: 'rgba(244,63,94,0.1)',  border: 'rgba(244,63,94,0.28)'  },
-  na:    { label: 'No Data',         color: '#3d5070', bg: 'rgba(255,255,255,0.04)',border: 'rgba(255,255,255,0.08)'},
+  na:    { label: 'No Data',         color: 'var(--text-5)', bg: 'rgba(255,255,255,0.04)',border: 'rgba(255,255,255,0.08)'},
 };
 
 const CATEGORY_COLOR = {
@@ -36,7 +36,7 @@ export default function RatioTableView({ groups }) {
         fontSize: 9,
         fontWeight: 700,
         letterSpacing: '0.12em',
-        color: '#3d5070',
+        color: 'var(--text-5)',
       }}>
         <span>METRIC</span>
         <span>CATEGORY</span>
@@ -49,7 +49,7 @@ export default function RatioTableView({ groups }) {
       {groups.map(({ title, ratios }) =>
         ratios.map((r, i) => {
           const s = STATUS[r.status] || STATUS.na;
-          const catColor = CATEGORY_COLOR[title] || '#6b82a8';
+          const catColor = CATEGORY_COLOR[title] || 'var(--text-4)';
           const isLast = i === ratios.length - 1;
           const formatted = formatVal(r.value, r.unit);
 
@@ -70,7 +70,7 @@ export default function RatioTableView({ groups }) {
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
             >
               {/* Metric name */}
-              <span style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, color: '#d4ddf5' }}>
+              <span style={{ fontFamily: 'Inter, system-ui, sans-serif', fontSize: 12, color: 'var(--text-2)' }}>
                 {r.name}
               </span>
 
@@ -124,7 +124,7 @@ export default function RatioTableView({ groups }) {
                   }} />
                 </div>
                 <div style={{
-                  fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: '#3d5070', marginTop: 2,
+                  fontFamily: 'JetBrains Mono, monospace', fontSize: 8, color: 'var(--text-5)', marginTop: 2,
                 }}>
                   {r.barWidth > 0 ? `${r.barWidth}%` : '—'}
                 </div>
