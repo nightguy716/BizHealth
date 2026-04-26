@@ -6,6 +6,7 @@ import { ownerHeaders } from '../lib/ownerHeaders';
 import { getBackendBaseUrl } from '../lib/backendUrl';
 
 const API = getBackendBaseUrl();
+const API_FALLBACK = 'https://bizhealth-production.up.railway.app';
 const POLL_MS  = 60_000;   // base 60 seconds
 const PRICE_REQUESTS_BUDGET_PER_HOUR = 220;
 const NEWS_REQUESTS_BUDGET_PER_HOUR = 60;
@@ -31,6 +32,23 @@ const C = {
 };
 const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
+
+async function fetchJsonWithFallback(path) {
+  const urls = API === API_FALLBACK ? [API] : [API, API_FALLBACK];
+  for (const base of urls) {
+    try {
+      const res = await fetch(`${base}${path}`, {
+        headers: ownerHeaders(),
+        signal: AbortSignal.timeout(12_000),
+      });
+      if (!res.ok) continue;
+      return await res.json();
+    } catch {
+      // try next backend candidate
+    }
+  }
+  return null;
+}
 
 function ifield(extra = {}) {
   return {
@@ -95,48 +113,29 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
       let px = null;
       let pxSymbol = null;
       for (const sym of symbols) {
-        try {
-          const pxRes = await fetch(
-            `${API}/stocks/price/${encodeURIComponent(sym)}`,
-            { headers: ownerHeaders(), signal: AbortSignal.timeout(10_000) }
-          );
-          if (!pxRes.ok) continue;
-          const candidate = await pxRes.json();
-          if (Number(candidate?.price) > 0) {
-            px = candidate;
-            pxSymbol = sym;
-            break;
-          }
-        } catch {
-          // Try next symbol candidate on timeout/network errors.
-          continue;
+        const candidate = await fetchJsonWithFallback(`/stocks/price/${encodeURIComponent(sym)}`);
+        if (Number(candidate?.price) > 0) {
+          px = candidate;
+          pxSymbol = sym;
+          break;
         }
       }
       // Hard fallback: pull latest price from company snapshot endpoint.
       if (!px) {
         for (const sym of symbols) {
-          try {
-            const yfRes = await fetch(
-              `${API}/company/yf/${encodeURIComponent(sym)}`,
-              { headers: ownerHeaders(), signal: AbortSignal.timeout(12_000) }
-            );
-            if (!yfRes.ok) continue;
-            const company = await yfRes.json();
-            const current = Number(company?.market_data?.currentPrice);
-            if (Number.isFinite(current) && current > 0) {
-              px = {
-                price: current,
-                change: Number(company?.market_data?.priceChange || 0),
-                change_pct: Number(company?.market_data?.priceChangePct || 0),
-                prev_close: Number(company?.market_data?.previousClose || 0),
-                volume: Number(company?.market_data?.volume || 0),
-                source: 'YF-META',
-              };
-              pxSymbol = sym;
-              break;
-            }
-          } catch {
-            continue;
+          const company = await fetchJsonWithFallback(`/company/yf/${encodeURIComponent(sym)}`);
+          const current = Number(company?.market_data?.currentPrice);
+          if (Number.isFinite(current) && current > 0) {
+            px = {
+              price: current,
+              change: Number(company?.market_data?.priceChange || 0),
+              change_pct: Number(company?.market_data?.priceChangePct || 0),
+              prev_close: Number(company?.market_data?.previousClose || 0),
+              volume: Number(company?.market_data?.volume || 0),
+              source: 'YF-META',
+            };
+            pxSymbol = sym;
+            break;
           }
         }
       }
@@ -172,11 +171,8 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
     try {
       const sym = resolvedSymbolRef.current || normalizeTicker(item.ticker);
       if (!sym) return;
-      const nwRes = await fetch(
-        `${API}/stocks/news/${encodeURIComponent(sym)}`,
-        { headers: ownerHeaders() }
-      );
-      if (nwRes.ok) setNews(await nwRes.json());
+      const payload = await fetchJsonWithFallback(`/stocks/news/${encodeURIComponent(sym)}`);
+      if (Array.isArray(payload)) setNews(payload);
     } catch { /* silent */ }
   }
 
