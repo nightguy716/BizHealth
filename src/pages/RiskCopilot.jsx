@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getBackendBaseUrl } from '../lib/backendUrl';
 import { ownerHeaders } from '../lib/ownerHeaders';
 import { useAuth } from '../context/AuthContext';
+import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const API = getBackendBaseUrl();
 const sans = "'Inter', system-ui, sans-serif";
@@ -20,6 +21,11 @@ const SCENARIOS = [
   { id: 'nifty_up_6', label: 'Nifty +6%', shock: 0.06 },
   { id: 'risk_off_12', label: 'Risk-off -12%', shock: -0.12 },
 ];
+const TRADE_OBJECTIVES = {
+  conservative: 0.02,
+  moderate: 0.05,
+  aggressive: 0.08,
+};
 
 const cardStyle = {
   background: 'var(--surface)',
@@ -92,6 +98,21 @@ function calcSnapshotMetrics(inputPositions, scenarioShock) {
   };
 }
 
+function normalizeTradeTicker(raw) {
+  let t = String(raw || '').trim().toUpperCase();
+  if (!t) return '';
+  if (t.startsWith('NSE:') || t.startsWith('BSE:')) t = t.slice(4);
+  if (t.endsWith('-EQ')) t = t.slice(0, -3);
+  return t;
+}
+
+function tradeSymbolCandidates(ticker) {
+  const base = normalizeTradeTicker(ticker);
+  if (!base) return [];
+  if (base.endsWith('.NS') || base.endsWith('.BO')) return [base];
+  return [`${base}.NS`, `${base}.BO`, base];
+}
+
 export default function RiskCopilot() {
   const { user, isAuthenticated, loading: authLoading, getWatchlist } = useAuth();
   const [positions, setPositions] = useState(BASE_POSITIONS);
@@ -110,6 +131,10 @@ export default function RiskCopilot() {
   const [selectedSnapshotId, setSelectedSnapshotId] = useState('');
   const [compareBaseId, setCompareBaseId] = useState('');
   const [compareTargetId, setCompareTargetId] = useState('');
+  const [tradeMeta, setTradeMeta] = useState(null);
+  const [tradePrice, setTradePrice] = useState(null);
+  const [loadingTradePrice, setLoadingTradePrice] = useState(false);
+  const [tradeObjective, setTradeObjective] = useState('moderate');
 
   const scenario = useMemo(() => SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0], [scenarioId]);
   const tickerCsv = useMemo(() => positions.map(p => p.ticker).join(','), [positions]);
@@ -125,6 +150,17 @@ export default function RiskCopilot() {
     () => calcSnapshotMetrics(targetSnapshot?.positions, scenario.shock),
     [targetSnapshot, scenario.shock],
   );
+  const tradeCurrency = useMemo(() => {
+    if (tradeMeta?.currency) return tradeMeta.currency;
+    const t = normalizeTradeTicker(trade.ticker);
+    return t.endsWith('.NS') || t.endsWith('.BO') ? 'INR' : 'USD';
+  }, [trade.ticker, tradeMeta?.currency]);
+  const suggestedDelta = useMemo(() => {
+    const base = TRADE_OBJECTIVES[tradeObjective] ?? TRADE_OBJECTIVES.moderate;
+    const move = Math.abs(Number(tradePrice?.changePct || 0));
+    const adjustment = move >= 4 ? -0.01 : move >= 2 ? -0.005 : 0;
+    return Math.max(0.01, Number((base + adjustment).toFixed(3)));
+  }, [tradeObjective, tradePrice?.changePct]);
 
   useEffect(() => {
     try {
@@ -250,6 +286,75 @@ export default function RiskCopilot() {
     return () => { cancelled = true; };
   }, [authLoading, snapshotReady, isAuthenticated, getWatchlist, watchlistLoaded, selectedSnapshotId]);
 
+  useEffect(() => {
+    let alive = true;
+    const t = normalizeTradeTicker(trade.ticker);
+    if (!t) {
+      setTradePrice(null);
+      return undefined;
+    }
+    const timer = setTimeout(async () => {
+      setLoadingTradePrice(true);
+      try {
+        let px = null;
+        for (const sym of tradeSymbolCandidates(t)) {
+          try {
+            const res = await fetch(`${API}/stocks/price/${encodeURIComponent(sym)}`, {
+              headers: ownerHeaders(),
+              signal: AbortSignal.timeout(10_000),
+            });
+            if (!res.ok) continue;
+            const j = await res.json();
+            if (Number(j?.price) > 0) {
+              px = {
+                symbol: sym,
+                price: Number(j.price),
+                changePct: Number(j.change_pct || 0),
+                change: Number(j.change || 0),
+              };
+              break;
+            }
+          } catch {
+            // try next symbol candidate
+          }
+        }
+
+        if (!px) {
+          for (const sym of tradeSymbolCandidates(t)) {
+            try {
+              const res = await fetch(`${API}/company/yf/${encodeURIComponent(sym)}`, {
+                headers: ownerHeaders(),
+                signal: AbortSignal.timeout(10_000),
+              });
+              if (!res.ok) continue;
+              const j = await res.json();
+              const current = Number(j?.market_data?.currentPrice);
+              if (Number.isFinite(current) && current > 0) {
+                px = {
+                  symbol: sym,
+                  price: current,
+                  changePct: Number(j?.market_data?.priceChangePct || 0),
+                  change: Number(j?.market_data?.priceChange || 0),
+                };
+                break;
+              }
+            } catch {
+              // try next symbol candidate
+            }
+          }
+        }
+        if (!alive) return;
+        setTradePrice(px);
+      } finally {
+        if (alive) setLoadingTradePrice(false);
+      }
+    }, 300);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [trade.ticker]);
+
   async function runPreTrade() {
     setError('');
     setLoading('pretrade');
@@ -324,6 +429,62 @@ export default function RiskCopilot() {
     } finally {
       setLoading('');
     }
+  }
+
+  async function runAllForPositions(nextPositions) {
+    setError('');
+    setLoading('refresh');
+    try {
+      const csv = nextPositions.map((p) => p.ticker).join(',');
+      const [preData, stressData, corrData, hedgeData] = await Promise.all([
+        post('/risk/pretrade-impact', {
+          positions: nextPositions,
+          candidate_trade: {
+            ticker: trade.ticker,
+            side: trade.side,
+            mode: trade.mode,
+            weight_delta: Number(trade.weight_delta),
+          },
+        }),
+        post('/risk/scenario-stress', {
+          portfolio_value: 1000000,
+          positions: nextPositions,
+          scenario: {
+            name: scenario.id,
+            market_shock_pct: scenario.shock,
+            sector_overrides: {
+              Technology: scenario.shock * 1.25,
+              Financials: scenario.shock * 1.1,
+            },
+            rate_shock_bps: scenario.shock < 0 ? 100 : -50,
+          },
+        }),
+        get(`/risk/correlation-matrix?tickers=${encodeURIComponent(csv)}&threshold=0.75`),
+        post('/risk/hedge-suggestions', {
+          positions: nextPositions,
+          objective: 'minimize_var',
+          constraints: { max_single_name: 0.2, max_sector: 0.3, turnover_limit: 0.08 },
+        }),
+      ]);
+
+      setPreTrade(preData);
+      setStress(stressData);
+      setCorr(corrData);
+      setHedges(hedgeData);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading('');
+    }
+  }
+
+  async function promoteCandidateSnapshot() {
+    if (!compareTargetId) return;
+    const hit = snapshots.find((s) => s.id === compareTargetId);
+    if (!hit?.positions?.length) return;
+    setSelectedSnapshotId(hit.id);
+    setPositions(hit.positions);
+    await runAllForPositions(hit.positions);
   }
 
   return (
@@ -426,6 +587,28 @@ export default function RiskCopilot() {
                   ))}
                 </select>
               </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+                  Promote candidate to active portfolio and refresh all risk modules instantly.
+                </div>
+                <button
+                  onClick={promoteCandidateSnapshot}
+                  disabled={!compareTargetId || loading === 'refresh'}
+                  style={{
+                    background: '#38bdf8',
+                    color: '#082f49',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '8px 10px',
+                    fontWeight: 700,
+                    fontSize: 12,
+                    cursor: !compareTargetId || loading === 'refresh' ? 'not-allowed' : 'pointer',
+                    opacity: !compareTargetId || loading === 'refresh' ? 0.6 : 1,
+                  }}
+                >
+                  {loading === 'refresh' ? 'Refreshing...' : 'Promote Candidate & Re-run'}
+                </button>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1.4fr .9fr .9fr .9fr', gap: 8, fontSize: 12 }}>
                 <div style={{ color: 'var(--text-4)' }}>Metric</div>
                 <div style={{ color: 'var(--text-4)' }}>Baseline</div>
@@ -482,13 +665,61 @@ export default function RiskCopilot() {
 
           <div style={cardStyle}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 8 }}>CANDIDATE TRADE</div>
-            <input value={trade.ticker} onChange={e => setTrade(t => ({ ...t, ticker: e.target.value.toUpperCase() }))} style={{ width: '100%', marginBottom: 8, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }} />
+            <div style={{ marginBottom: 8 }}>
+              <TickerAutocomplete
+                value={trade.ticker}
+                onChange={(v) => setTrade((prev) => ({ ...prev, ticker: normalizeTradeTicker(v) }))}
+                onSelect={(company) => {
+                  setTrade((prev) => ({ ...prev, ticker: normalizeTradeTicker(company?.ticker || prev.ticker) }));
+                  setTradeMeta(company || null);
+                }}
+                placeholder="Search ticker/company for candidate trade…"
+              />
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
               <select value={trade.side} onChange={e => setTrade(t => ({ ...t, side: e.target.value }))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}>
                 <option value="buy">Buy</option>
                 <option value="sell">Sell</option>
               </select>
               <input type="number" step="0.01" value={trade.weight_delta} onChange={e => setTrade(t => ({ ...t, weight_delta: Number(e.target.value) }))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <select
+                value={tradeObjective}
+                onChange={(e) => setTradeObjective(e.target.value)}
+                style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}
+              >
+                <option value="conservative">Conservative sizing</option>
+                <option value="moderate">Moderate sizing</option>
+                <option value="aggressive">Aggressive sizing</option>
+              </select>
+              <button
+                onClick={() => setTrade((t) => ({ ...t, weight_delta: suggestedDelta }))}
+                style={{ background: '#eab308', color: '#111827', border: 'none', borderRadius: 4, padding: '7px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+              >
+                Use {fmtPct(suggestedDelta).replace('+', '')}
+              </button>
+            </div>
+            <div style={{ marginBottom: 10, color: 'var(--text-4)', fontSize: 11 }}>
+              Suggested {trade.side} delta for {tradeObjective} risk: <b style={{ color: 'var(--text-2)' }}>{fmtPct(suggestedDelta).replace('+', '')}</b>
+            </div>
+            <div style={{ marginBottom: 10, color: 'var(--text-4)', fontSize: 12 }}>
+              {loadingTradePrice ? (
+                'Fetching current price...'
+              ) : tradePrice?.price ? (
+                <>
+                  Current price ({tradePrice.symbol}):{' '}
+                  <b style={{ color: 'var(--text-1)' }}>
+                    {tradeCurrency === 'INR' ? '₹' : '$'}{tradePrice.price.toLocaleString()}
+                  </b>
+                  {' · '}
+                  <span style={{ color: tradePrice.changePct >= 0 ? '#22c55e' : '#ef4444' }}>
+                    {tradePrice.changePct >= 0 ? '+' : ''}{tradePrice.changePct.toFixed(2)}%
+                  </span>
+                </>
+              ) : (
+                'Current price unavailable for selected ticker.'
+              )}
             </div>
 
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginTop: 10, marginBottom: 6 }}>SCENARIO</div>
