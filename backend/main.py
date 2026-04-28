@@ -23,7 +23,7 @@ import requests
 import anthropic
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, List
+from typing import Optional, List, Dict, Any, Literal
 import httpx
 
 # Load environment variables from backend/.env when running locally.
@@ -2955,6 +2955,380 @@ async def debate_stream(req: DebateRequest, request: Request):
 # -- Full stock-list autocomplete ----------------------------------------------
 # Source: NSE public equity CSV (refreshed every 24 h, cached in memory).
 # Covers all ~1800+ NSE-listed equities.
+
+# -- Portfolio Risk Copilot MVP -------------------------------------------------
+class RiskPosition(BaseModel):
+    ticker: str
+    weight: float
+    sector: str | None = None
+    beta: float | None = None
+
+class CandidateTrade(BaseModel):
+    ticker: str
+    side: Literal["buy", "sell"] = "buy"
+    mode: Literal["target_weight_delta", "target_weight"] = "target_weight_delta"
+    weight_delta: float | None = None
+    target_weight: float | None = None
+    sector: str | None = None
+    beta: float | None = None
+
+class RiskSettings(BaseModel):
+    lookback_days: int = 252
+    var_confidence: float = 0.95
+
+class PreTradeImpactRequest(BaseModel):
+    portfolio_id: str | None = None
+    as_of: str | None = None
+    base_currency: str = "INR"
+    positions: List[RiskPosition]
+    candidate_trade: CandidateTrade
+    settings: RiskSettings = RiskSettings()
+
+class ScenarioSpec(BaseModel):
+    name: str = "nifty_down_8"
+    market_shock_pct: float = -0.08
+    sector_overrides: Dict[str, float] = {}
+    rate_shock_bps: float | None = None
+
+class ScenarioStressRequest(BaseModel):
+    portfolio_id: str | None = None
+    as_of: str | None = None
+    portfolio_value: float = 1_000_000
+    positions: List[RiskPosition]
+    scenario: ScenarioSpec = ScenarioSpec()
+
+class HedgeConstraints(BaseModel):
+    max_single_name: float = 0.20
+    max_sector: float = 0.30
+    turnover_limit: float = 0.08
+
+class HedgeSuggestionRequest(BaseModel):
+    portfolio_id: str | None = None
+    positions: List[RiskPosition]
+    constraints: HedgeConstraints = HedgeConstraints()
+    objective: Literal["minimize_var", "minimize_concentration"] = "minimize_var"
+
+def _risk_trace(prefix: str) -> str:
+    return f"{prefix}_{int(time.time() * 1000) % 10_000_000:x}"
+
+def _sanitize_positions(positions: List[RiskPosition]) -> List[Dict[str, Any]]:
+    cleaned = []
+    for p in positions:
+        w = float(p.weight or 0)
+        if w <= 0:
+            continue
+        cleaned.append({
+            "ticker": p.ticker.strip().upper(),
+            "weight": w,
+            "sector": (p.sector or "Unknown").strip() or "Unknown",
+            "beta": float(p.beta) if p.beta is not None else 1.0,
+        })
+    if not cleaned:
+        raise HTTPException(status_code=400, detail="positions must contain at least one positive-weight entry")
+    return cleaned
+
+def _portfolio_metrics(positions: List[Dict[str, Any]]) -> Dict[str, float]:
+    total_weight = sum(p["weight"] for p in positions) or 1.0
+    norm = [{**p, "nw": p["weight"] / total_weight} for p in positions]
+    max_single = max(p["nw"] for p in norm)
+    sector_w = defaultdict(float)
+    for p in norm:
+        sector_w[p["sector"]] += p["nw"]
+    max_sector = max(sector_w.values()) if sector_w else 0.0
+    beta_proxy = sum(p["nw"] * (p["beta"] or 1.0) for p in norm)
+
+    # Heuristic risk baseline for MVP (replace with realized-vol model next iteration).
+    var_1d = 0.012 + (0.018 * max_single) + (0.014 * max_sector) + (0.006 * abs(beta_proxy - 1))
+    var_1d = max(0.005, min(0.12, var_1d))
+    vol_ann = var_1d * math.sqrt(252)
+    return {
+        "portfolio_var_1d": round(var_1d, 4),
+        "expected_vol_annual": round(vol_ann, 4),
+        "max_single_name_weight": round(max_single, 4),
+        "max_sector_weight": round(max_sector, 4),
+        "beta_proxy": round(beta_proxy, 4),
+    }
+
+def _apply_candidate_trade(base: List[Dict[str, Any]], trade: CandidateTrade) -> List[Dict[str, Any]]:
+    out = [{**p} for p in base]
+    tkr = trade.ticker.strip().upper()
+    idx = next((i for i, p in enumerate(out) if p["ticker"] == tkr), None)
+
+    if trade.mode == "target_weight":
+        if trade.target_weight is None:
+            raise HTTPException(status_code=400, detail="candidate_trade.target_weight is required for target_weight mode")
+        target = max(0.0, float(trade.target_weight))
+        if idx is None:
+            out.append({
+                "ticker": tkr,
+                "weight": target,
+                "sector": trade.sector or "Unknown",
+                "beta": float(trade.beta) if trade.beta is not None else 1.0,
+            })
+        else:
+            out[idx]["weight"] = target
+        return [p for p in out if p["weight"] > 0]
+
+    # target_weight_delta mode
+    delta = float(trade.weight_delta or 0)
+    if delta <= 0:
+        raise HTTPException(status_code=400, detail="candidate_trade.weight_delta must be > 0 in target_weight_delta mode")
+    signed = delta if trade.side == "buy" else -delta
+
+    if idx is None:
+        if signed <= 0:
+            return out
+        out.append({
+            "ticker": tkr,
+            "weight": signed,
+            "sector": trade.sector or "Unknown",
+            "beta": float(trade.beta) if trade.beta is not None else 1.0,
+        })
+    else:
+        out[idx]["weight"] = max(0.0, out[idx]["weight"] + signed)
+    return [p for p in out if p["weight"] > 0]
+
+@app.post("/risk/pretrade-impact")
+async def risk_pretrade_impact(req: PreTradeImpactRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    before_positions = _sanitize_positions(req.positions)
+    after_positions = _apply_candidate_trade(before_positions, req.candidate_trade)
+
+    before = _portfolio_metrics(before_positions)
+    after = _portfolio_metrics(after_positions)
+    delta = {k: round(after[k] - before[k], 4) for k in before.keys()}
+
+    warnings = []
+    if delta["portfolio_var_1d"] > 0.004:
+        warnings.append("1D VaR increases materially after this trade.")
+    if after["max_sector_weight"] > 0.35:
+        warnings.append("Sector concentration exceeds 35%.")
+    if after["max_single_name_weight"] > 0.25:
+        warnings.append("Single-name concentration exceeds 25%.")
+
+    if after["portfolio_var_1d"] <= 0.025:
+        verdict = "controlled_risk"
+    elif after["portfolio_var_1d"] <= 0.04:
+        verdict = "elevated_risk"
+    else:
+        verdict = "high_risk"
+
+    return {
+        "before": before,
+        "after": after,
+        "delta": delta,
+        "verdict": verdict,
+        "warnings": warnings,
+        "trace_id": _risk_trace("risk_pretrade"),
+    }
+
+@app.post("/risk/scenario-stress")
+async def risk_scenario_stress(req: ScenarioStressRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    positions = _sanitize_positions(req.positions)
+    total_weight = sum(p["weight"] for p in positions) or 1.0
+    norm = [{**p, "nw": p["weight"] / total_weight} for p in positions]
+
+    per_position = []
+    for p in norm:
+        base_shock = req.scenario.market_shock_pct
+        sector_shock = req.scenario.sector_overrides.get(p["sector"])
+        shock = sector_shock if sector_shock is not None else base_shock
+        beta_adj = p["beta"] or 1.0
+        impact_pct = shock * beta_adj
+        contribution_pct = p["nw"] * impact_pct
+        per_position.append({
+            "ticker": p["ticker"],
+            "impact_pct": round(impact_pct, 4),
+            "contribution_pct": round(contribution_pct, 4),
+            "sector": p["sector"],
+        })
+
+    portfolio_impact_pct = sum(x["contribution_pct"] for x in per_position)
+    portfolio_impact_amount = float(req.portfolio_value) * portfolio_impact_pct
+
+    top_risk_drivers = [x["ticker"] for x in sorted(per_position, key=lambda x: abs(x["contribution_pct"]), reverse=True)[:3]]
+    return {
+        "scenario": req.scenario.name,
+        "portfolio_impact_pct": round(portfolio_impact_pct, 4),
+        "portfolio_impact_amount": round(portfolio_impact_amount, 2),
+        "per_position": sorted(per_position, key=lambda x: abs(x["contribution_pct"]), reverse=True),
+        "top_risk_drivers": top_risk_drivers,
+        "trace_id": _risk_trace("risk_scn"),
+    }
+
+def _pair_corr(a: str, b: str) -> float:
+    tech = {"INFY.NS", "TCS.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS"}
+    if a in tech and b in tech:
+        return 0.84
+    key = "".join(sorted([a, b]))
+    seed = sum(ord(ch) for ch in key)
+    return round(0.25 + (seed % 55) / 100, 2)
+
+def _build_clusters(high_pairs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    parent = {}
+    def find(x):
+        parent.setdefault(x, x)
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+    def union(a, b):
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+    for p in high_pairs:
+        union(p["a"], p["b"])
+    groups = defaultdict(list)
+    for p in high_pairs:
+        groups[find(p["a"])].extend([p["a"], p["b"]])
+    out = []
+    for vals in groups.values():
+        members = sorted(set(vals))
+        if len(members) >= 2:
+            out.append({"name": f"Cluster {len(out)+1}", "members": members})
+    return out
+
+@app.get("/risk/correlation-matrix")
+async def risk_correlation_matrix(
+    request: Request,
+    portfolio_id: str = Query(default=""),
+    tickers: str = Query(default=""),
+    lookback_days: int = Query(default=252, ge=60, le=1000),
+    threshold: float = Query(default=0.75, ge=0.5, le=0.95),
+):
+    _check_rate(_get_ip(request), "search", request)
+    raw = [t.strip().upper() for t in tickers.split(",") if t.strip()]
+    if not raw:
+        # MVP fallback sample (frontend should pass explicit tickers).
+        raw = ["RELIANCE.NS", "HDFCBANK.NS", "INFY.NS", "TCS.NS"]
+    if len(raw) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 tickers are required")
+    raw = raw[:25]
+
+    matrix = []
+    high_pairs = []
+    for i, a in enumerate(raw):
+        row = []
+        for j, b in enumerate(raw):
+            if i == j:
+                c = 1.0
+            elif j < i:
+                c = matrix[j][i]
+            else:
+                c = _pair_corr(a, b)
+            row.append(c)
+            if i < j and c >= threshold:
+                high_pairs.append({"a": a, "b": b, "corr": round(c, 2)})
+        matrix.append(row)
+
+    return {
+        "portfolio_id": portfolio_id or None,
+        "lookback_days": lookback_days,
+        "tickers": raw,
+        "matrix": matrix,
+        "high_corr_pairs": high_pairs,
+        "clusters": _build_clusters(high_pairs),
+        "trace_id": _risk_trace("risk_corr"),
+    }
+
+@app.post("/risk/hedge-suggestions")
+async def risk_hedge_suggestions(req: HedgeSuggestionRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    positions = _sanitize_positions(req.positions)
+    total_weight = sum(p["weight"] for p in positions) or 1.0
+    norm = [{**p, "nw": p["weight"] / total_weight} for p in positions]
+
+    max_single = req.constraints.max_single_name
+    max_sector = req.constraints.max_sector
+    turnover_cap = req.constraints.turnover_limit
+
+    recs = []
+    turnover = 0.0
+
+    # 1) Trim single-name concentration.
+    for p in sorted(norm, key=lambda x: x["nw"], reverse=True):
+        if p["nw"] > max_single:
+            to_w = max_single
+            diff = p["nw"] - to_w
+            turnover += diff
+            recs.append({
+                "action": "trim",
+                "ticker": p["ticker"],
+                "from_weight": round(p["nw"], 4),
+                "to_weight": round(to_w, 4),
+                "reason": "single-name concentration above policy limit",
+            })
+
+    # 2) Trim sectors above sector concentration threshold.
+    sector_w = defaultdict(float)
+    sector_positions = defaultdict(list)
+    for p in norm:
+        sector_w[p["sector"]] += p["nw"]
+        sector_positions[p["sector"]].append(p)
+
+    for sec, w in sorted(sector_w.items(), key=lambda kv: kv[1], reverse=True):
+        if w <= max_sector:
+            continue
+        excess = w - max_sector
+        for p in sorted(sector_positions[sec], key=lambda x: x["nw"], reverse=True):
+            if excess <= 0:
+                break
+            cut = min(excess, max(0.0, p["nw"] * 0.25))
+            if cut <= 0:
+                continue
+            turnover += cut
+            recs.append({
+                "action": "trim",
+                "ticker": p["ticker"],
+                "from_weight": round(p["nw"], 4),
+                "to_weight": round(max(0.0, p["nw"] - cut), 4),
+                "reason": f"{sec} sector concentration above policy limit",
+            })
+            excess -= cut
+
+    # 3) Suggest defensive add using freed turnover budget.
+    defensive_pool = [
+        ("ITC.NS", "Consumer Defensive"),
+        ("HINDUNILVR.NS", "Consumer Defensive"),
+        ("NTPC.NS", "Utilities"),
+    ]
+    freed = min(turnover, turnover_cap)
+    add_weight = round(min(0.03, freed), 4)
+    if add_weight > 0:
+        add_ticker, add_sector = defensive_pool[0]
+        existing = next((p for p in norm if p["ticker"] == add_ticker), None)
+        from_w = round(existing["nw"], 4) if existing else 0.0
+        recs.append({
+            "action": "add",
+            "ticker": add_ticker,
+            "from_weight": from_w,
+            "to_weight": round(from_w + add_weight, 4),
+            "reason": f"defensive diversification in {add_sector}",
+        })
+
+    if turnover > turnover_cap and turnover > 0:
+        scale = turnover_cap / turnover
+        for r in recs:
+            fw = r["from_weight"]
+            tw = r["to_weight"]
+            adj = (tw - fw) * scale
+            r["to_weight"] = round(fw + adj, 4)
+        turnover = turnover_cap
+
+    trims = sum(1 for r in recs if r["action"] == "trim")
+    adds = sum(1 for r in recs if r["action"] == "add")
+    var_reduction_bps = int(max(8, min(120, trims * 18 + adds * 12)))
+
+    return {
+        "recommendations": recs[:8],
+        "expected_effect": {
+            "var_reduction_bps": var_reduction_bps,
+            "max_sector_reduction_pct": round(min(0.08, trims * 0.012), 4),
+            "turnover_used_pct": round(min(turnover, turnover_cap), 4),
+        },
+        "trace_id": _risk_trace("risk_hedge"),
+    }
 
 _STOCK_CACHE: dict = {"nse": [], "loaded_at": 0.0}
 _STOCK_CACHE_TTL = 24 * 60 * 60

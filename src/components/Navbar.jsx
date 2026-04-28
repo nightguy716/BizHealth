@@ -8,6 +8,7 @@ import { FinAxisMark } from './FinAxisLogo';
 const LINKS = [
   { to: '/',          label: 'Home'      },
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/risk-copilot', label: 'Risk Copilot' },
   { to: '/journal',   label: 'Journal'   },
   { to: '/watchlist', label: 'Watchlist' },
   { to: '/blog',      label: 'Blog'      },

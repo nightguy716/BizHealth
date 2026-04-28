@@ -14,7 +14,9 @@ import BlogPost  from './pages/BlogPost';
 import NewBlogPost from './pages/NewBlogPost';
 import Journal      from './pages/Journal';
 import Watchlist    from './pages/Watchlist';
+import RiskCopilot  from './pages/RiskCopilot';
 import DesignSystem from './DesignSystem';
+import PromoVideoStudio from './pages/PromoVideoStudio';
 import { getBackendBaseUrl } from './lib/backendUrl';
 
 function BackendWarmup() {
@@ -50,7 +52,9 @@ export default function App() {
           <Route path="/blog/:slug"  element={<BlogPost />}  />
           <Route path="/journal"     element={<Journal />}   />
           <Route path="/watchlist"   element={<Watchlist />} />
+          <Route path="/risk-copilot" element={<RiskCopilot />} />
           <Route path="/design"      element={<DesignSystem />} />
+          <Route path="/promo-video" element={<PromoVideoStudio />} />
           {/* Fallback — redirect unknown paths to landing */}
           <Route path="*"            element={<Landing />}   />
         </Routes>

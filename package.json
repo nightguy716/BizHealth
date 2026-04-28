@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@remotion/player": "^4.0.451",
     "@supabase/supabase-js": "^2.103.2",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
@@ -17,7 +18,8 @@
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-router-dom": "^7.14.1",
-    "recharts": "^3.8.1"
+    "recharts": "^3.8.1",
+    "remotion": "^4.0.451"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
