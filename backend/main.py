@@ -3008,6 +3008,18 @@ class HedgeSuggestionRequest(BaseModel):
     constraints: HedgeConstraints = HedgeConstraints()
     objective: Literal["minimize_var", "minimize_concentration"] = "minimize_var"
 
+class RiskAiExplainRequest(BaseModel):
+    portfolio_value: float = 1_000_000
+    positions: List[RiskPosition]
+    candidate_trade: CandidateTrade
+    scenario: ScenarioSpec
+    pretrade: Dict[str, Any] = {}
+    stress: Dict[str, Any] = {}
+    correlation: Dict[str, Any] = {}
+    hedges: Dict[str, Any] = {}
+    readiness: Dict[str, Any] = {}
+    audit_trail: List[Dict[str, Any]] = []
+
 def _risk_trace(prefix: str) -> str:
     return f"{prefix}_{int(time.time() * 1000) % 10_000_000:x}"
 
@@ -3329,6 +3341,107 @@ async def risk_hedge_suggestions(req: HedgeSuggestionRequest, request: Request):
         },
         "trace_id": _risk_trace("risk_hedge"),
     }
+
+@app.post("/risk/ai-explain")
+async def risk_ai_explain(req: RiskAiExplainRequest, request: Request):
+    _check_rate(_get_ip(request), "analyze", request)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+
+    cleaned_positions = _sanitize_positions(req.positions)
+    top_positions = sorted(cleaned_positions, key=lambda x: x["weight"], reverse=True)[:8]
+    trade_ticker = (req.candidate_trade.ticker or "").strip().upper()
+    scenario_name = (req.scenario.name or "").strip() or "scenario"
+    model = (os.environ.get("ANTHROPIC_RISK_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5")
+
+    compact_context = {
+        "portfolio_value": req.portfolio_value,
+        "positions_top": top_positions,
+        "candidate_trade": {
+            "ticker": trade_ticker,
+            "side": req.candidate_trade.side,
+            "mode": req.candidate_trade.mode,
+            "weight_delta": req.candidate_trade.weight_delta,
+            "target_weight": req.candidate_trade.target_weight,
+        },
+        "scenario": {
+            "name": scenario_name,
+            "market_shock_pct": req.scenario.market_shock_pct,
+            "rate_shock_bps": req.scenario.rate_shock_bps,
+        },
+        "pretrade": req.pretrade,
+        "stress": req.stress,
+        "correlation": {
+            "high_corr_pairs": (req.correlation or {}).get("high_corr_pairs", [])[:6],
+            "clusters": (req.correlation or {}).get("clusters", [])[:4],
+        },
+        "hedges": {
+            "recommendations": (req.hedges or {}).get("recommendations", [])[:6],
+            "expected_effect": (req.hedges or {}).get("expected_effect", {}),
+        },
+        "readiness": req.readiness,
+        "audit_tail": (req.audit_trail or [])[:8],
+    }
+
+    system = (
+        "You are Valoreva Risk Copilot Analyst, a clear institutional-style explainer. "
+        "Translate risk outputs into practical decision guidance for non-quant users. "
+        "Be precise, concise, and avoid hype. "
+        "Return ONLY valid JSON with keys: "
+        "summary, decision, confidence, key_drivers, plain_english, actions_now, watch_next. "
+        "Rules: summary <= 45 words, decision in {PASS,WATCH,BLOCK}, confidence integer 0-100, "
+        "key_drivers 3-5 bullets max 100 chars each, plain_english 3 short bullets, "
+        "actions_now 3 concrete actions, watch_next 3 metrics to monitor."
+    )
+    user_msg = (
+        "Explain this full risk check in user-friendly language and produce actionable guidance.\n\n"
+        f"{json.dumps(compact_context, ensure_ascii=False)}\n\n"
+        "Return only JSON."
+    )
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        msg = client.messages.create(
+            model=model,
+            max_tokens=900,
+            temperature=0.2,
+            system=system,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        raw = msg.content[0].text.strip()
+        cleaned = _clean_json_text(raw)
+        out = json.loads(cleaned)
+
+        decision = str(out.get("decision", "WATCH")).strip().upper()
+        if decision not in ("PASS", "WATCH", "BLOCK"):
+            decision = "WATCH"
+        confidence = out.get("confidence", 60)
+        try:
+            confidence = int(confidence)
+        except Exception:
+            confidence = 60
+        confidence = max(0, min(100, confidence))
+
+        return {
+            "summary": str(out.get("summary", "")).strip(),
+            "decision": decision,
+            "confidence": confidence,
+            "key_drivers": [str(x).strip() for x in (out.get("key_drivers") or []) if str(x).strip()][:5],
+            "plain_english": [str(x).strip() for x in (out.get("plain_english") or []) if str(x).strip()][:4],
+            "actions_now": [str(x).strip() for x in (out.get("actions_now") or []) if str(x).strip()][:4],
+            "watch_next": [str(x).strip() for x in (out.get("watch_next") or []) if str(x).strip()][:4],
+            "meta": {
+                "model": model,
+                "trace_id": _risk_trace("risk_ai"),
+            },
+        }
+    except json.JSONDecodeError as e:
+        raise HTTPException(status_code=500, detail=f"Claude returned invalid JSON: {e}")
+    except anthropic.APIError as e:
+        raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 _STOCK_CACHE: dict = {"nse": [], "loaded_at": 0.0}
 _STOCK_CACHE_TTL = 24 * 60 * 60

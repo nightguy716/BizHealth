@@ -146,6 +146,7 @@ export default function RiskCopilot() {
   const [portfolioValue, setPortfolioValue] = useState(1000000);
   const [auditTrail, setAuditTrail] = useState([]);
   const [icCopied, setIcCopied] = useState(false);
+  const [aiNarrative, setAiNarrative] = useState(null);
 
   const scenario = useMemo(() => SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0], [scenarioId]);
   const tickerCsv = useMemo(() => positions.map(p => p.ticker).join(','), [positions]);
@@ -738,6 +739,51 @@ export default function RiskCopilot() {
     await runAllForPositions(positions);
   }
 
+  async function runAiExplain() {
+    setError('');
+    setLoading('ai');
+    try {
+      const data = await post('/risk/ai-explain', {
+        portfolio_value: Number(portfolioValue || 0) || 1000000,
+        positions,
+        candidate_trade: {
+          ticker: trade.ticker,
+          side: trade.side,
+          mode: trade.mode,
+          weight_delta: Number(trade.weight_delta),
+          target_weight: null,
+          sector: tradeMeta?.sector || null,
+          beta: null,
+        },
+        scenario: {
+          name: scenario.id,
+          market_shock_pct: scenario.shock,
+          sector_overrides: {
+            Technology: scenario.shock * 1.25,
+            Financials: scenario.shock * 1.1,
+          },
+          rate_shock_bps: scenario.shock < 0 ? 100 : -50,
+        },
+        pretrade: preTrade || {},
+        stress: stress || {},
+        correlation: corr || {},
+        hedges: hedges || {},
+        readiness: {
+          verdict: readiness.verdict,
+          summary: readiness.summary,
+          reasons: readiness.reasons,
+        },
+        audit_trail: auditTrail.slice(0, 12),
+      });
+      setAiNarrative(data);
+      pushAudit('AI risk explanation', `Generated ${data?.decision || 'WATCH'} narrative`);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading('');
+    }
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingTop: '5rem', fontFamily: sans }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1.25rem 3rem' }}>
@@ -804,6 +850,88 @@ export default function RiskCopilot() {
                 </button>
               ))}
             </div>
+          )}
+        </div>
+
+        <div style={{ ...cardStyle, marginBottom: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 4 }}>AI RISK ANALYST (CLAUDE)</div>
+              <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+                Converts quant outputs into plain-language interpretation, key risks, and next best actions.
+              </div>
+            </div>
+            <button
+              onClick={runAiExplain}
+              disabled={loading === 'ai'}
+              style={{
+                background: '#a78bfa',
+                color: '#2e1065',
+                border: 'none',
+                borderRadius: 4,
+                padding: '8px 10px',
+                fontWeight: 700,
+                fontSize: 12,
+                cursor: loading === 'ai' ? 'not-allowed' : 'pointer',
+                opacity: loading === 'ai' ? 0.7 : 1,
+              }}
+            >
+              {loading === 'ai' ? 'Analyzing...' : 'Explain Full Risk Check'}
+            </button>
+          </div>
+          {!aiNarrative ? (
+            <div style={{ marginTop: 10, color: 'var(--text-4)', fontSize: 12 }}>
+              Run AI explanation after your risk checks to get a human-friendly interpretation.
+            </div>
+          ) : (
+            <>
+              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-2)' }}>
+                <b>Summary:</b> {aiNarrative.summary || '-'}
+              </div>
+              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
+                Decision: <b style={{ color: aiNarrative.decision === 'PASS' ? '#22c55e' : aiNarrative.decision === 'BLOCK' ? '#ef4444' : '#f59e0b' }}>{aiNarrative.decision}</b>
+                {' · '}
+                Confidence: <b style={{ color: 'var(--text-2)' }}>{Number(aiNarrative.confidence || 0)}%</b>
+                {aiNarrative?.meta?.model ? (
+                  <>
+                    {' · '}
+                    Model: <b style={{ color: 'var(--text-2)' }}>{aiNarrative.meta.model}</b>
+                  </>
+                ) : null}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                <div>
+                  <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>KEY DRIVERS</div>
+                  {(aiNarrative.key_drivers || []).length ? (
+                    (aiNarrative.key_drivers || []).map((item, idx) => (
+                      <div key={`driver-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                  )}
+                </div>
+                <div>
+                  <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>ACTIONS NOW</div>
+                  {(aiNarrative.actions_now || []).length ? (
+                    (aiNarrative.actions_now || []).map((item, idx) => (
+                      <div key={`act-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                  )}
+                </div>
+              </div>
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>PLAIN ENGLISH</div>
+                {(aiNarrative.plain_english || []).length ? (
+                  (aiNarrative.plain_english || []).map((item, idx) => (
+                    <div key={`plain-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                  ))
+                ) : (
+                  <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                )}
+              </div>
+            </>
           )}
         </div>
 
