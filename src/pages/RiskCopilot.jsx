@@ -26,6 +26,12 @@ const TRADE_OBJECTIVES = {
   moderate: 0.05,
   aggressive: 0.08,
 };
+const STRATEGY_PRESETS = {
+  scalp:      { maxRiskPct: 0.005, t1Pct: 0.6, t2Pct: 0.3, t1R: 0.8, t2R: 1.4, trailRunner: true, objective: 'conservative' },
+  intraday:   { maxRiskPct: 0.008, t1Pct: 0.5, t2Pct: 0.3, t1R: 1.0, t2R: 1.8, trailRunner: true, objective: 'moderate' },
+  swing:      { maxRiskPct: 0.012, t1Pct: 0.4, t2Pct: 0.35, t1R: 1.2, t2R: 2.4, trailRunner: true, objective: 'moderate' },
+  positional: { maxRiskPct: 0.015, t1Pct: 0.3, t2Pct: 0.35, t1R: 1.5, t2R: 3.0, trailRunner: true, objective: 'aggressive' },
+};
 
 const cardStyle = {
   background: 'var(--surface)',
@@ -147,6 +153,18 @@ export default function RiskCopilot() {
   const [auditTrail, setAuditTrail] = useState([]);
   const [icCopied, setIcCopied] = useState(false);
   const [aiNarrative, setAiNarrative] = useState(null);
+  const [tradePlan, setTradePlan] = useState({
+    entry: 0,
+    stop: 0,
+    target: 0,
+    maxRiskPct: 0.01,
+    t1Pct: 0.5,
+    t2Pct: 0.3,
+    t1R: 1.0,
+    t2R: 2.0,
+    trailRunner: true,
+  });
+  const [strategyPreset, setStrategyPreset] = useState('intraday');
 
   const scenario = useMemo(() => SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0], [scenarioId]);
   const tickerCsv = useMemo(() => positions.map(p => p.ticker).join(','), [positions]);
@@ -191,6 +209,57 @@ export default function RiskCopilot() {
     if (trade.side === 'sell') return Math.max(0, targetTickerWeight - effectiveTradeDelta);
     return targetTickerWeight + effectiveTradeDelta;
   }, [trade.side, targetTickerWeight, effectiveTradeDelta]);
+  const tradePlanMetrics = useMemo(() => {
+    const entry = Number(tradePlan.entry || 0);
+    const stop = Number(tradePlan.stop || 0);
+    const target = Number(tradePlan.target || 0);
+    const maxRiskPct = Math.max(0.001, Number(tradePlan.maxRiskPct || 0));
+    const t1Pct = Math.max(0, Number(tradePlan.t1Pct || 0));
+    const t2Pct = Math.max(0, Number(tradePlan.t2Pct || 0));
+    const allocUsed = t1Pct + t2Pct;
+    const runnerPct = Math.max(0, 1 - allocUsed);
+    const t1R = Math.max(0, Number(tradePlan.t1R || 0));
+    const t2R = Math.max(0, Number(tradePlan.t2R || 0));
+    const runnerR = tradePlan.trailRunner ? 2.5 : 1.5;
+    const riskPerUnit = Math.abs(entry - stop);
+    const rewardPerUnit = Math.abs(target - entry);
+    const rr = riskPerUnit > 0 ? rewardPerUnit / riskPerUnit : 0;
+    const riskBudget = Number(portfolioValue || 0) * maxRiskPct;
+    const qty = riskPerUnit > 0 ? Math.max(0, Math.floor(riskBudget / riskPerUnit)) : 0;
+    const notional = qty * entry;
+    const impliedWeight = Number(portfolioValue || 0) > 0 ? notional / Number(portfolioValue || 1) : 0;
+    const blendedR = (t1Pct * t1R) + (t2Pct * t2R) + (runnerPct * runnerR);
+    const expectedPlanPnl = riskBudget * blendedR;
+    const direction = trade.side === 'buy' ? 1 : -1;
+    const t1Price = entry + (direction * riskPerUnit * t1R);
+    const t2Price = entry + (direction * riskPerUnit * t2R);
+    const directionOk =
+      trade.side === 'buy'
+        ? entry > 0 && stop > 0 && target > entry && stop < entry
+        : entry > 0 && stop > 0 && target > 0 && target < entry && stop > entry;
+    return {
+      entry,
+      stop,
+      target,
+      maxRiskPct,
+      riskPerUnit,
+      rewardPerUnit,
+      rr,
+      riskBudget,
+      qty,
+      notional,
+      impliedWeight,
+      allocUsed,
+      runnerPct,
+      t1R,
+      t2R,
+      blendedR,
+      expectedPlanPnl,
+      t1Price,
+      t2Price,
+      directionOk,
+    };
+  }, [tradePlan, portfolioValue, trade.side]);
 
   function pushAudit(action, detail) {
     setAuditTrail((prev) => [
@@ -227,6 +296,22 @@ export default function RiskCopilot() {
       pushAudit(reason, `${prev} -> ${next}`);
       setScenarioId(nextScenarioId);
     }
+  }
+  function applyStrategyPreset(nextPreset) {
+    const preset = STRATEGY_PRESETS[nextPreset];
+    if (!preset) return;
+    setStrategyPreset(nextPreset);
+    setTradePlan((p) => ({
+      ...p,
+      maxRiskPct: preset.maxRiskPct,
+      t1Pct: preset.t1Pct,
+      t2Pct: preset.t2Pct,
+      t1R: preset.t1R,
+      t2R: preset.t2R,
+      trailRunner: preset.trailRunner,
+    }));
+    applyTradeObjective(preset.objective, 'Strategy preset objective');
+    pushAudit('Strategy preset applied', nextPreset.toUpperCase());
   }
   const readiness = useMemo(() => {
     const reasons = [];
@@ -1169,6 +1254,144 @@ export default function RiskCopilot() {
               Estimated order notional: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{estimatedNotional.toLocaleString()}</b>
               {' · '}
               Projected {normalizeTradeTicker(trade.ticker) || 'ticker'} weight: <b style={{ color: projectedTickerWeight > 0.2 ? '#ef4444' : '#22c55e' }}>{fmtPct(projectedTickerWeight).replace('+', '')}</b>
+            </div>
+            <div style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+              <div style={{ fontFamily: mono, color: 'var(--text-2)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>TRADER PLAN (ENTRY / STOP / TARGET)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={tradePlan.entry}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, entry: Number(e.target.value) }))}
+                  placeholder="Entry"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={tradePlan.stop}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, stop: Number(e.target.value) }))}
+                  placeholder="Stop"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={tradePlan.target}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, target: Number(e.target.value) }))}
+                  placeholder="Target"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                <input
+                  type="number"
+                  step="0.001"
+                  value={tradePlan.maxRiskPct}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, maxRiskPct: Number(e.target.value) }))}
+                  placeholder="Max risk %"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <button
+                  onClick={() => applyTradeDelta(Math.max(0.005, Math.min(0.25, tradePlanMetrics.impliedWeight || 0.01)), 'Applied delta from trade plan')}
+                  style={{ background: 'var(--gold)', color: '#111827', border: '1px solid rgba(200,157,31,0.3)', borderRadius: 4, padding: '6px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Apply implied weight
+                </button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+                <input
+                  type="number"
+                  step="0.05"
+                  value={tradePlan.t1Pct}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, t1Pct: Number(e.target.value) }))}
+                  placeholder="T1 %"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <input
+                  type="number"
+                  step="0.05"
+                  value={tradePlan.t1R}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, t1R: Number(e.target.value) }))}
+                  placeholder="T1 R"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <input
+                  type="number"
+                  step="0.05"
+                  value={tradePlan.t2Pct}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, t2Pct: Number(e.target.value) }))}
+                  placeholder="T2 %"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <input
+                  type="number"
+                  step="0.05"
+                  value={tradePlan.t2R}
+                  onChange={(e) => setTradePlan((p) => ({ ...p, t2R: Number(e.target.value) }))}
+                  placeholder="T2 R"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
+                />
+                <button
+                  onClick={() => setTradePlan((p) => ({ ...p, trailRunner: !p.trailRunner }))}
+                  style={{ background: tradePlan.trailRunner ? 'var(--gold)' : 'var(--surface)', color: tradePlan.trailRunner ? '#111827' : 'var(--text-2)', border: `1px solid ${tradePlan.trailRunner ? 'rgba(200,157,31,0.35)' : 'var(--border)'}`, borderRadius: 4, padding: '6px 8px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  {tradePlan.trailRunner ? 'Trail ON' : 'Trail OFF'}
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                {Object.keys(STRATEGY_PRESETS).map((k) => (
+                  <button
+                    key={k}
+                    onClick={() => applyStrategyPreset(k)}
+                    style={{
+                      background: strategyPreset === k ? 'var(--gold)' : 'var(--surface)',
+                      color: strategyPreset === k ? '#111827' : 'var(--text-2)',
+                      border: `1px solid ${strategyPreset === k ? 'rgba(200,157,31,0.35)' : 'var(--border)'}`,
+                      borderRadius: 999,
+                      padding: '4px 9px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {k}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5 }}>
+                Risk budget: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{tradePlanMetrics.riskBudget.toLocaleString()}</b>
+                {' · '}
+                Qty: <b style={{ color: 'var(--text-2)' }}>{tradePlanMetrics.qty.toLocaleString()}</b>
+                {' · '}
+                Notional: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{tradePlanMetrics.notional.toLocaleString()}</b>
+                {' · '}
+                R:R: <b style={{ color: tradePlanMetrics.rr >= 2 ? '#22c55e' : '#f59e0b' }}>{tradePlanMetrics.rr ? tradePlanMetrics.rr.toFixed(2) : '-'}</b>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5 }}>
+                T1 @{tradePlanMetrics.t1R.toFixed(2)}R: <b style={{ color: 'var(--text-2)' }}>{tradePlanMetrics.t1Price > 0 ? tradePlanMetrics.t1Price.toFixed(2) : '-'}</b>
+                {' · '}
+                T2 @{tradePlanMetrics.t2R.toFixed(2)}R: <b style={{ color: 'var(--text-2)' }}>{tradePlanMetrics.t2Price > 0 ? tradePlanMetrics.t2Price.toFixed(2) : '-'}</b>
+                {' · '}
+                Runner: <b style={{ color: 'var(--text-2)' }}>{(tradePlanMetrics.runnerPct * 100).toFixed(0)}%</b>
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-4)', lineHeight: 1.5 }}>
+                Blended R estimate: <b style={{ color: tradePlanMetrics.blendedR >= 2 ? '#22c55e' : '#f59e0b' }}>{tradePlanMetrics.blendedR.toFixed(2)}R</b>
+                {' · '}
+                Expected plan P&L: <b style={{ color: tradePlanMetrics.expectedPlanPnl >= 0 ? '#22c55e' : '#ef4444' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{tradePlanMetrics.expectedPlanPnl.toLocaleString()}</b>
+              </div>
+              {tradePlanMetrics.allocUsed > 1 && (
+                <div style={{ marginTop: 4, fontSize: 11, color: '#ef4444' }}>
+                  T1% + T2% exceeds 100%. Reduce allocations.
+                </div>
+              )}
+              <div style={{ marginTop: 4, fontSize: 11, color: tradePlanMetrics.directionOk ? '#22c55e' : '#ef4444' }}>
+                {tradePlanMetrics.directionOk
+                  ? 'Plan structure looks valid for selected side.'
+                  : 'Check plan structure: for BUY use stop < entry < target; for SELL use target < entry < stop.'}
+              </div>
             </div>
 
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginTop: 10, marginBottom: 6 }}>SCENARIO</div>
