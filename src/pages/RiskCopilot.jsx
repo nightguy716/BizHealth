@@ -39,6 +39,10 @@ const cardStyle = {
   borderRadius: 6,
   padding: 14,
 };
+const textXs = 12;
+const textSm = 13;
+const textMd = 14;
+const sectionTitle = 13;
 
 async function post(path, body) {
   const res = await fetch(`${API}${path}`, {
@@ -165,6 +169,20 @@ export default function RiskCopilot() {
     trailRunner: true,
   });
   const [strategyPreset, setStrategyPreset] = useState('intraday');
+  const [manualInputs, setManualInputs] = useState({
+    capital: 1000000,
+    riskPct: 1,
+    entry: 0,
+    stop: 0,
+    target: 0,
+    slippageBps: 8,
+    feeBps: 4,
+    winRatePct: 52,
+    avgWinR: 1.8,
+    avgLossR: 1.0,
+    plannedTrades: 20,
+  });
+  const [manualScenarioShock, setManualScenarioShock] = useState(-0.06);
 
   const scenario = useMemo(() => SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0], [scenarioId]);
   const tickerCsv = useMemo(() => positions.map(p => p.ticker).join(','), [positions]);
@@ -180,6 +198,24 @@ export default function RiskCopilot() {
     () => calcSnapshotMetrics(targetSnapshot?.positions, scenario.shock),
     [targetSnapshot, scenario.shock],
   );
+  const compareSummary = useMemo(() => {
+    const baselineRiskScore =
+      (baseMetrics.maxWeight * 100) +
+      (Math.abs(baseMetrics.weightedBeta - 1) * 20) +
+      (Math.abs(baseMetrics.scenarioImpact) * 140);
+    const candidateRiskScore =
+      (targetMetrics.maxWeight * 100) +
+      (Math.abs(targetMetrics.weightedBeta - 1) * 20) +
+      (Math.abs(targetMetrics.scenarioImpact) * 140);
+    const delta = candidateRiskScore - baselineRiskScore;
+    if (Math.abs(delta) < 0.75) {
+      return { label: 'Neutral risk shift', tone: 'var(--text-3)', detail: 'Candidate risk is broadly similar to baseline.' };
+    }
+    if (delta < 0) {
+      return { label: 'Improved risk profile', tone: '#22c55e', detail: 'Candidate looks safer on concentration, beta and scenario shock.' };
+    }
+    return { label: 'Higher risk profile', tone: '#ef4444', detail: 'Candidate adds risk versus baseline; validate position size before promotion.' };
+  }, [baseMetrics, targetMetrics]);
   const tradeCurrency = useMemo(() => {
     if (tradeMeta?.currency) return tradeMeta.currency;
     const t = normalizeTradeTicker(trade.ticker);
@@ -260,6 +296,78 @@ export default function RiskCopilot() {
       directionOk,
     };
   }, [tradePlan, portfolioValue, trade.side]);
+  const manualToolkitMetrics = useMemo(() => {
+    const capital = Math.max(0, Number(manualInputs.capital || portfolioValue || 0));
+    const riskPct = Math.min(0.1, Math.max(0.001, Number(manualInputs.riskPct || 0) / 100));
+    const entry = Number(manualInputs.entry || 0);
+    const stop = Number(manualInputs.stop || 0);
+    const target = Number(manualInputs.target || 0);
+    const slippageBps = Math.max(0, Number(manualInputs.slippageBps || 0));
+    const feeBps = Math.max(0, Number(manualInputs.feeBps || 0));
+    const roundTripCostPerUnit = entry > 0 ? entry * ((slippageBps + feeBps) / 10000) : 0;
+    const riskPerUnitGross = Math.abs(entry - stop);
+    const rewardPerUnitGross = Math.abs(target - entry);
+    const riskPerUnitNet = riskPerUnitGross + roundTripCostPerUnit;
+    const rewardPerUnitNet = Math.max(0, rewardPerUnitGross - roundTripCostPerUnit);
+    const rrNet = riskPerUnitNet > 0 ? rewardPerUnitNet / riskPerUnitNet : 0;
+    const riskBudget = capital * riskPct;
+    const qty = riskPerUnitNet > 0 ? Math.max(0, Math.floor(riskBudget / riskPerUnitNet)) : 0;
+    const positionValue = qty * Math.max(entry, 0);
+    const suggestedWeight = capital > 0 ? positionValue / capital : 0;
+    const winRate = Math.min(1, Math.max(0, Number(manualInputs.winRatePct || 0) / 100));
+    const avgWinR = Math.max(0, Number(manualInputs.avgWinR || 0));
+    const avgLossR = Math.max(0.1, Number(manualInputs.avgLossR || 0));
+    const expectancyR = (winRate * avgWinR) - ((1 - winRate) * avgLossR);
+    const breakevenWinRate = (avgWinR + avgLossR) > 0 ? (avgLossR / (avgWinR + avgLossR)) : 0;
+    const plannedTrades = Math.max(1, Math.floor(Number(manualInputs.plannedTrades || 1)));
+    const expectedTotalR = expectancyR * plannedTrades;
+    const expectedPnl = expectedTotalR * riskBudget;
+    return {
+      capital,
+      riskPct,
+      entry,
+      stop,
+      target,
+      slippageBps,
+      feeBps,
+      roundTripCostPerUnit,
+      riskPerUnitNet,
+      rewardPerUnitNet,
+      rrNet,
+      riskBudget,
+      qty,
+      positionValue,
+      suggestedWeight,
+      winRate,
+      avgWinR,
+      avgLossR,
+      expectancyR,
+      breakevenWinRate,
+      plannedTrades,
+      expectedTotalR,
+      expectedPnl,
+    };
+  }, [manualInputs, portfolioValue]);
+  const manualScenarioSummary = useMemo(() => {
+    const shock = Number(manualScenarioShock || 0);
+    const rows = cleanPositions(positions).map((row) => {
+      const sec = String(row.sector || '').toLowerCase();
+      const mult = sec.includes('technology') ? 1.25 : sec.includes('financial') ? 1.1 : 1.0;
+      const impactPct = row.weight * shock * mult;
+      const contributionPct = row.weight ? impactPct / row.weight : 0;
+      return {
+        ticker: row.ticker,
+        sector: row.sector,
+        impactPct,
+        contributionPct,
+      };
+    });
+    const totalImpact = rows.reduce((sum, r) => sum + r.impactPct, 0);
+    const topContributors = rows
+      .sort((a, b) => Math.abs(b.impactPct) - Math.abs(a.impactPct))
+      .slice(0, 5);
+    return { totalImpact, topContributors };
+  }, [positions, manualScenarioShock]);
 
   function pushAudit(action, detail) {
     setAuditTrail((prev) => [
@@ -873,13 +981,13 @@ export default function RiskCopilot() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingTop: '5rem', fontFamily: sans }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1.25rem 3rem' }}>
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontFamily: mono, fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-4)' }}>PORTFOLIO</div>
-          <h1 style={{ margin: '4px 0', color: 'var(--text-1)', fontSize: 28 }}>Risk Copilot (MVP)</h1>
-          <p style={{ margin: 0, color: 'var(--text-4)', fontSize: 13 }}>
+          <div style={{ fontFamily: mono, fontSize: textXs, letterSpacing: '0.1em', color: 'var(--text-4)', fontWeight: 700 }}>PORTFOLIO</div>
+          <h1 style={{ margin: '4px 0', color: 'var(--text-1)', fontSize: 30, fontWeight: 800, lineHeight: 1.2 }}>Risk Copilot (MVP)</h1>
+          <p style={{ margin: 0, color: 'var(--text-3)', fontSize: textMd, lineHeight: 1.55 }}>
             Simulate pre-trade impact, stress scenarios, correlation concentration, and hedge suggestions before execution.
           </p>
           {isAuthenticated ? (
-            <p style={{ marginTop: 8, color: 'var(--text-4)', fontSize: 12 }}>
+            <p style={{ marginTop: 8, color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.5 }}>
               {watchlistLoaded
                 ? watchlistCount > 0
                   ? `Auto-loaded ${Math.min(watchlistCount, 8)} holdings from your watchlist (equal-weighted).`
@@ -887,7 +995,7 @@ export default function RiskCopilot() {
                 : 'Loading your watchlist holdings...'}
             </p>
           ) : (
-            <p style={{ marginTop: 8, color: 'var(--text-4)', fontSize: 12 }}>
+            <p style={{ marginTop: 8, color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.5 }}>
               Sign in to auto-load watchlist holdings; currently showing demo positions.
             </p>
           )}
@@ -902,15 +1010,15 @@ export default function RiskCopilot() {
         <div style={{ ...cardStyle, marginBottom: 12, borderColor: readiness.tone }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <div>
-              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 4 }}>RISK READINESS</div>
-              <div style={{ color: 'var(--text-2)', fontSize: 12 }}>{readiness.summary}</div>
+              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, marginBottom: 4, fontWeight: 700 }}>RISK READINESS</div>
+              <div style={{ color: 'var(--text-2)', fontSize: textSm, lineHeight: 1.5 }}>{readiness.summary}</div>
             </div>
             <div style={{ fontFamily: mono, fontWeight: 800, color: readiness.tone, fontSize: 20, letterSpacing: '0.08em' }}>
               {readiness.verdict}
             </div>
           </div>
           {readiness.reasons.length > 0 && (
-            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
+            <div style={{ marginTop: 8, fontSize: textSm, color: 'var(--text-3)', lineHeight: 1.5 }}>
               {readiness.reasons.slice(0, 3).join(' ')}
             </div>
           )}
@@ -1059,9 +1167,9 @@ export default function RiskCopilot() {
         </div>
 
         <div style={{ ...cardStyle, marginBottom: 12 }}>
-          <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 8 }}>SNAPSHOT COMPARE</div>
+          <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, marginBottom: 8, fontWeight: 700 }}>SNAPSHOT COMPARISON</div>
           {snapshots.length < 2 ? (
-            <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+            <div style={{ color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.5 }}>
               Save at least 2 snapshots to compare concentration, beta, and scenario impact.
             </div>
           ) : (
@@ -1091,7 +1199,7 @@ export default function RiskCopilot() {
                 </select>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
-                <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+                <div style={{ color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.5 }}>
                   Promote candidate to active portfolio and refresh all risk modules instantly.
                 </div>
                 <button
@@ -1112,11 +1220,15 @@ export default function RiskCopilot() {
                   {loading === 'refresh' ? 'Refreshing...' : 'Promote Candidate & Re-run'}
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr .9fr .9fr .9fr', gap: 8, fontSize: 12 }}>
-                <div style={{ color: 'var(--text-4)' }}>Metric</div>
-                <div style={{ color: 'var(--text-4)' }}>Baseline</div>
-                <div style={{ color: 'var(--text-4)' }}>Candidate</div>
-                <div style={{ color: 'var(--text-4)' }}>Delta</div>
+              <div style={{ marginBottom: 10, padding: '9px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface-hi)' }}>
+                <span style={{ color: compareSummary.tone, fontWeight: 800, fontSize: textSm }}>{compareSummary.label}</span>
+                <span style={{ color: 'var(--text-3)', marginLeft: 8, fontSize: textSm }}>{compareSummary.detail}</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr .9fr .9fr .9fr', gap: 8, fontSize: textSm }}>
+                <div style={{ color: 'var(--text-4)', fontWeight: 700 }}>Metric</div>
+                <div style={{ color: 'var(--text-4)', fontWeight: 700 }}>Baseline</div>
+                <div style={{ color: 'var(--text-4)', fontWeight: 700 }}>Candidate</div>
+                <div style={{ color: 'var(--text-4)', fontWeight: 700 }}>Delta</div>
 
                 <div style={{ color: 'var(--text-3)' }}>Single-name concentration</div>
                 <div style={{ color: 'var(--text-2)' }}>{fmtPct(baseMetrics.maxWeight)}</div>
@@ -1409,6 +1521,96 @@ export default function RiskCopilot() {
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
+          <div style={{ ...cardStyle, gridColumn: '1 / -1' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, fontWeight: 700 }}>MANUAL TRADER TOOLKIT</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  onClick={() => setManualInputs((prev) => ({
+                    ...prev,
+                    capital: Number(portfolioValue || 0),
+                    entry: Number(tradePlan.entry || tradePrice?.price || 0),
+                    stop: Number(tradePlan.stop || 0),
+                    target: Number(tradePlan.target || 0),
+                  }))}
+                  style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '6px 9px', fontSize: textXs, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Import from trade plan
+                </button>
+                <button
+                  onClick={() => applyTradeDelta(Math.max(0.005, Math.min(0.25, manualToolkitMetrics.suggestedWeight || 0.01)), 'Applied manual toolkit sizing')}
+                  style={{ background: 'var(--gold)', color: '#111827', border: '1px solid rgba(200,157,31,0.3)', borderRadius: 4, padding: '6px 9px', fontSize: textXs, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Use toolkit weight
+                </button>
+              </div>
+            </div>
+            <div style={{ color: 'var(--text-3)', fontSize: textSm, marginBottom: 10, lineHeight: 1.5 }}>
+              Hands-on calculators for position sizing, slippage-adjusted R:R, expectancy, and custom portfolio shock testing.
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+              <input type="number" step="1000" value={manualInputs.capital} onChange={(e) => setManualInputs((p) => ({ ...p, capital: Number(e.target.value) }))} placeholder="Capital" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.1" value={manualInputs.riskPct} onChange={(e) => setManualInputs((p) => ({ ...p, riskPct: Number(e.target.value) }))} placeholder="Risk %/trade" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.01" value={manualInputs.entry} onChange={(e) => setManualInputs((p) => ({ ...p, entry: Number(e.target.value) }))} placeholder="Entry" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.01" value={manualInputs.stop} onChange={(e) => setManualInputs((p) => ({ ...p, stop: Number(e.target.value) }))} placeholder="Stop" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.01" value={manualInputs.target} onChange={(e) => setManualInputs((p) => ({ ...p, target: Number(e.target.value) }))} placeholder="Target" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+              <input type="number" step="1" value={manualInputs.slippageBps} onChange={(e) => setManualInputs((p) => ({ ...p, slippageBps: Number(e.target.value) }))} placeholder="Slippage bps" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="1" value={manualInputs.feeBps} onChange={(e) => setManualInputs((p) => ({ ...p, feeBps: Number(e.target.value) }))} placeholder="Fee bps" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="1" value={manualInputs.winRatePct} onChange={(e) => setManualInputs((p) => ({ ...p, winRatePct: Number(e.target.value) }))} placeholder="Win rate %" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.1" value={manualInputs.avgWinR} onChange={(e) => setManualInputs((p) => ({ ...p, avgWinR: Number(e.target.value) }))} placeholder="Avg win R" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="0.1" value={manualInputs.avgLossR} onChange={(e) => setManualInputs((p) => ({ ...p, avgLossR: Number(e.target.value) }))} placeholder="Avg loss R" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+              <input type="number" step="1" value={manualInputs.plannedTrades} onChange={(e) => setManualInputs((p) => ({ ...p, plannedTrades: Number(e.target.value) }))} placeholder="Planned trades" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
+            </div>
+            <div style={{ color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.55 }}>
+              Risk budget: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{manualToolkitMetrics.riskBudget.toLocaleString()}</b>
+              {' · '}
+              Max qty: <b style={{ color: 'var(--text-2)' }}>{manualToolkitMetrics.qty.toLocaleString()}</b>
+              {' · '}
+              Position value: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{manualToolkitMetrics.positionValue.toLocaleString()}</b>
+              {' · '}
+              Suggested weight: <b style={{ color: manualToolkitMetrics.suggestedWeight > 0.2 ? '#ef4444' : '#22c55e' }}>{fmtPct(manualToolkitMetrics.suggestedWeight).replace('+', '')}</b>
+            </div>
+            <div style={{ marginTop: 4, color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.55 }}>
+              Net R:R (after cost): <b style={{ color: manualToolkitMetrics.rrNet >= 2 ? '#22c55e' : '#f59e0b' }}>{manualToolkitMetrics.rrNet ? manualToolkitMetrics.rrNet.toFixed(2) : '-'}</b>
+              {' · '}
+              Breakeven win rate: <b style={{ color: 'var(--text-2)' }}>{(manualToolkitMetrics.breakevenWinRate * 100).toFixed(1)}%</b>
+              {' · '}
+              Expectancy: <b style={{ color: manualToolkitMetrics.expectancyR >= 0 ? '#22c55e' : '#ef4444' }}>{manualToolkitMetrics.expectancyR.toFixed(2)}R</b>
+              {' · '}
+              {manualToolkitMetrics.plannedTrades} trades P&L: <b style={{ color: manualToolkitMetrics.expectedPnl >= 0 ? '#22c55e' : '#ef4444' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{manualToolkitMetrics.expectedPnl.toLocaleString()}</b>
+            </div>
+
+            <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: textXs, fontWeight: 700, marginBottom: 6 }}>CUSTOM SCENARIO SANDBOX</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 5fr auto', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                <div style={{ color: 'var(--text-4)', fontSize: textXs }}>Market shock</div>
+                <input
+                  type="range"
+                  min="-0.2"
+                  max="0.2"
+                  step="0.01"
+                  value={manualScenarioShock}
+                  onChange={(e) => setManualScenarioShock(Number(e.target.value))}
+                />
+                <div style={{ color: manualScenarioShock < 0 ? '#ef4444' : '#22c55e', fontSize: textSm, fontWeight: 700 }}>{fmtPct(manualScenarioShock)}</div>
+              </div>
+              <div style={{ color: 'var(--text-3)', fontSize: textSm, marginBottom: 8 }}>
+                Estimated portfolio impact: <b style={{ color: manualScenarioSummary.totalImpact < 0 ? '#ef4444' : '#22c55e' }}>{fmtPct(manualScenarioSummary.totalImpact)}</b>
+              </div>
+              <div style={{ display: 'grid', gap: 5 }}>
+                {manualScenarioSummary.topContributors.map((r) => (
+                  <div key={`manual-sandbox-${r.ticker}`} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr .8fr', gap: 8, fontSize: textXs }}>
+                    <div style={{ color: 'var(--text-2)' }}>{r.ticker}</div>
+                    <div style={{ color: 'var(--text-4)' }}>{r.sector}</div>
+                    <div style={{ color: r.impactPct < 0 ? '#ef4444' : '#22c55e', textAlign: 'right' }}>{fmtPct(r.impactPct)}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
           <div style={cardStyle}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 10 }}>PRE-TRADE IMPACT</div>
             {!preTrade ? <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Run pre-trade simulation to view before/after risk metrics.</div> : (
