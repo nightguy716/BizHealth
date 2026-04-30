@@ -113,6 +113,14 @@ function tradeSymbolCandidates(ticker) {
   return [`${base}.NS`, `${base}.BO`, base];
 }
 
+function formatAuditTime(iso) {
+  try {
+    return new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '--:--';
+  }
+}
+
 export default function RiskCopilot() {
   const { user, isAuthenticated, loading: authLoading, getWatchlist } = useAuth();
   const [positions, setPositions] = useState(BASE_POSITIONS);
@@ -135,6 +143,9 @@ export default function RiskCopilot() {
   const [tradePrice, setTradePrice] = useState(null);
   const [loadingTradePrice, setLoadingTradePrice] = useState(false);
   const [tradeObjective, setTradeObjective] = useState('moderate');
+  const [portfolioValue, setPortfolioValue] = useState(1000000);
+  const [auditTrail, setAuditTrail] = useState([]);
+  const [icCopied, setIcCopied] = useState(false);
 
   const scenario = useMemo(() => SCENARIOS.find(s => s.id === scenarioId) || SCENARIOS[0], [scenarioId]);
   const tickerCsv = useMemo(() => positions.map(p => p.ticker).join(','), [positions]);
@@ -161,6 +172,236 @@ export default function RiskCopilot() {
     const adjustment = move >= 4 ? -0.01 : move >= 2 ? -0.005 : 0;
     return Math.max(0.01, Number((base + adjustment).toFixed(3)));
   }, [tradeObjective, tradePrice?.changePct]);
+  const effectiveTradeDelta = useMemo(
+    () => Math.max(0, Number(trade.weight_delta || 0)),
+    [trade.weight_delta],
+  );
+  const estimatedNotional = useMemo(
+    () => Number(portfolioValue || 0) * effectiveTradeDelta,
+    [portfolioValue, effectiveTradeDelta],
+  );
+  const targetTickerWeight = useMemo(() => {
+    const t = normalizeTradeTicker(trade.ticker);
+    if (!t) return 0;
+    const hit = positions.find((p) => normalizeTradeTicker(p.ticker) === t);
+    return Number(hit?.weight || 0);
+  }, [positions, trade.ticker]);
+  const projectedTickerWeight = useMemo(() => {
+    if (trade.side === 'sell') return Math.max(0, targetTickerWeight - effectiveTradeDelta);
+    return targetTickerWeight + effectiveTradeDelta;
+  }, [trade.side, targetTickerWeight, effectiveTradeDelta]);
+
+  function pushAudit(action, detail) {
+    setAuditTrail((prev) => [
+      {
+        id: `audit_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+        at: new Date().toISOString(),
+        action,
+        detail,
+      },
+      ...prev,
+    ].slice(0, 24));
+  }
+
+  function applyTradeDelta(nextDelta, reason = 'Delta updated') {
+    const prev = Math.max(0, Number(trade.weight_delta || 0));
+    const next = Math.max(0, Number(nextDelta || 0));
+    if (Math.abs(prev - next) > 0.0001) {
+      pushAudit(reason, `${fmtPct(prev).replace('+', '')} -> ${fmtPct(next).replace('+', '')}`);
+    }
+    setTrade((t) => ({ ...t, weight_delta: next }));
+  }
+
+  function applyTradeObjective(nextObjective, reason = 'Trade objective updated') {
+    if (nextObjective !== tradeObjective) {
+      pushAudit(reason, `${tradeObjective} -> ${nextObjective}`);
+      setTradeObjective(nextObjective);
+    }
+  }
+
+  function applyScenario(nextScenarioId, reason = 'Scenario updated') {
+    if (nextScenarioId !== scenarioId) {
+      const prev = SCENARIOS.find((s) => s.id === scenarioId)?.label || scenarioId;
+      const next = SCENARIOS.find((s) => s.id === nextScenarioId)?.label || nextScenarioId;
+      pushAudit(reason, `${prev} -> ${next}`);
+      setScenarioId(nextScenarioId);
+    }
+  }
+  const readiness = useMemo(() => {
+    const reasons = [];
+    const corrPairs = Array.isArray(corr?.high_corr_pairs) ? corr.high_corr_pairs.length : 0;
+    const scenarioImpact = Number(stress?.portfolio_impact_pct || 0);
+    const postVar = Number(preTrade?.after?.portfolio_var_1d || 0);
+
+    if (projectedTickerWeight > 0.3) reasons.push('Single-name projected weight above 30%.');
+    if (postVar > 0.04) reasons.push('Post-trade 1D VaR indicates high risk (>4%).');
+    if (scenarioImpact < -0.1) reasons.push('Scenario stress shows drawdown worse than -10%.');
+    if (corrPairs >= 3) reasons.push(`Correlation scan found ${corrPairs} high-correlation pair(s).`);
+
+    let verdict = 'PASS';
+    let tone = '#22c55e';
+    if (reasons.length >= 3) {
+      verdict = 'BLOCK';
+      tone = '#ef4444';
+    } else if (reasons.length >= 1) {
+      verdict = 'WATCH';
+      tone = '#f59e0b';
+    }
+
+    return {
+      verdict,
+      tone,
+      reasons,
+      summary:
+        verdict === 'PASS'
+          ? 'Risk profile is within current policy guardrails.'
+          : verdict === 'WATCH'
+            ? 'Proceed with caution; one or more risk flags need review.'
+            : 'Execution should be blocked until risk flags are resolved.',
+    };
+  }, [corr?.high_corr_pairs, stress?.portfolio_impact_pct, preTrade?.after?.portfolio_var_1d, projectedTickerWeight]);
+  const fixActions = useMemo(() => {
+    const actions = [];
+    const corrPairs = Array.isArray(corr?.high_corr_pairs) ? corr.high_corr_pairs.length : 0;
+    const scenarioImpact = Number(stress?.portfolio_impact_pct || 0);
+    const postVar = Number(preTrade?.after?.portfolio_var_1d || 0);
+    const trimDelta = Math.max(0.01, Number((effectiveTradeDelta * 0.7).toFixed(3)));
+
+    if (projectedTickerWeight > 0.3) {
+      actions.push({
+        id: 'reduce_delta_concentration',
+        label: `Reduce trade delta to ${fmtPct(trimDelta).replace('+', '')}`,
+        kind: 'primary',
+        apply: () => applyTradeDelta(trimDelta, 'Concentration fix: delta reduced'),
+      });
+    }
+    if (postVar > 0.04) {
+      actions.push({
+        id: 'switch_conservative',
+        label: 'Switch to Conservative sizing',
+        kind: 'primary',
+        apply: () => applyTradeObjective('conservative', 'VaR fix: switched objective'),
+      });
+    }
+    if (scenarioImpact < -0.1) {
+      actions.push({
+        id: 'lower_shock',
+        label: 'Try milder scenario (Nifty -8%)',
+        kind: 'secondary',
+        apply: () => applyScenario('nifty_down_8', 'Stress fix: scenario adjusted'),
+      });
+    }
+    if (corrPairs >= 3) {
+      actions.push({
+        id: 'correlation_scan',
+        label: 'Review high-correlation pairs',
+        kind: 'secondary',
+        apply: async () => {
+          pushAudit('Correlation review', 'Triggered hotspot rescan');
+          await runCorrelation();
+        },
+      });
+    }
+    if (actions.length === 0) {
+      actions.push({
+        id: 'full_check',
+        label: 'Run full risk check',
+        kind: 'secondary',
+        apply: async () => {
+          pushAudit('Full risk check', 'Triggered full module refresh');
+          await runFullRiskCheck();
+        },
+      });
+    }
+    return actions.slice(0, 3);
+  }, [
+    corr?.high_corr_pairs,
+    stress?.portfolio_impact_pct,
+    preTrade?.after?.portfolio_var_1d,
+    projectedTickerWeight,
+    effectiveTradeDelta,
+  ]);
+  const icNoteText = useMemo(() => {
+    const ts = new Date().toLocaleString('en-IN');
+    const topPairs = (corr?.high_corr_pairs || []).slice(0, 3).map((p) => `${p.a}-${p.b} (${p.corr})`);
+    const topHedges = (hedges?.recommendations || []).slice(0, 3).map((h) => `${h.action.toUpperCase()} ${h.ticker}: ${h.from_weight} -> ${h.to_weight}`);
+    const recentAudit = auditTrail.slice(0, 6).map((a) => `${formatAuditTime(a.at)} | ${a.action} | ${a.detail}`);
+    const lines = [
+      `Valoreva IC Risk Note`,
+      `Generated: ${ts}`,
+      ``,
+      `Trade Candidate`,
+      `- Ticker: ${normalizeTradeTicker(trade.ticker) || '-'}`,
+      `- Side: ${trade.side.toUpperCase()}`,
+      `- Delta: ${fmtPct(effectiveTradeDelta).replace('+', '')}`,
+      `- Portfolio Value: ${tradeCurrency === 'INR' ? 'INR' : 'USD'} ${Number(portfolioValue || 0).toLocaleString()}`,
+      `- Estimated Notional: ${tradeCurrency === 'INR' ? 'INR' : 'USD'} ${estimatedNotional.toLocaleString()}`,
+      ``,
+      `Risk Decision`,
+      `- Readiness: ${readiness.verdict}`,
+      `- Commentary: ${readiness.summary}`,
+      ...(readiness.reasons.length ? readiness.reasons.map((r) => `- Flag: ${r}`) : ['- Flags: None']),
+      ``,
+      `Key Metrics`,
+      `- Post-Trade VaR (1D): ${fmtPct(preTrade?.after?.portfolio_var_1d)}`,
+      `- Scenario Impact (${scenario.label}): ${fmtPct(stress?.portfolio_impact_pct)}`,
+      `- Correlation Hotspots: ${(corr?.high_corr_pairs || []).length}`,
+      `- Expected Hedge Effect (VaR bps): ${hedges?.expected_effect?.var_reduction_bps || 0}`,
+      ``,
+      `Top Correlation Pairs`,
+      ...(topPairs.length ? topPairs.map((p) => `- ${p}`) : ['- None']),
+      ``,
+      `Top Hedge Recommendations`,
+      ...(topHedges.length ? topHedges.map((h) => `- ${h}`) : ['- None']),
+      ``,
+      `Recent Audit Events`,
+      ...(recentAudit.length ? recentAudit.map((e) => `- ${e}`) : ['- No logged actions']),
+    ];
+    return lines.join('\n');
+  }, [
+    trade.ticker,
+    trade.side,
+    effectiveTradeDelta,
+    tradeCurrency,
+    portfolioValue,
+    estimatedNotional,
+    readiness.verdict,
+    readiness.summary,
+    readiness.reasons,
+    preTrade?.after?.portfolio_var_1d,
+    stress?.portfolio_impact_pct,
+    scenario.label,
+    corr?.high_corr_pairs,
+    hedges?.expected_effect?.var_reduction_bps,
+    hedges?.recommendations,
+    auditTrail,
+  ]);
+
+  async function copyIcNote() {
+    try {
+      await navigator.clipboard.writeText(icNoteText);
+      setIcCopied(true);
+      setTimeout(() => setIcCopied(false), 1500);
+    } catch {
+      // ignore clipboard failures
+    }
+  }
+
+  function downloadIcNote() {
+    try {
+      const blob = new Blob([icNoteText], { type: 'text/plain;charset=utf-8' });
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `valoreva-ic-note-${Date.now()}.txt`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+    } catch {
+      // ignore download failures
+    }
+  }
 
   useEffect(() => {
     try {
@@ -369,6 +610,7 @@ export default function RiskCopilot() {
         },
       });
       setPreTrade(data);
+      pushAudit('Pre-trade impact', 'Ran pre-trade simulation');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -381,7 +623,7 @@ export default function RiskCopilot() {
     setLoading('stress');
     try {
       const data = await post('/risk/scenario-stress', {
-        portfolio_value: 1000000,
+        portfolio_value: Number(portfolioValue || 0) || 1000000,
         positions,
         scenario: {
           name: scenario.id,
@@ -394,6 +636,7 @@ export default function RiskCopilot() {
         },
       });
       setStress(data);
+      pushAudit('Scenario stress', `Ran ${scenario.label}`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -407,6 +650,7 @@ export default function RiskCopilot() {
     try {
       const data = await get(`/risk/correlation-matrix?tickers=${encodeURIComponent(tickerCsv)}&threshold=0.75`);
       setCorr(data);
+      pushAudit('Correlation scan', `Scanned ${positions.length} ticker(s)`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -424,6 +668,7 @@ export default function RiskCopilot() {
         constraints: { max_single_name: 0.2, max_sector: 0.3, turnover_limit: 0.08 },
       });
       setHedges(data);
+      pushAudit('Hedge suggestions', 'Generated hedge recommendations');
     } catch (e) {
       setError(e.message);
     } finally {
@@ -447,7 +692,7 @@ export default function RiskCopilot() {
           },
         }),
         post('/risk/scenario-stress', {
-          portfolio_value: 1000000,
+          portfolio_value: Number(portfolioValue || 0) || 1000000,
           positions: nextPositions,
           scenario: {
             name: scenario.id,
@@ -471,6 +716,7 @@ export default function RiskCopilot() {
       setStress(stressData);
       setCorr(corrData);
       setHedges(hedgeData);
+      pushAudit('Full risk refresh', `Refreshed all modules for ${nextPositions.length} position(s)`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -484,7 +730,12 @@ export default function RiskCopilot() {
     if (!hit?.positions?.length) return;
     setSelectedSnapshotId(hit.id);
     setPositions(hit.positions);
+    pushAudit('Snapshot promoted', `Active portfolio set to "${hit.name}"`);
     await runAllForPositions(hit.positions);
+  }
+
+  async function runFullRiskCheck() {
+    await runAllForPositions(positions);
   }
 
   return (
@@ -516,6 +767,45 @@ export default function RiskCopilot() {
             {error}
           </div>
         )}
+
+        <div style={{ ...cardStyle, marginBottom: 12, borderColor: readiness.tone }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 4 }}>RISK READINESS</div>
+              <div style={{ color: 'var(--text-2)', fontSize: 12 }}>{readiness.summary}</div>
+            </div>
+            <div style={{ fontFamily: mono, fontWeight: 800, color: readiness.tone, fontSize: 20, letterSpacing: '0.08em' }}>
+              {readiness.verdict}
+            </div>
+          </div>
+          {readiness.reasons.length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
+              {readiness.reasons.slice(0, 3).join(' ')}
+            </div>
+          )}
+          {readiness.verdict !== 'PASS' && (
+            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {fixActions.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={a.apply}
+                  style={{
+                    background: a.kind === 'primary' ? 'var(--gold)' : 'var(--surface-hi)',
+                    color: a.kind === 'primary' ? '#111827' : 'var(--text-2)',
+                    border: `1px solid ${a.kind === 'primary' ? 'var(--gold)' : 'var(--border)'}`,
+                    borderRadius: 4,
+                    padding: '7px 10px',
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <div style={{ ...cardStyle, marginBottom: 12 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -683,10 +973,36 @@ export default function RiskCopilot() {
               </select>
               <input type="number" step="0.01" value={trade.weight_delta} onChange={e => setTrade(t => ({ ...t, weight_delta: Number(e.target.value) }))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }} />
             </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <input
+                type="number"
+                step="1000"
+                value={portfolioValue}
+                onChange={(e) => setPortfolioValue(Number(e.target.value))}
+                style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}
+              />
+              <button
+                onClick={runFullRiskCheck}
+                disabled={loading === 'refresh'}
+                style={{
+                  background: '#0ea5e9',
+                  color: '#082f49',
+                  border: 'none',
+                  borderRadius: 4,
+                  padding: '7px 10px',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: loading === 'refresh' ? 'not-allowed' : 'pointer',
+                  opacity: loading === 'refresh' ? 0.7 : 1,
+                }}
+              >
+                {loading === 'refresh' ? 'Running full check...' : 'Run Full Risk Check'}
+              </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8, alignItems: 'center' }}>
               <select
                 value={tradeObjective}
-                onChange={(e) => setTradeObjective(e.target.value)}
+                onChange={(e) => applyTradeObjective(e.target.value)}
                 style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}
               >
                 <option value="conservative">Conservative sizing</option>
@@ -694,7 +1010,7 @@ export default function RiskCopilot() {
                 <option value="aggressive">Aggressive sizing</option>
               </select>
               <button
-                onClick={() => setTrade((t) => ({ ...t, weight_delta: suggestedDelta }))}
+                onClick={() => applyTradeDelta(suggestedDelta, 'Applied suggested delta')}
                 style={{ background: '#eab308', color: '#111827', border: 'none', borderRadius: 4, padding: '7px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
               >
                 Use {fmtPct(suggestedDelta).replace('+', '')}
@@ -721,9 +1037,14 @@ export default function RiskCopilot() {
                 'Current price unavailable for selected ticker.'
               )}
             </div>
+            <div style={{ marginBottom: 10, color: 'var(--text-4)', fontSize: 11 }}>
+              Estimated order notional: <b style={{ color: 'var(--text-2)' }}>{tradeCurrency === 'INR' ? '₹' : '$'}{estimatedNotional.toLocaleString()}</b>
+              {' · '}
+              Projected {normalizeTradeTicker(trade.ticker) || 'ticker'} weight: <b style={{ color: projectedTickerWeight > 0.2 ? '#ef4444' : '#22c55e' }}>{fmtPct(projectedTickerWeight).replace('+', '')}</b>
+            </div>
 
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginTop: 10, marginBottom: 6 }}>SCENARIO</div>
-            <select value={scenarioId} onChange={e => setScenarioId(e.target.value)} style={{ width: '100%', marginBottom: 10, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}>
+            <select value={scenarioId} onChange={e => applyScenario(e.target.value)} style={{ width: '100%', marginBottom: 10, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}>
               {SCENARIOS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
 
@@ -808,6 +1129,73 @@ export default function RiskCopilot() {
               </>
             )}
           </div>
+        </div>
+
+        <div style={{ ...cardStyle, marginTop: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11 }}>IC NOTE EXPORT</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <button
+                onClick={copyIcNote}
+                style={{ background: 'var(--gold)', color: '#111827', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 700, padding: '5px 8px', cursor: 'pointer' }}
+              >
+                {icCopied ? 'Copied' : 'Copy IC Note'}
+              </button>
+              <button
+                onClick={downloadIcNote}
+                style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, fontWeight: 700, padding: '5px 8px', cursor: 'pointer' }}
+              >
+                Download .txt
+              </button>
+            </div>
+          </div>
+          <div style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 10 }}>
+            One-click investment committee memo generated from current risk outputs and audit events.
+          </div>
+          <textarea
+            value={icNoteText}
+            readOnly
+            style={{
+              width: '100%',
+              minHeight: 150,
+              background: 'var(--surface-hi)',
+              border: '1px solid var(--border)',
+              borderRadius: 4,
+              color: 'var(--text-2)',
+              fontSize: 12,
+              padding: '8px 10px',
+              fontFamily: mono,
+              marginBottom: 12,
+              resize: 'vertical',
+            }}
+          />
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11 }}>RISK AUDIT TRAIL</div>
+            {auditTrail.length > 0 && (
+              <button
+                onClick={() => setAuditTrail([])}
+                style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', borderRadius: 4, color: 'var(--text-4)', fontSize: 11, padding: '4px 8px', cursor: 'pointer' }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          {auditTrail.length === 0 ? (
+            <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+              No actions logged yet. Your trade adjustments and risk runs will appear here.
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 6 }}>
+              {auditTrail.map((row) => (
+                <div key={row.id} style={{ display: 'grid', gridTemplateColumns: '.55fr 1.2fr 2.4fr', gap: 8, fontSize: 12, alignItems: 'center' }}>
+                  <div style={{ color: 'var(--text-4)', fontFamily: mono }}>{formatAuditTime(row.at)}</div>
+                  <div style={{ color: 'var(--text-2)' }}>{row.action}</div>
+                  <div style={{ color: 'var(--text-4)' }}>{row.detail}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
