@@ -17,6 +17,7 @@ import Watchlist    from './pages/Watchlist';
 import RiskCopilot  from './pages/RiskCopilot';
 import DesignSystem from './DesignSystem';
 import PromoVideoStudio from './pages/PromoVideoStudio';
+import AppAssistant from './components/AppAssistant';
 import { getBackendBaseUrl } from './lib/backendUrl';
 
 function BackendWarmup() {
@@ -59,6 +60,7 @@ export default function App() {
           <Route path="*"            element={<Landing />}   />
         </Routes>
       </div>
+      <AppAssistant />
     </BrowserRouter>
   );
 }

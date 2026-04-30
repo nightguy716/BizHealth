@@ -2675,6 +2675,15 @@ class DebateRequest(BaseModel):
     financials: dict | None = None  # optional key ratios for richer context
     max_rounds: int | None = None   # optional: 4-5 only (capped server-side)
 
+class AssistantMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+class AssistantChatRequest(BaseModel):
+    path: str | None = None
+    user_input: str
+    messages: List[AssistantMessage] = []
+
 def _env_int(name: str, default: int, lo: int, hi: int) -> int:
     raw = os.environ.get(name, "").strip()
     try:
@@ -2950,6 +2959,75 @@ async def debate_stream(req: DebateRequest, request: Request):
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
+
+@app.post("/assistant/chat")
+async def assistant_chat(req: AssistantChatRequest, request: Request):
+    _check_rate(_get_ip(request), "lookup", request)
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ANTHROPIC_API_KEY not configured on server")
+
+    user_input = (req.user_input or "").strip()
+    if not user_input:
+        raise HTTPException(status_code=400, detail="user_input is required")
+    if len(user_input) > 2000:
+        raise HTTPException(status_code=400, detail="user_input too long (max 2000 chars)")
+
+    model = os.environ.get("ANTHROPIC_ASSISTANT_MODEL", "claude-haiku-4-5").strip() or "claude-haiku-4-5"
+    path = (req.path or "/").strip() or "/"
+    history = req.messages[-10:] if req.messages else []
+
+    system = (
+        "You are Valoreva Assistant, an in-app financial product guide. "
+        "Your job is to help users navigate features and understand outputs in plain language. "
+        "Be concise, practical, and friendly. Avoid legal/tax guarantees and avoid absolute claims. "
+        "When users ask 'how', give clear step-by-step instructions specific to Valoreva pages: "
+        "Dashboard (health score and ratios), Watchlist (prices/news/alerts), Journal (AI debate), "
+        "Risk Copilot (pre-trade, stress, correlation, hedges, readiness, IC note). "
+        "If data is missing, state exactly what to run next. Keep replies under 180 words."
+    )
+
+    prompt_messages: list[dict] = [
+        {
+            "role": "user",
+            "content": (
+                f"Current app path: {path}\n"
+                "User may ask for feature guidance or interpretation.\n"
+                "Reply as an assistant for this product."
+            ),
+        }
+    ]
+    for m in history:
+        c = (m.content or "").strip()
+        if not c:
+            continue
+        prompt_messages.append({"role": m.role, "content": c[:1800]})
+    prompt_messages.append({"role": "user", "content": user_input})
+
+    client = anthropic.Anthropic(api_key=api_key)
+    try:
+        msg = client.messages.create(
+            model=model,
+            max_tokens=500,
+            temperature=0.2,
+            system=system,
+            messages=prompt_messages,
+        )
+        reply = (msg.content[0].text or "").strip()
+        if not reply:
+            reply = "I could not generate a response. Please try rephrasing your question."
+        return {
+            "reply": reply,
+            "meta": {
+                "model": model,
+                "path": path,
+                "trace_id": _risk_trace("assistant"),
+            },
+        }
+    except anthropic.APIError as e:
+        raise HTTPException(status_code=502, detail=f"Anthropic API error: {e}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # -- Full stock-list autocomplete ----------------------------------------------
