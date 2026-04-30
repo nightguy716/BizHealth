@@ -59,7 +59,7 @@ const ROADMAP = [
 
 const statusStyle = {
   live:    { bg: 'rgba(0,232,135,0.1)',    border: 'rgba(0,232,135,0.25)',   color: '#00e887',  dot: '#00e887',  label: 'LIVE'    },
-  soon:    { bg: 'rgba(79,110,247,0.1)',   border: 'rgba(79,110,247,0.25)',  color: 'var(--gold)',  dot: 'var(--gold)',  label: 'SOON'    },
+  soon:    { bg: 'rgba(200,157,31,0.1)',   border: 'rgba(200,157,31,0.25)',  color: 'var(--gold)',  dot: 'var(--gold)',  label: 'SOON'    },
   planned: { bg: 'rgba(107,130,168,0.08)', border: 'rgba(107,130,168,0.15)', color: 'var(--text-4)',  dot: 'var(--text-5)',  label: 'PLANNED' },
 };
 
@@ -70,11 +70,11 @@ export default function About() {
       {/* ── HERO ── */}
       <section className="relative py-28 px-6 text-center overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" style={{
-          background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(79,110,247,0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(200,157,31,0.12) 0%, transparent 70%)',
         }} />
         <div className="relative max-w-2xl mx-auto">
           <p className="text-xs font-medium tracking-widest uppercase mb-4"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             OUR MISSION
           </p>
           <h1 className="font-black mb-6"
@@ -90,11 +90,11 @@ export default function About() {
       </section>
 
       {/* ── THE PROBLEM ── */}
-      <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+      <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-4xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div>
             <p className="text-xs font-medium tracking-widest uppercase mb-3"
-              style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+              style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
               THE PROBLEM
             </p>
             <h2 className="font-black mb-5"
@@ -129,15 +129,15 @@ export default function About() {
             ].map(r => (
               <div key={r.label} className="flex items-center justify-between px-5 py-4 rounded-xl"
                 style={{
-                  background: r.hi ? 'rgba(79,110,247,0.08)' : 'var(--surface)',
-                  border: `1px solid ${r.hi ? 'rgba(79,110,247,0.25)' : 'rgba(255,255,255,0.06)'}`,
+                  background: r.hi ? 'rgba(200,157,31,0.08)' : 'var(--surface)',
+                  border: `1px solid ${r.hi ? 'rgba(200,157,31,0.25)' : 'var(--border)'}`,
                 }}>
                 <div>
                   <div className="text-xs font-medium mb-0.5" style={{ color: r.hi ? 'var(--text-1)' : 'var(--text-3)' }}>{r.label}</div>
                   <div className="text-[11px]" style={{ color: 'var(--text-4)' }}>{r.sub}</div>
                 </div>
                 <div className="font-black text-lg"
-                  style={{ fontFamily: 'JetBrains Mono, monospace', color: r.hi ? 'var(--gold)' : 'var(--text-1)' }}>
+                  style={{ fontFamily: 'var(--font-sans)', color: r.hi ? 'var(--gold)' : 'var(--text-1)' }}>
                   {r.val}
                 </div>
               </div>
@@ -147,10 +147,10 @@ export default function About() {
       </section>
 
       {/* ── WHAT MAKES US DIFFERENT ── */}
-      <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+      <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-5xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             WHY VALOREVA
           </p>
           <h2 className="text-center font-black mb-14"
@@ -160,9 +160,9 @@ export default function About() {
           <div className="grid md:grid-cols-2 gap-6">
             {DIFFERENTIATORS.map(d => (
               <div key={d.title} className="flex gap-5 p-6 rounded-xl"
-                style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5"
-                  style={{ background: 'rgba(79,110,247,0.1)', color: 'var(--gold)' }}>
+                  style={{ background: 'rgba(200,157,31,0.1)', color: 'var(--gold)' }}>
                   {d.icon}
                 </div>
                 <div>
@@ -176,10 +176,10 @@ export default function About() {
       </section>
 
       {/* ── WHO IT'S FOR ── */}
-      <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+      <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-4xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             WHO IT'S FOR
           </p>
           <h2 className="text-center font-black mb-10"
@@ -205,14 +205,14 @@ export default function About() {
               },
             ].map(c => (
               <div key={c.role} className="p-6 rounded-xl"
-                style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.1)' }}>
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
                 <h3 className="font-bold mb-0.5" style={{ color: 'var(--text-1)', fontSize: '0.9rem' }}>{c.role}</h3>
                 <p className="text-xs mb-4" style={{ color: 'var(--gold)' }}>{c.tag}</p>
                 <ul className="space-y-2">
                   {c.points.map(p => (
                     <li key={p} className="flex items-start gap-2 text-sm" style={{ color: 'var(--text-3)' }}>
                       <svg className="flex-shrink-0 mt-0.5" width="14" height="14" viewBox="0 0 24 24"
-                        fill="none" stroke="#4f6ef7" strokeWidth="2.5">
+                        fill="none" stroke="var(--gold)" strokeWidth="2.5">
                         <path d="M20 6L9 17l-5-5"/>
                       </svg>
                       {p}
@@ -226,10 +226,10 @@ export default function About() {
       </section>
 
       {/* ── ROADMAP ── */}
-      <section className="py-20 px-6" style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+      <section className="py-20 px-6" style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-2xl mx-auto">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             ROADMAP
           </p>
           <h2 className="text-center font-black mb-10"
@@ -249,7 +249,7 @@ export default function About() {
                     </span>
                   </div>
                   <span className="text-[10px] font-bold tracking-widest px-2 py-0.5 rounded"
-                    style={{ color: s.color, background: `${s.bg}`, fontFamily: 'JetBrains Mono, monospace',
+                    style={{ color: s.color, background: `${s.bg}`, fontFamily: 'var(--font-sans)',
                       border: `1px solid ${s.border}` }}>
                     {s.label}
                   </span>
@@ -262,8 +262,8 @@ export default function About() {
 
       {/* ── BOTTOM CTA ── */}
       <section className="py-20 px-6 text-center"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)',
-          background: 'linear-gradient(180deg, transparent 0%, rgba(79,110,247,0.04) 100%)' }}>
+        style={{ borderTop: '1px solid var(--border)',
+          background: 'linear-gradient(180deg, transparent 0%, rgba(200,157,31,0.06) 100%)' }}>
         <h2 className="font-black mb-4"
           style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
           Try it — no account needed.
@@ -274,14 +274,14 @@ export default function About() {
         <div className="flex gap-3 justify-center flex-wrap">
           <Link to="/dashboard"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)', color: '#fff',
-              boxShadow: '0 0 24px rgba(79,110,247,0.35)' }}>
+            style={{ background: 'linear-gradient(135deg,var(--gold),var(--gold-hi))', color: '#111827',
+              boxShadow: '0 0 24px rgba(200,157,31,0.25)' }}>
             Launch Dashboard →
           </Link>
           <Link to="/contact"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-80"
-            style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--text-3)',
-              border: '1px solid rgba(79,110,247,0.2)' }}>
+            style={{ background: 'var(--surface-hi)', color: 'var(--text-3)',
+              border: '1px solid var(--border)' }}>
             Get in Touch
           </Link>
         </div>

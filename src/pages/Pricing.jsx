@@ -14,8 +14,8 @@ const Cross = () => (
 );
 const Soon = () => (
   <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
-    style={{ background: 'rgba(79,110,247,0.1)', color: 'var(--gold)',
-      border: '1px solid rgba(79,110,247,0.2)', fontFamily: 'JetBrains Mono, monospace' }}>
+    style={{ background: 'rgba(200,157,31,0.1)', color: 'var(--gold)',
+      border: '1px solid rgba(200,157,31,0.2)', fontFamily: 'var(--font-sans)' }}>
     SOON
   </span>
 );
@@ -151,7 +151,7 @@ export default function Pricing() {
         }} />
         <div className="relative">
           <p className="text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             PRICING
           </p>
           <h1 className="font-black mb-4"
@@ -165,11 +165,11 @@ export default function Pricing() {
 
           {/* Monthly / Annual toggle */}
           <div className="inline-flex items-center gap-3 px-1 py-1 rounded-xl"
-            style={{ background: 'var(--surface)', border: '1px solid rgba(79,110,247,0.15)' }}>
+          style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
             <button onClick={() => setAnnual(false)}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
               style={{
-                background: !annual ? 'rgba(79,110,247,0.2)' : 'transparent',
+                background: !annual ? 'rgba(200,157,31,0.16)' : 'transparent',
                 color: !annual ? 'var(--text-1)' : 'var(--text-4)',
               }}>
               Monthly
@@ -177,7 +177,7 @@ export default function Pricing() {
             <button onClick={() => setAnnual(true)}
               className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-2"
               style={{
-                background: annual ? 'rgba(79,110,247,0.2)' : 'transparent',
+                background: annual ? 'rgba(200,157,31,0.16)' : 'transparent',
                 color: annual ? 'var(--text-1)' : 'var(--text-4)',
               }}>
               Annual
@@ -196,19 +196,19 @@ export default function Pricing() {
         <div className="max-w-3xl mx-auto">
           <div className="relative rounded-2xl px-6 py-5 overflow-hidden"
             style={{
-              background: 'linear-gradient(135deg, rgba(79,110,247,0.1) 0%, rgba(34,211,238,0.06) 100%)',
-              border: '1px solid rgba(79,110,247,0.3)',
+              background: 'linear-gradient(135deg, rgba(200,157,31,0.12) 0%, rgba(242,201,76,0.06) 100%)',
+              border: '1px solid rgba(200,157,31,0.3)',
             }}>
             {/* subtle animated glow */}
             <div className="absolute inset-0 pointer-events-none"
-              style={{ background: 'radial-gradient(ellipse 60% 80% at 0% 50%, rgba(79,110,247,0.08) 0%, transparent 70%)' }} />
+              style={{ background: 'radial-gradient(ellipse 60% 80% at 0% 50%, rgba(200,157,31,0.08) 0%, transparent 70%)' }} />
 
             <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
                 {/* icon */}
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'rgba(79,110,247,0.15)', border: '1px solid rgba(79,110,247,0.3)' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4f6ef7" strokeWidth="1.8">
+                  style={{ background: 'rgba(200,157,31,0.15)', border: '1px solid rgba(200,157,31,0.3)' }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" strokeWidth="1.8">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
                   </svg>
                 </div>
@@ -218,7 +218,7 @@ export default function Pricing() {
                     <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
                       style={{ background: 'rgba(251,191,36,0.15)', color: '#fbbf24',
                         border: '1px solid rgba(251,191,36,0.25)',
-                        fontFamily: 'JetBrains Mono, monospace' }}>
+                        fontFamily: 'var(--font-sans)' }}>
                       LIMITED
                     </span>
                   </div>
@@ -242,7 +242,7 @@ export default function Pricing() {
                       }} />
                   </div>
                   <span className="text-xs font-bold whitespace-nowrap"
-                    style={{ color: 'var(--text-1)', fontFamily: 'JetBrains Mono, monospace' }}>
+                    style={{ color: 'var(--text-1)', fontFamily: 'var(--font-sans)' }}>
                     {CHARTER_CLAIMED}/{CHARTER_LIMIT}
                   </span>
                 </div>
@@ -267,16 +267,16 @@ export default function Pricing() {
               <div key={tier.id} className="relative rounded-2xl p-6 flex flex-col"
                 style={{
                   background: isPro ? 'rgba(79,110,247,0.07)' : 'var(--surface)',
-                  border: isPro ? '1px solid rgba(79,110,247,0.35)' : '1px solid rgba(79,110,247,0.1)',
-                  boxShadow: isPro ? '0 0 40px rgba(79,110,247,0.1)' : 'none',
+                  border: isPro ? '1px solid rgba(200,157,31,0.35)' : '1px solid var(--border)',
+                  boxShadow: isPro ? '0 0 40px rgba(200,157,31,0.12)' : 'none',
                 }}>
 
                 {/* Badge */}
                 {tier.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <span className="px-3 py-1 rounded-full text-[10px] font-bold tracking-widest"
-                      style={{ background: 'var(--gold)', color: '#fff',
-                        fontFamily: 'JetBrains Mono, monospace' }}>
+                      style={{ background: 'var(--gold)', color: '#111827',
+                        fontFamily: 'var(--font-sans)' }}>
                       {tier.badge}
                     </span>
                   </div>
@@ -288,9 +288,9 @@ export default function Pricing() {
                     <h2 className="font-black text-lg" style={{ color: 'var(--text-1)' }}>{tier.name}</h2>
                     {tier.id !== 'free' && (
                       <span className="text-[10px] px-2 py-0.5 rounded font-bold"
-                        style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24',
-                          border: '1px solid rgba(251,191,36,0.2)',
-                          fontFamily: 'JetBrains Mono, monospace' }}>
+                      style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24',
+                        border: '1px solid rgba(251,191,36,0.2)',
+                        fontFamily: 'var(--font-sans)' }}>
                         COMING SOON
                       </span>
                     )}
@@ -298,7 +298,7 @@ export default function Pricing() {
                   <div className="flex items-end gap-1.5 mb-3">
                     <span className="font-black"
                       style={{ fontSize: '2.4rem', color: isPro ? 'var(--gold)' : 'var(--text-1)',
-                        fontFamily: 'JetBrains Mono, monospace', lineHeight: 1 }}>
+                        fontFamily: 'var(--font-sans)', lineHeight: 1 }}>
                       {price === 0 ? '$0' : `$${price}`}
                     </span>
                     {price > 0 && (
@@ -333,9 +333,9 @@ export default function Pricing() {
                   <Link to={tier.ctaTo}
                     className="w-full py-3 rounded-xl text-sm font-semibold text-center transition-all hover:opacity-90 block"
                     style={{
-                      background: 'rgba(79,110,247,0.08)',
+                      background: 'var(--surface-hi)',
                       color: 'var(--text-3)',
-                      border: '1px solid rgba(79,110,247,0.2)',
+                      border: '1px solid var(--border)',
                     }}>
                     {tier.cta} →
                   </Link>
@@ -351,17 +351,17 @@ export default function Pricing() {
                       className="w-full py-3 rounded-xl text-sm font-semibold transition-all hover:opacity-90"
                       style={{
                         background: isPro
-                          ? 'linear-gradient(135deg,#4f6ef7,#3d5af1)'
-                          : 'rgba(79,110,247,0.08)',
-                        color: isPro ? '#fff' : 'var(--text-3)',
-                        border: isPro ? 'none' : '1px solid rgba(79,110,247,0.2)',
-                        boxShadow: isPro ? '0 0 20px rgba(79,110,247,0.3)' : 'none',
+                          ? 'linear-gradient(135deg,var(--gold),var(--gold-hi))'
+                          : 'var(--surface-hi)',
+                        color: isPro ? '#111827' : 'var(--text-3)',
+                        border: isPro ? '1px solid rgba(200,157,31,0.3)' : '1px solid var(--border)',
+                        boxShadow: isPro ? '0 0 20px rgba(200,157,31,0.22)' : 'none',
                       }}>
                       {tier.cta} →
                     </button>
                     {isPro && (
                       <p className="text-center text-[10px] mt-2"
-                        style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+                        style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
                         ★ Charter Members lock in $9/mo forever
                       </p>
                     )}
@@ -375,10 +375,10 @@ export default function Pricing() {
 
       {/* ── COMPARISON TABLE ── */}
       <section className="px-6 pb-20"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+        style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-4xl mx-auto pt-16">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>
             COMPARE PLANS
           </p>
           <h2 className="text-center font-black mb-10"
@@ -389,9 +389,9 @@ export default function Pricing() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr style={{ borderBottom: '1px solid rgba(79,110,247,0.12)' }}>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
                   <th className="text-left py-3 pr-6 font-medium text-xs uppercase tracking-widest w-1/2"
-                    style={{ color: 'var(--text-4)', fontFamily: 'JetBrains Mono, monospace' }}>Feature</th>
+                    style={{ color: 'var(--text-4)', fontFamily: 'var(--font-sans)' }}>Feature</th>
                   {['Free', 'Pro', 'Premium'].map(t => (
                     <th key={t} className="py-3 px-4 text-center font-bold text-sm"
                       style={{ color: t === 'Pro' ? 'var(--gold)' : 'var(--text-1)' }}>{t}</th>
@@ -418,7 +418,7 @@ export default function Pricing() {
                   { label: 'Support',                free: 'Community',   pro: 'Email',     premium: 'Priority' },
                 ].map((row, i) => (
                   <tr key={row.label}
-                    style={{ borderBottom: '1px solid rgba(255,255,255,0.04)',
+                    style={{ borderBottom: '1px solid var(--border)',
                       background: i % 2 === 0 ? 'transparent' : 'var(--surface)' }}>
                     <td className="py-3 pr-6 text-xs" style={{ color: 'var(--text-3)' }}>{row.label}</td>
                     {[row.free, row.pro, row.premium].map((val, ci) => (
@@ -429,7 +429,7 @@ export default function Pricing() {
                         {typeof val === 'string' && val !== 'Soon' && (
                           <span className="text-xs font-medium"
                             style={{ color: ci === 1 ? 'var(--gold)' : 'var(--text-2)',
-                              fontFamily: 'JetBrains Mono, monospace' }}>
+                              fontFamily: 'var(--font-sans)' }}>
                             {val}
                           </span>
                         )}
@@ -445,10 +445,10 @@ export default function Pricing() {
 
       {/* ── FAQ ── */}
       <section className="px-6 pb-20"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)' }}>
+        style={{ borderTop: '1px solid var(--border)' }}>
         <div className="max-w-2xl mx-auto pt-16">
           <p className="text-center text-xs font-medium tracking-widest uppercase mb-3"
-            style={{ color: 'var(--gold)', fontFamily: 'JetBrains Mono, monospace' }}>FAQ</p>
+            style={{ color: 'var(--gold)', fontFamily: 'var(--font-sans)' }}>FAQ</p>
           <h2 className="text-center font-black mb-10"
             style={{ fontSize: 'clamp(1.4rem,2.5vw,1.8rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
             Common questions
@@ -456,14 +456,14 @@ export default function Pricing() {
           <div className="space-y-2">
             {FAQS.map((faq, i) => (
               <div key={i} className="rounded-xl overflow-hidden"
-                style={{ border: '1px solid rgba(79,110,247,0.1)',
-                  background: openFaq === i ? 'rgba(79,110,247,0.05)' : 'var(--surface)' }}>
+                style={{ border: '1px solid var(--border)',
+                  background: openFaq === i ? 'rgba(200,157,31,0.05)' : 'var(--surface)' }}>
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between px-5 py-4 text-left transition-all">
                   <span className="text-sm font-semibold pr-4" style={{ color: 'var(--text-1)' }}>{faq.q}</span>
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-                    stroke="#4f6ef7" strokeWidth="2"
+                    stroke="var(--gold)" strokeWidth="2"
                     style={{ flexShrink: 0, transform: openFaq === i ? 'rotate(180deg)' : 'none',
                       transition: 'transform 0.2s' }}>
                     <path d="M6 9l6 6 6-6"/>
@@ -482,8 +482,8 @@ export default function Pricing() {
 
       {/* ── BOTTOM CTA ── */}
       <section className="py-20 px-6 text-center"
-        style={{ borderTop: '1px solid rgba(79,110,247,0.08)',
-          background: 'linear-gradient(180deg, transparent 0%, rgba(79,110,247,0.04) 100%)' }}>
+        style={{ borderTop: '1px solid var(--border)',
+          background: 'linear-gradient(180deg, transparent 0%, rgba(200,157,31,0.06) 100%)' }}>
         <h2 className="font-black mb-4"
           style={{ fontSize: 'clamp(1.6rem,2.5vw,2rem)', color: 'var(--text-1)', letterSpacing: '-0.02em' }}>
           Start with Free. No commitment.
@@ -494,14 +494,14 @@ export default function Pricing() {
         <div className="flex gap-3 justify-center flex-wrap">
           <Link to="/dashboard"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg,#4f6ef7,#3d5af1)', color: '#fff',
-              boxShadow: '0 0 24px rgba(79,110,247,0.35)' }}>
+            style={{ background: 'linear-gradient(135deg,var(--gold),var(--gold-hi))', color: '#111827',
+              boxShadow: '0 0 24px rgba(200,157,31,0.25)' }}>
             Launch Dashboard →
           </Link>
           <Link to="/contact"
             className="px-8 py-3 rounded-lg font-semibold text-sm transition-all hover:opacity-80"
-            style={{ background: 'rgba(79,110,247,0.08)', color: 'var(--text-3)',
-              border: '1px solid rgba(79,110,247,0.2)' }}>
+            style={{ background: 'var(--surface-hi)', color: 'var(--text-3)',
+              border: '1px solid var(--border)' }}>
             Enterprise enquiry
           </Link>
         </div>

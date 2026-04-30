@@ -46,13 +46,14 @@ from pydantic import BaseModel
 #  which is fine (we don't want persistent bans, just abuse prevention)
 # ?????????????????????????????????????????????????????????????
 
-# Storage: { ip: { "analyze": [...], "lookup": [...], "search": [...] } }
-_rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": [], "search": []})
+# Storage: { ip: { "analyze": [...], "lookup": [...], "search": [...], "price": [...] } }
+_rate_store: dict = defaultdict(lambda: {"analyze": [], "lookup": [], "search": [], "price": []})
 
 # Limits
 _AI_LIMIT_PER_DAY    = 7      # AI analysis calls per IP per day
 _LOOKUP_LIMIT_PER_HR = 30     # Full company data fetches per IP per hour
 _SEARCH_LIMIT_PER_HR = 300    # Autocomplete search queries per IP per hour (very cheap)
+_PRICE_LIMIT_PER_HR  = 1800   # Live quote polling budget for watchlists / dashboards
 
 def _get_ip(request: Request) -> str:
     """Extract real client IP, handling proxies (Vercel to Railway)."""
@@ -79,6 +80,7 @@ def _check_rate(ip: str, kind: str, request: Request | None = None) -> None:
     kind = "analyze"  ? 7 per day
     kind = "lookup"   ? 30 per hour  (full quoteSummary fetches)
     kind = "search"   ? 300 per hour (lightweight autocomplete only)
+    kind = "price"    ? 1800 per hour (live quote polling)
     """
     if request is not None and _is_owner(request):
         return  # owner bypass: unlimited
@@ -98,6 +100,10 @@ def _check_rate(ip: str, kind: str, request: Request | None = None) -> None:
         window  = 3600
         limit   = _SEARCH_LIMIT_PER_HR
         msg     = "Too many search queries. Please slow down."
+    elif kind == "price":
+        window  = 3600
+        limit   = _PRICE_LIMIT_PER_HR
+        msg     = "Too many live price requests. Please slow down."
     else:
         window  = 3600
         limit   = _LOOKUP_LIMIT_PER_HR
@@ -123,6 +129,7 @@ def _get_usage(ip: str) -> dict:
     ai_used     = len([t for t in store.get("analyze", []) if now - t < 86400])
     lookup_used = len([t for t in store.get("lookup",  []) if now - t < 3600])
     search_used = len([t for t in store.get("search",  []) if now - t < 3600])
+    price_used  = len([t for t in store.get("price",   []) if now - t < 3600])
     return {
         "ai_analyses_used":      ai_used,
         "ai_analyses_remaining": max(0, _AI_LIMIT_PER_DAY - ai_used),
@@ -132,6 +139,8 @@ def _get_usage(ip: str) -> dict:
         "lookups_limit":         _LOOKUP_LIMIT_PER_HR,
         "searches_used":         search_used,
         "searches_remaining":    max(0, _SEARCH_LIMIT_PER_HR - search_used),
+        "prices_used":           price_used,
+        "prices_remaining":      max(0, _PRICE_LIMIT_PER_HR - price_used),
     }
 
 # ?? Shared requests session for yfinance ? browser-like headers ??????????????
@@ -3785,7 +3794,7 @@ def _fetch_price(sym: str) -> dict:
 @app.get("/stocks/price/{ticker}")
 async def stocks_price(ticker: str, request: Request):
     """Live price for a stock. Indian tickers use BSE API, others use yfinance."""
-    _check_rate(_get_ip(request), "search", request)
+    _check_rate(_get_ip(request), "price", request)
     sym = ticker.upper().strip()
     cached = _PRICE_CACHE.get(sym)
     if cached and time.time() - cached["ts"] < _PRICE_TTL:

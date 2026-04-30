@@ -208,8 +208,8 @@ export default function AppAssistant() {
       <button
         onClick={() => setOpen((v) => !v)}
         style={{
-          border: 'none',
-          background: 'linear-gradient(135deg, #a78bfa, #f59e0b)',
+          border: '1px solid rgba(200,157,31,0.35)',
+          background: 'linear-gradient(135deg, rgba(200,157,31,0.95), rgba(242,201,76,0.95))',
           color: '#111827',
           borderRadius: 999,
           padding: '10px 14px',

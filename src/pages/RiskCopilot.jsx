@@ -865,9 +865,9 @@ export default function RiskCopilot() {
               onClick={runAiExplain}
               disabled={loading === 'ai'}
               style={{
-                background: '#a78bfa',
-                color: '#2e1065',
-                border: 'none',
+                background: 'var(--gold)',
+                color: '#111827',
+                border: '1px solid rgba(200,157,31,0.3)',
                 borderRadius: 4,
                 padding: '8px 10px',
                 fontWeight: 700,
@@ -1013,9 +1013,9 @@ export default function RiskCopilot() {
                   onClick={promoteCandidateSnapshot}
                   disabled={!compareTargetId || loading === 'refresh'}
                   style={{
-                    background: '#38bdf8',
-                    color: '#082f49',
-                    border: 'none',
+                    background: 'var(--gold)',
+                    color: '#111827',
+                    border: '1px solid rgba(200,157,31,0.3)',
                     borderRadius: 4,
                     padding: '8px 10px',
                     fontWeight: 700,
@@ -1113,9 +1113,9 @@ export default function RiskCopilot() {
                 onClick={runFullRiskCheck}
                 disabled={loading === 'refresh'}
                 style={{
-                  background: '#0ea5e9',
-                  color: '#082f49',
-                  border: 'none',
+                  background: 'var(--surface-hi)',
+                  color: 'var(--text-2)',
+                  border: '1px solid var(--border)',
                   borderRadius: 4,
                   padding: '7px 10px',
                   fontWeight: 700,
@@ -1139,7 +1139,7 @@ export default function RiskCopilot() {
               </select>
               <button
                 onClick={() => applyTradeDelta(suggestedDelta, 'Applied suggested delta')}
-                style={{ background: '#eab308', color: '#111827', border: 'none', borderRadius: 4, padding: '7px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+                style={{ background: 'var(--gold)', color: '#111827', border: '1px solid rgba(200,157,31,0.3)', borderRadius: 4, padding: '7px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
               >
                 Use {fmtPct(suggestedDelta).replace('+', '')}
               </button>
@@ -1178,9 +1178,9 @@ export default function RiskCopilot() {
 
             <div style={{ display: 'grid', gap: 8 }}>
               <button onClick={runPreTrade} style={{ background: 'var(--gold)', color: '#111827', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'pretrade' ? 'Running...' : 'Run Pre-Trade Impact'}</button>
-              <button onClick={runStress} style={{ background: '#22d3ee', color: '#082f49', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'stress' ? 'Running...' : 'Run Scenario Stress'}</button>
-              <button onClick={runCorrelation} style={{ background: '#a78bfa', color: '#2e1065', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'corr' ? 'Running...' : 'Run Correlation Scan'}</button>
-              <button onClick={runHedges} style={{ background: '#34d399', color: '#052e16', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'hedge' ? 'Running...' : 'Get Hedge Suggestions'}</button>
+              <button onClick={runStress} style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'stress' ? 'Running...' : 'Run Scenario Stress'}</button>
+              <button onClick={runCorrelation} style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'corr' ? 'Running...' : 'Run Correlation Scan'}</button>
+              <button onClick={runHedges} style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'hedge' ? 'Running...' : 'Get Hedge Suggestions'}</button>
             </div>
           </div>
         </div>
