@@ -74,6 +74,7 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
   const [price,      setPrice]      = useState(null);
   const [news,       setNews]       = useState([]);
   const [loadingPx,  setLoadingPx]  = useState(true);
+  const [priceState, setPriceState] = useState('loading'); // loading | ok | rate_limited | unavailable
   const [confirmDel, setConfirmDel] = useState(false);
   const alertStateRef = useRef({ lastDirection: null, lastAt: 0 });
   const latestPriceRef = useRef(null);
@@ -105,6 +106,30 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
     latestPriceRef.current = price;
   }, [price]);
 
+  async function fetchJsonWithMeta(path) {
+    const urls = API === API_FALLBACK ? [API] : [API, API_FALLBACK];
+    let saw429 = false;
+    let lastStatus = 0;
+    for (const base of urls) {
+      try {
+        const res = await fetch(`${base}${path}`, {
+          headers: ownerHeaders(),
+          signal: AbortSignal.timeout(12_000),
+        });
+        lastStatus = res.status;
+        if (res.status === 429) {
+          saw429 = true;
+          continue;
+        }
+        if (!res.ok) continue;
+        return { data: await res.json(), status: res.status };
+      } catch {
+        // try next backend candidate
+      }
+    }
+    return { data: null, status: saw429 ? 429 : lastStatus };
+  }
+
   async function fetchPrice() {
     try {
       const symbols = symbolCandidates();
@@ -112,8 +137,10 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
 
       let px = null;
       let pxSymbol = null;
+      let saw429 = false;
       for (const sym of symbols) {
-        const candidate = await fetchJsonWithFallback(`/stocks/price/${encodeURIComponent(sym)}`);
+        const { data: candidate, status } = await fetchJsonWithMeta(`/stocks/price/${encodeURIComponent(sym)}`);
+        if (status === 429) saw429 = true;
         if (Number(candidate?.price) > 0) {
           px = candidate;
           pxSymbol = sym;
@@ -123,7 +150,8 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
       // Hard fallback: pull latest price from company snapshot endpoint.
       if (!px) {
         for (const sym of symbols) {
-          const company = await fetchJsonWithFallback(`/company/yf/${encodeURIComponent(sym)}`);
+          const { data: company, status } = await fetchJsonWithMeta(`/company/yf/${encodeURIComponent(sym)}`);
+          if (status === 429) saw429 = true;
           const current = Number(company?.market_data?.currentPrice);
           if (Number.isFinite(current) && current > 0) {
             px = {
@@ -139,9 +167,13 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
           }
         }
       }
-      if (!px) return false;
+      if (!px) {
+        setPriceState(saw429 ? 'rate_limited' : 'unavailable');
+        return false;
+      }
       if (pxSymbol) resolvedSymbolRef.current = pxSymbol;
       setPrice(px);
+      setPriceState('ok');
       // fire alert when movement is material, with cooldown to avoid spam
       const changePct = Number(px.change_pct || 0);
       const absMove = Math.abs(changePct);
@@ -181,6 +213,7 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
     let priceIntervalId = null;
     let retryTimerId = null;
     setLoadingPx(true);
+    setPriceState('loading');
 
     // Spread requests across cards to reduce rate-limit bursts.
     const jitter = [...item.ticker].reduce((acc, ch) => acc + ch.charCodeAt(0), 0) % 12000;
@@ -259,6 +292,8 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
               </span>
             )}
           </>
+        ) : priceState === 'rate_limited' ? (
+          <span style={{ fontFamily: mono, fontSize: 12, color: C.amber }}>Live quote throttled. Retrying…</span>
         ) : (
           <span style={{ fontFamily: mono, fontSize: 12, color: C.muted }}>Price unavailable</span>
         )}
