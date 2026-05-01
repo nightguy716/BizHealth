@@ -4,26 +4,45 @@ import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const QUICK_SYMBOLS = ['NASDAQ:AAPL', 'NASDAQ:NVDA', 'NYSE:SLB', 'NSE:RELIANCE', 'NSE:TCS'];
 
+function toTvCore(raw) {
+  // TradingView can reject some Yahoo-style characters (e.g., M&M).
+  // Normalize to a safer core symbol representation.
+  return String(raw || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/\.NS$/, '')
+    .replace(/\.BO$/, '')
+    .replace(/&/g, '_')
+    .replace(/\./g, '_');
+}
+
 function normalizeSymbol(raw) {
   const value = String(raw || '').trim().toUpperCase();
   if (!value) return 'NYSE:SLB';
-  if (value.includes(':')) return value;
-  if (value.endsWith('.NS')) return `NSE:${value.replace('.NS', '')}`;
-  if (value.endsWith('.BO')) return `BSE:${value.replace('.BO', '')}`;
-  return `NYSE:${value}`;
+  if (value.includes(':')) {
+    const [ex = 'NYSE', sym = 'SLB'] = value.split(':');
+    return `${ex}:${toTvCore(sym)}`;
+  }
+  if (value.endsWith('.NS')) return `NSE:${toTvCore(value)}`;
+  if (value.endsWith('.BO')) return `BSE:${toTvCore(value)}`;
+  return `NYSE:${toTvCore(value)}`;
 }
 
 function fromCompanyToSymbol(company) {
   const ticker = String(company?.ticker || '').trim().toUpperCase();
   const exchange = String(company?.exchange || '').trim().toUpperCase();
   if (!ticker) return 'NYSE:SLB';
-  if (ticker.includes(':')) return ticker;
-  if (ticker.endsWith('.NS')) return `NSE:${ticker.replace('.NS', '')}`;
-  if (ticker.endsWith('.BO')) return `BSE:${ticker.replace('.BO', '')}`;
-  if (exchange === 'NSE') return `NSE:${ticker}`;
-  if (exchange === 'BSE') return `BSE:${ticker}`;
-  if (exchange === 'NASDAQ') return `NASDAQ:${ticker}`;
-  return `NYSE:${ticker}`;
+  if (ticker.includes(':')) {
+    const [ex = 'NYSE', sym = 'SLB'] = ticker.split(':');
+    return `${ex}:${toTvCore(sym)}`;
+  }
+  if (ticker.endsWith('.NS')) return `NSE:${toTvCore(ticker)}`;
+  if (ticker.endsWith('.BO')) return `BSE:${toTvCore(ticker)}`;
+  if (exchange === 'NSE') return `NSE:${toTvCore(ticker)}`;
+  if (exchange === 'BSE') return `BSE:${toTvCore(ticker)}`;
+  if (exchange === 'NASDAQ') return `NASDAQ:${toTvCore(ticker)}`;
+  return `NYSE:${toTvCore(ticker)}`;
 }
 
 function symbolToSearchValue(raw) {
