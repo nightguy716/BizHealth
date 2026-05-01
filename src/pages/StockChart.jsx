@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import TickerAutocomplete from '../components/TickerAutocomplete';
 
 const QUICK_SYMBOLS = ['NASDAQ:AAPL', 'NASDAQ:NVDA', 'NYSE:SLB', 'NSE:RELIANCE', 'NSE:TCS'];
 
@@ -10,6 +11,26 @@ function normalizeSymbol(raw) {
   if (value.endsWith('.NS')) return `NSE:${value.replace('.NS', '')}`;
   if (value.endsWith('.BO')) return `BSE:${value.replace('.BO', '')}`;
   return `NYSE:${value}`;
+}
+
+function fromCompanyToSymbol(company) {
+  const ticker = String(company?.ticker || '').trim().toUpperCase();
+  const exchange = String(company?.exchange || '').trim().toUpperCase();
+  if (!ticker) return 'NYSE:SLB';
+  if (ticker.includes(':')) return ticker;
+  if (ticker.endsWith('.NS')) return `NSE:${ticker.replace('.NS', '')}`;
+  if (ticker.endsWith('.BO')) return `BSE:${ticker.replace('.BO', '')}`;
+  if (exchange === 'NSE') return `NSE:${ticker}`;
+  if (exchange === 'BSE') return `BSE:${ticker}`;
+  if (exchange === 'NASDAQ') return `NASDAQ:${ticker}`;
+  return `NYSE:${ticker}`;
+}
+
+function symbolToSearchValue(raw) {
+  const value = String(raw || '').trim().toUpperCase();
+  if (!value) return '';
+  if (value.includes(':')) return value.split(':')[1] || value;
+  return value.replace('.NS', '').replace('.BO', '');
 }
 
 export default function StockChart() {
@@ -27,7 +48,7 @@ export default function StockChart() {
   const [isDark, setIsDark] = useState(document?.documentElement?.dataset?.theme !== 'light');
 
   useEffect(() => {
-    setInputValue(querySymbol);
+    setInputValue(symbolToSearchValue(querySymbol));
     setSymbol(querySymbol);
   }, [querySymbol]);
 
@@ -102,22 +123,15 @@ export default function StockChart() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-          <input
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            placeholder="Enter symbol (e.g., NYSE:SLB, NSE:RELIANCE, AAPL)"
-            style={{
-              flex: '1 1 360px',
-              minWidth: 280,
-              background: 'var(--surface-hi)',
-              color: 'var(--text-1)',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              padding: '10px 12px',
-              fontSize: 13,
-            }}
-          />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10, alignItems: 'center' }}>
+          <div style={{ flex: '1 1 360px', minWidth: 280 }}>
+            <TickerAutocomplete
+              value={inputValue}
+              onChange={setInputValue}
+              onSelect={(company) => applySymbol(fromCompanyToSymbol(company))}
+              placeholder="Search ticker/company (e.g., SLB, AAPL, RELIANCE)"
+            />
+          </div>
           <button
             onClick={() => applySymbol(inputValue)}
             style={{
