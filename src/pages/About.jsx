@@ -66,6 +66,32 @@ const statusStyle = {
 export default function About() {
   return (
     <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
+      <section
+        className="px-6 pt-24 pb-5"
+        style={{ borderBottom: '1px solid var(--border)', background: 'rgba(6,11,26,0.38)', backdropFilter: 'blur(8px)' }}
+      >
+        <div className="max-w-5xl mx-auto" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#111827',
+              background: 'var(--gold)',
+              borderRadius: 999,
+              padding: '2px 8px',
+              letterSpacing: '0.08em',
+            }}
+          >
+            MARKET CONTEXT
+          </span>
+          {['S&P500 +0.4%', 'NIFTY +0.6%', 'US10Y 4.32%', 'VIX 14.8'].map((row) => (
+            <span key={row} style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--text-3)' }}>
+              {row}
+            </span>
+          ))}
+        </div>
+      </section>
 
       {/* ── HERO ── */}
       <section className="relative py-28 px-6 text-center overflow-hidden">
@@ -129,8 +155,9 @@ export default function About() {
             ].map(r => (
               <div key={r.label} className="flex items-center justify-between px-5 py-4 rounded-xl"
                 style={{
-                  background: r.hi ? 'rgba(200,157,31,0.08)' : 'var(--surface)',
-                  border: `1px solid ${r.hi ? 'rgba(200,157,31,0.25)' : 'var(--border)'}`,
+                  background: r.hi ? 'linear-gradient(135deg, rgba(200,157,31,0.14) 0%, rgba(200,157,31,0.05) 100%)' : 'rgba(6,12,28,0.72)',
+                  border: `1px solid ${r.hi ? 'rgba(200,157,31,0.3)' : 'rgba(79,110,247,0.18)'}`,
+                  boxShadow: r.hi ? '0 0 26px rgba(200,157,31,0.15)' : '0 8px 20px rgba(0,0,0,0.24)',
                 }}>
                 <div>
                   <div className="text-xs font-medium mb-0.5" style={{ color: r.hi ? 'var(--text-1)' : 'var(--text-3)' }}>{r.label}</div>

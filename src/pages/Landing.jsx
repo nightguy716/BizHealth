@@ -142,6 +142,13 @@ const STATS = [
   { value: 5,   suffix: 'yr', label: 'Historical Data'     },
   { value: 100, suffix: '%',  label: 'Free to Start'       },
 ];
+const MARKET_TAPE = [
+  { label: 'AAPL', val: '+1.3%', up: true },
+  { label: 'NVDA', val: '+0.9%', up: true },
+  { label: 'SLB', val: '-0.1%', up: false },
+  { label: 'RELIANCE', val: '+0.6%', up: true },
+  { label: 'TCS', val: '+0.4%', up: true },
+];
 
 /* ── Landing ──────────────────────────────────────────────── */
 export default function Landing() {
@@ -193,6 +200,11 @@ export default function Landing() {
             width: 400, height: 400, borderRadius: '50%',
             background: 'radial-gradient(ellipse,rgba(34,211,238,0.07) 0%,transparent 65%)',
           }} />
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(180deg, rgba(79,110,247,0.06) 0%, transparent 38%, transparent 65%, rgba(200,157,31,0.05) 100%)',
+          }} />
         </div>
 
         {/* Eyebrow badge */}
@@ -233,6 +245,52 @@ export default function Landing() {
             onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
             See Features
           </a>
+        </div>
+
+        {/* Market tape */}
+        <div
+          className="w-full max-w-4xl mb-8 relative z-10"
+          style={{
+            background: 'rgba(6,11,26,0.78)',
+            border: '1px solid rgba(79,110,247,0.24)',
+            borderRadius: 12,
+            boxShadow: '0 14px 40px rgba(0,0,0,0.35)',
+            backdropFilter: 'blur(10px)',
+            padding: '8px 10px',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                fontFamily: "var(--font-sans)",
+                fontSize: 10,
+                fontWeight: 700,
+                color: '#111827',
+                background: 'var(--gold)',
+                borderRadius: 999,
+                padding: '2px 8px',
+                letterSpacing: '0.08em',
+              }}
+            >
+              LIVE
+            </span>
+            {MARKET_TAPE.map((t) => (
+              <span key={t.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--text-3)' }}>{t.label}</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    color: t.up ? '#00e887' : '#f43f5e',
+                  }}
+                >
+                  {t.val}
+                </span>
+                <span style={{ color: 'var(--text-5)' }}>·</span>
+              </span>
+            ))}
+          </div>
         </div>
 
         {/* Terminal preview */}

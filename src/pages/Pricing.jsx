@@ -143,6 +143,32 @@ export default function Pricing() {
 
   return (
     <div className="min-h-screen page-bg" style={{ color: 'var(--text-2)' }}>
+      <section
+        className="px-6 pt-24 pb-5"
+        style={{ borderBottom: '1px solid var(--border)', background: 'rgba(6,11,26,0.38)', backdropFilter: 'blur(8px)' }}
+      >
+        <div className="max-w-5xl mx-auto" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-sans)',
+              fontSize: 10,
+              fontWeight: 700,
+              color: '#111827',
+              background: 'var(--gold)',
+              borderRadius: 999,
+              padding: '2px 8px',
+              letterSpacing: '0.08em',
+            }}
+          >
+            VALUE METER
+          </span>
+          {['23 Ratios', 'DCF + Exports', 'AI Insights', 'Risk Copilot'].map((item) => (
+            <span key={item} style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--text-3)' }}>
+              {item}
+            </span>
+          ))}
+        </div>
+      </section>
 
       {/* ── HERO ── */}
       <section className="relative pt-24 pb-16 px-6 text-center overflow-hidden">
@@ -266,9 +292,9 @@ export default function Pricing() {
             return (
               <div key={tier.id} className="relative rounded-2xl p-6 flex flex-col"
                 style={{
-                  background: isPro ? 'rgba(79,110,247,0.07)' : 'var(--surface)',
-                  border: isPro ? '1px solid rgba(200,157,31,0.35)' : '1px solid var(--border)',
-                  boxShadow: isPro ? '0 0 40px rgba(200,157,31,0.12)' : 'none',
+                  background: isPro ? 'linear-gradient(165deg, rgba(79,110,247,0.14) 0%, rgba(200,157,31,0.09) 100%)' : 'rgba(6,12,28,0.74)',
+                  border: isPro ? '1px solid rgba(200,157,31,0.38)' : '1px solid rgba(79,110,247,0.2)',
+                  boxShadow: isPro ? '0 0 40px rgba(200,157,31,0.18)' : '0 10px 26px rgba(0,0,0,0.25)',
                 }}>
 
                 {/* Badge */}
