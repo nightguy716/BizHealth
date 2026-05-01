@@ -15,6 +15,7 @@ import NewBlogPost from './pages/NewBlogPost';
 import Journal      from './pages/Journal';
 import Watchlist    from './pages/Watchlist';
 import RiskCopilot  from './pages/RiskCopilot';
+import StockChart   from './pages/StockChart';
 import DesignSystem from './DesignSystem';
 import PromoVideoStudio from './pages/PromoVideoStudio';
 import AppAssistant from './components/AppAssistant';
@@ -54,6 +55,7 @@ export default function App() {
           <Route path="/journal"     element={<Journal />}   />
           <Route path="/watchlist"   element={<Watchlist />} />
           <Route path="/risk-copilot" element={<RiskCopilot />} />
+          <Route path="/charts"      element={<StockChart />} />
           <Route path="/design"      element={<DesignSystem />} />
           <Route path="/promo-video" element={<PromoVideoStudio />} />
           {/* Fallback — redirect unknown paths to landing */}

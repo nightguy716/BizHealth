@@ -33,6 +33,15 @@ const C = {
 const mono = 'var(--font-sans)';
 const sans = "'Inter', system-ui, sans-serif";
 
+function toChartSymbol(raw) {
+  let t = String(raw || '').trim().toUpperCase();
+  if (!t) return 'NYSE:SLB';
+  if (t.startsWith('NSE:') || t.startsWith('BSE:') || t.startsWith('NYSE:') || t.startsWith('NASDAQ:')) return t;
+  if (t.endsWith('.NS')) return `NSE:${t.replace('.NS', '')}`;
+  if (t.endsWith('.BO')) return `BSE:${t.replace('.BO', '')}`;
+  return `NYSE:${t}`;
+}
+
 async function fetchJsonWithFallback(path) {
   const urls = API === API_FALLBACK ? [API] : [API, API_FALLBACK];
   for (const base of urls) {
@@ -245,6 +254,7 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
 
   const up  = (price?.change_pct || 0) >= 0;
   const pct = price?.change_pct != null ? `${up ? '+' : ''}${price.change_pct.toFixed(2)}%` : null;
+  const chartSymbol = toChartSymbol(resolvedSymbolRef.current || item.ticker);
 
   return (
     <div style={{
@@ -255,7 +265,13 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color: C.text }}>{item.ticker}</span>
+            <Link
+              to={`/charts?symbol=${encodeURIComponent(chartSymbol)}`}
+              title={`Open ${item.ticker} chart`}
+              style={{ fontFamily: mono, fontSize: 14, fontWeight: 600, color: C.text, textDecoration: 'none' }}
+            >
+              {item.ticker}
+            </Link>
             {item.sector && (
               <span style={{
                 fontFamily: mono, fontSize: 10, color: C.blue,
@@ -337,6 +353,16 @@ function WatchCard({ item, onRemove, onEdit, onAlert, pricePollMs, newsPollMs })
           textDecoration: 'none',
         }}>
           Analyse →
+        </Link>
+        <Link
+          to={`/charts?symbol=${encodeURIComponent(chartSymbol)}`}
+          style={{
+            fontFamily: sans, fontSize: 12, color: C.text2,
+            background: 'none', border: `1px solid ${C.border}`, borderRadius: 4,
+            padding: '4px 10px', textDecoration: 'none',
+          }}
+        >
+          Chart
         </Link>
         <button onClick={() => onEdit(item)} style={{
           fontFamily: sans, fontSize: 12, color: C.text2,

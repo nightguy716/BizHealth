@@ -9,6 +9,7 @@ const LINKS = [
   { to: '/',          label: 'Home'      },
   { to: '/dashboard', label: 'Dashboard' },
   { to: '/risk-copilot', label: 'Risk Copilot' },
+  { to: '/charts', label: 'Charts' },
   { to: '/journal',   label: 'Journal'   },
   { to: '/watchlist', label: 'Watchlist' },
   { to: '/blog',      label: 'Blog'      },

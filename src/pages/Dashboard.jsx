@@ -4,7 +4,7 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 
 /* ── URL share helpers ──────────────────────────────────────── */
@@ -21,6 +21,15 @@ function decodeShare(str) {
     const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
     return JSON.parse(decodeURIComponent(escape(atob(b64))));
   } catch { return null; }
+}
+
+function toChartSymbol(raw) {
+  let t = String(raw || '').trim().toUpperCase();
+  if (!t) return 'NYSE:SLB';
+  if (t.startsWith('NSE:') || t.startsWith('BSE:') || t.startsWith('NYSE:') || t.startsWith('NASDAQ:')) return t;
+  if (t.endsWith('.NS')) return `NSE:${t.replace('.NS', '')}`;
+  if (t.endsWith('.BO')) return `BSE:${t.replace('.BO', '')}`;
+  return `NYSE:${t}`;
 }
 
 import Sidebar          from '../components/Sidebar';
@@ -1209,6 +1218,7 @@ export default function App() {
   })();
 
   const hasCompany = !!(companyContext.ticker || companyContext.name);
+  const chartSymbol = toChartSymbol(companyContext.ticker);
   const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase();
 
   const sidebarProps = {
@@ -1320,7 +1330,7 @@ export default function App() {
             <div className="flex items-center gap-0 overflow-x-auto scrollbar-none"
               style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, whiteSpace: 'nowrap', scrollbarWidth: 'none' }}>
               {[
-                { val: companyContext.ticker || '—',                           color: 'var(--gold)' },
+                { val: companyContext.ticker || '—',                           color: 'var(--gold)', isTicker: true },
                 { val: companyContext.name   || '—',                           color: '#f1f5f9' },
                 { val: (industry || 'general').toUpperCase(),                  color: 'var(--text-3)' },
                 { val: companyContext.currency || 'USD',                       color: '#22d3ee' },
@@ -1328,9 +1338,37 @@ export default function App() {
               ].map((item, i) => (
                 <span key={i} className="flex items-center">
                   {i > 0 && <span style={{ color: 'var(--text-5)', margin: '0 8px' }}>·</span>}
-                  <span style={{ color: item.color }}>{item.val}</span>
+                  {item.isTicker && companyContext.ticker ? (
+                    <Link
+                      to={`/charts?symbol=${encodeURIComponent(chartSymbol)}`}
+                      style={{ color: item.color, textDecoration: 'none', borderBottom: '1px dotted rgba(200,157,31,0.45)' }}
+                      title="Open advanced chart"
+                    >
+                      {item.val}
+                    </Link>
+                  ) : (
+                    <span style={{ color: item.color }}>{item.val}</span>
+                  )}
                 </span>
               ))}
+              {companyContext.ticker && (
+                <>
+                  <span style={{ color: 'var(--text-5)', margin: '0 8px' }}>·</span>
+                  <Link
+                    to={`/charts?symbol=${encodeURIComponent(chartSymbol)}`}
+                    style={{
+                      color: 'var(--text-2)',
+                      textDecoration: 'none',
+                      border: '1px solid rgba(255,255,255,0.18)',
+                      padding: '2px 7px',
+                      borderRadius: 4,
+                      fontSize: 10,
+                    }}
+                  >
+                    OPEN CHART
+                  </Link>
+                </>
+              )}
               {calculated && results && (
                 <>
                   <span style={{ color: 'var(--text-5)', margin: '0 8px' }}>·</span>
