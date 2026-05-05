@@ -39,6 +39,7 @@ const cardStyle = {
   borderRadius: 6,
   padding: 14,
 };
+const compactCard = { ...cardStyle, padding: 12 };
 const textXs = 12;
 const textSm = 13;
 const textMd = 14;
@@ -979,7 +980,7 @@ export default function RiskCopilot() {
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', paddingTop: '5rem', fontFamily: sans }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1.25rem 3rem' }}>
+      <div style={{ maxWidth: 1320, margin: '0 auto', padding: '1.15rem 1rem 2.5rem' }}>
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontFamily: mono, fontSize: textXs, letterSpacing: '0.1em', color: 'var(--text-4)', fontWeight: 700 }}>PORTFOLIO</div>
           <h1 style={{ margin: '4px 0', color: 'var(--text-1)', fontSize: 30, fontWeight: 800, lineHeight: 1.2 }}>Risk Copilot (MVP)</h1>
@@ -1007,166 +1008,131 @@ export default function RiskCopilot() {
           </div>
         )}
 
-        <div style={{ ...cardStyle, marginBottom: 12, borderColor: readiness.tone }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, marginBottom: 4, fontWeight: 700 }}>RISK READINESS</div>
-              <div style={{ color: 'var(--text-2)', fontSize: textSm, lineHeight: 1.5 }}>{readiness.summary}</div>
-            </div>
-            <div style={{ fontFamily: mono, fontWeight: 800, color: readiness.tone, fontSize: 20, letterSpacing: '0.08em' }}>
-              {readiness.verdict}
-            </div>
-          </div>
-          {readiness.reasons.length > 0 && (
-            <div style={{ marginTop: 8, fontSize: textSm, color: 'var(--text-3)', lineHeight: 1.5 }}>
-              {readiness.reasons.slice(0, 3).join(' ')}
-            </div>
-          )}
-          {readiness.verdict !== 'PASS' && (
-            <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {fixActions.map((a) => (
-                <button
-                  key={a.id}
-                  onClick={a.apply}
-                  style={{
-                    background: a.kind === 'primary' ? 'var(--gold)' : 'var(--surface-hi)',
-                    color: a.kind === 'primary' ? '#111827' : 'var(--text-2)',
-                    border: `1px solid ${a.kind === 'primary' ? 'var(--gold)' : 'var(--border)'}`,
-                    borderRadius: 4,
-                    padding: '7px 10px',
-                    fontSize: 12,
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  {a.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <div style={{ ...cardStyle, marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 4 }}>AI RISK ANALYST (CLAUDE)</div>
-              <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
-                Converts quant outputs into plain-language interpretation, key risks, and next best actions.
+        <div style={{ display: 'grid', gridTemplateColumns: '1.1fr .9fr', gap: 10, marginBottom: 10, alignItems: 'start' }}>
+          <div style={{ ...cardStyle, borderColor: readiness.tone }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, marginBottom: 4, fontWeight: 700 }}>RISK READINESS</div>
+                <div style={{ color: 'var(--text-2)', fontSize: textSm, lineHeight: 1.5 }}>{readiness.summary}</div>
+              </div>
+              <div style={{ fontFamily: mono, fontWeight: 800, color: readiness.tone, fontSize: 20, letterSpacing: '0.08em' }}>
+                {readiness.verdict}
               </div>
             </div>
-            <button
-              onClick={runAiExplain}
-              disabled={loading === 'ai'}
-              style={{
-                background: 'var(--gold)',
-                color: '#111827',
-                border: '1px solid rgba(200,157,31,0.3)',
-                borderRadius: 4,
-                padding: '8px 10px',
-                fontWeight: 700,
-                fontSize: 12,
-                cursor: loading === 'ai' ? 'not-allowed' : 'pointer',
-                opacity: loading === 'ai' ? 0.7 : 1,
-              }}
-            >
-              {loading === 'ai' ? 'Analyzing...' : 'Explain Full Risk Check'}
-            </button>
-          </div>
-          {!aiNarrative ? (
-            <div style={{ marginTop: 10, color: 'var(--text-4)', fontSize: 12 }}>
-              Run AI explanation after your risk checks to get a human-friendly interpretation.
-            </div>
-          ) : (
-            <>
-              <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-2)' }}>
-                <b>Summary:</b> {aiNarrative.summary || '-'}
+            {readiness.reasons.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: textSm, color: 'var(--text-3)', lineHeight: 1.5 }}>
+                {readiness.reasons.slice(0, 3).join(' ')}
               </div>
-              <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
-                Decision: <b style={{ color: aiNarrative.decision === 'PASS' ? '#22c55e' : aiNarrative.decision === 'BLOCK' ? '#ef4444' : '#f59e0b' }}>{aiNarrative.decision}</b>
-                {' · '}
-                Confidence: <b style={{ color: 'var(--text-2)' }}>{Number(aiNarrative.confidence || 0)}%</b>
-                {aiNarrative?.meta?.model ? (
-                  <>
-                    {' · '}
-                    Model: <b style={{ color: 'var(--text-2)' }}>{aiNarrative.meta.model}</b>
-                  </>
-                ) : null}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
-                <div>
-                  <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>KEY DRIVERS</div>
-                  {(aiNarrative.key_drivers || []).length ? (
-                    (aiNarrative.key_drivers || []).map((item, idx) => (
-                      <div key={`driver-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
-                    ))
-                  ) : (
-                    <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
-                  )}
-                </div>
-                <div>
-                  <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>ACTIONS NOW</div>
-                  {(aiNarrative.actions_now || []).length ? (
-                    (aiNarrative.actions_now || []).map((item, idx) => (
-                      <div key={`act-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
-                    ))
-                  ) : (
-                    <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
-                  )}
-                </div>
-              </div>
-              <div style={{ marginTop: 10 }}>
-                <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>PLAIN ENGLISH</div>
-                {(aiNarrative.plain_english || []).length ? (
-                  (aiNarrative.plain_english || []).map((item, idx) => (
-                    <div key={`plain-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
-                  ))
-                ) : (
-                  <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-
-        <div style={{ ...cardStyle, marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <div>
-              <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 3 }}>PORTFOLIO SNAPSHOTS</div>
-              <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Save and reload portfolio sets for quick risk comparison.</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <select
-                value={selectedSnapshotId}
-                onChange={(e) => loadSnapshot(e.target.value)}
-                style={{ minWidth: 220, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}
-              >
-                <option value="">No snapshot selected</option>
-                {snapshots.map(s => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} · {new Date(s.createdAt).toLocaleDateString('en-IN')}
-                  </option>
+            )}
+            {readiness.verdict !== 'PASS' && (
+              <div style={{ marginTop: 10, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {fixActions.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={a.apply}
+                    style={{
+                      background: a.kind === 'primary' ? 'var(--gold)' : 'var(--surface-hi)',
+                      color: a.kind === 'primary' ? '#111827' : 'var(--text-2)',
+                      border: `1px solid ${a.kind === 'primary' ? 'var(--gold)' : 'var(--border)'}`,
+                      borderRadius: 4,
+                      padding: '7px 10px',
+                      fontSize: 12,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {a.label}
+                  </button>
                 ))}
-              </select>
-              <button onClick={saveSnapshot} style={{ background: 'var(--gold)', color: '#111827', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
-                Save Snapshot
-              </button>
-              <button
-                onClick={() => selectedSnapshotId && deleteSnapshot(selectedSnapshotId)}
-                disabled={!selectedSnapshotId}
-                style={{ background: selectedSnapshotId ? '#ef4444' : 'var(--text-4)', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: selectedSnapshotId ? 'pointer' : 'not-allowed' }}
-              >
-                Delete
-              </button>
-            </div>
+              </div>
+            )}
           </div>
-          {selectedSnapshot && (
-            <div style={{ marginTop: 8, color: 'var(--text-4)', fontSize: 12 }}>
-              Active snapshot: <b style={{ color: 'var(--text-2)' }}>{selectedSnapshot.name}</b>
+
+          <div style={compactCard}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 4 }}>AI RISK ANALYST (CLAUDE)</div>
+                <div style={{ color: 'var(--text-4)', fontSize: 12 }}>
+                  Converts quant outputs into plain-language interpretation, key risks, and next best actions.
+                </div>
+              </div>
+              <button
+                onClick={runAiExplain}
+                disabled={loading === 'ai'}
+                style={{
+                  background: 'var(--gold)',
+                  color: '#111827',
+                  border: '1px solid rgba(200,157,31,0.3)',
+                  borderRadius: 4,
+                  padding: '8px 10px',
+                  fontWeight: 700,
+                  fontSize: 12,
+                  cursor: loading === 'ai' ? 'not-allowed' : 'pointer',
+                  opacity: loading === 'ai' ? 0.7 : 1,
+                }}
+              >
+                {loading === 'ai' ? 'Analyzing...' : 'Explain Full Risk Check'}
+              </button>
             </div>
-          )}
+            {!aiNarrative ? (
+              <div style={{ marginTop: 10, color: 'var(--text-4)', fontSize: 12 }}>
+                Run AI explanation after your risk checks to get a human-friendly interpretation.
+              </div>
+            ) : (
+              <>
+                <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-2)' }}>
+                  <b>Summary:</b> {aiNarrative.summary || '-'}
+                </div>
+                <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-4)' }}>
+                  Decision: <b style={{ color: aiNarrative.decision === 'PASS' ? '#22c55e' : aiNarrative.decision === 'BLOCK' ? '#ef4444' : '#f59e0b' }}>{aiNarrative.decision}</b>
+                  {' · '}
+                  Confidence: <b style={{ color: 'var(--text-2)' }}>{Number(aiNarrative.confidence || 0)}%</b>
+                  {aiNarrative?.meta?.model ? (
+                    <>
+                      {' · '}
+                      Model: <b style={{ color: 'var(--text-2)' }}>{aiNarrative.meta.model}</b>
+                    </>
+                  ) : null}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+                  <div>
+                    <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>KEY DRIVERS</div>
+                    {(aiNarrative.key_drivers || []).length ? (
+                      (aiNarrative.key_drivers || []).map((item, idx) => (
+                        <div key={`driver-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                      ))
+                    ) : (
+                      <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                    )}
+                  </div>
+                  <div>
+                    <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>ACTIONS NOW</div>
+                    {(aiNarrative.actions_now || []).length ? (
+                      (aiNarrative.actions_now || []).map((item, idx) => (
+                        <div key={`act-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                      ))
+                    ) : (
+                      <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                    )}
+                  </div>
+                </div>
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 6 }}>PLAIN ENGLISH</div>
+                  {(aiNarrative.plain_english || []).length ? (
+                    (aiNarrative.plain_english || []).map((item, idx) => (
+                      <div key={`plain-${idx}`} style={{ color: 'var(--text-4)', fontSize: 12, marginBottom: 4 }}>- {item}</div>
+                    ))
+                  ) : (
+                    <div style={{ color: 'var(--text-4)', fontSize: 12 }}>-</div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
-        <div style={{ ...cardStyle, marginBottom: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.05fr .95fr', gap: 10, marginBottom: 12, alignItems: 'start' }}>
+          <div style={{ ...cardStyle, marginBottom: 0 }}>
           <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, marginBottom: 8, fontWeight: 700 }}>SNAPSHOT COMPARISON</div>
           {snapshots.length < 2 ? (
             <div style={{ color: 'var(--text-3)', fontSize: textSm, lineHeight: 1.5 }}>
@@ -1260,16 +1226,55 @@ export default function RiskCopilot() {
               </div>
             </>
           )}
+          </div>
+
+          <div style={{ ...compactCard, marginBottom: 0 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 3 }}>PORTFOLIO SNAPSHOTS</div>
+                <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Save and reload portfolio sets for quick risk comparison.</div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <select
+                  value={selectedSnapshotId}
+                  onChange={(e) => loadSnapshot(e.target.value)}
+                  style={{ minWidth: 220, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}
+                >
+                  <option value="">No snapshot selected</option>
+                  {snapshots.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} · {new Date(s.createdAt).toLocaleDateString('en-IN')}
+                    </option>
+                  ))}
+                </select>
+                <button onClick={saveSnapshot} style={{ background: 'var(--gold)', color: '#111827', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>
+                  Save Snapshot
+                </button>
+                <button
+                  onClick={() => selectedSnapshotId && deleteSnapshot(selectedSnapshotId)}
+                  disabled={!selectedSnapshotId}
+                  style={{ background: selectedSnapshotId ? '#ef4444' : 'var(--text-4)', color: '#fff', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: selectedSnapshotId ? 'pointer' : 'not-allowed' }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+            {selectedSnapshot && (
+              <div style={{ marginTop: 8, color: 'var(--text-4)', fontSize: 12 }}>
+                Active snapshot: <b style={{ color: 'var(--text-2)' }}>{selectedSnapshot.name}</b>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, alignItems: 'start' }}>
-          <div style={cardStyle}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.65fr 1.15fr', gap: 10, alignItems: 'start' }}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 8 }}>POSITIONS</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr .7fr 1fr .6fr', gap: 8, marginBottom: 8, fontSize: 11, color: 'var(--text-4)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1.05fr .7fr .9fr .58fr', gap: 6, marginBottom: 6, fontSize: 11, color: 'var(--text-4)' }}>
               <div>Ticker</div><div>Weight</div><div>Sector</div><div>Beta</div>
             </div>
             {positions.map((p, i) => (
-              <div key={`${p.ticker}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1.2fr .7fr 1fr .6fr', gap: 8, marginBottom: 8 }}>
+              <div key={`${p.ticker}-${i}`} style={{ display: 'grid', gridTemplateColumns: '1.05fr .7fr .9fr .58fr', gap: 6, marginBottom: 6 }}>
                 <input value={p.ticker} onChange={e => setPositions(prev => prev.map((x, idx) => idx === i ? { ...x, ticker: e.target.value.toUpperCase() } : x))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }} />
                 <input type="number" step="0.01" value={p.weight} onChange={e => setPositions(prev => prev.map((x, idx) => idx === i ? { ...x, weight: Number(e.target.value) } : x))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }} />
                 <input value={p.sector} onChange={e => setPositions(prev => prev.map((x, idx) => idx === i ? { ...x, sector: e.target.value } : x))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }} />
@@ -1278,7 +1283,7 @@ export default function RiskCopilot() {
             ))}
           </div>
 
-          <div style={cardStyle}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 8 }}>CANDIDATE TRADE</div>
             <div style={{ marginBottom: 8 }}>
               <TickerAutocomplete
@@ -1291,14 +1296,14 @@ export default function RiskCopilot() {
                 placeholder="Search ticker/company for candidate trade…"
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
               <select value={trade.side} onChange={e => setTrade(t => ({ ...t, side: e.target.value }))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}>
                 <option value="buy">Buy</option>
                 <option value="sell">Sell</option>
               </select>
               <input type="number" step="0.01" value={trade.weight_delta} onChange={e => setTrade(t => ({ ...t, weight_delta: Number(e.target.value) }))} style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
               <input
                 type="number"
                 step="1000"
@@ -1324,7 +1329,7 @@ export default function RiskCopilot() {
                 {loading === 'refresh' ? 'Running full check...' : 'Run Full Risk Check'}
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, marginBottom: 6, alignItems: 'center' }}>
               <select
                 value={tradeObjective}
                 onChange={(e) => applyTradeObjective(e.target.value)}
@@ -1367,9 +1372,9 @@ export default function RiskCopilot() {
               {' · '}
               Projected {normalizeTradeTicker(trade.ticker) || 'ticker'} weight: <b style={{ color: projectedTickerWeight > 0.2 ? '#ef4444' : '#22c55e' }}>{fmtPct(projectedTickerWeight).replace('+', '')}</b>
             </div>
-            <div style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', borderRadius: 6, padding: 10, marginBottom: 10 }}>
+            <div style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, marginBottom: 8 }}>
               <div style={{ fontFamily: mono, color: 'var(--text-2)', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', marginBottom: 6 }}>TRADER PLAN (ENTRY / STOP / TARGET)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 6, marginBottom: 6 }}>
                 <input
                   type="number"
                   step="0.01"
@@ -1395,7 +1400,7 @@ export default function RiskCopilot() {
                   style={{ background: 'var(--surface)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: 12 }}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 6 }}>
                 <input
                   type="number"
                   step="0.001"
@@ -1411,7 +1416,7 @@ export default function RiskCopilot() {
                   Apply implied weight
                 </button>
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, marginBottom: 6 }}>
                 <input
                   type="number"
                   step="0.05"
@@ -1451,7 +1456,7 @@ export default function RiskCopilot() {
                   {tradePlan.trailRunner ? 'Trail ON' : 'Trail OFF'}
                 </button>
               </div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 6 }}>
                 {Object.keys(STRATEGY_PRESETS).map((k) => (
                   <button
                     key={k}
@@ -1506,12 +1511,12 @@ export default function RiskCopilot() {
               </div>
             </div>
 
-            <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginTop: 10, marginBottom: 6 }}>SCENARIO</div>
+            <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginTop: 8, marginBottom: 5 }}>SCENARIO</div>
             <select value={scenarioId} onChange={e => applyScenario(e.target.value)} style={{ width: '100%', marginBottom: 10, background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '7px 8px', fontSize: 12 }}>
               {SCENARIOS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </select>
 
-            <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'grid', gap: 6 }}>
               <button onClick={runPreTrade} style={{ background: 'var(--gold)', color: '#111827', border: 'none', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'pretrade' ? 'Running...' : 'Run Pre-Trade Impact'}</button>
               <button onClick={runStress} style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'stress' ? 'Running...' : 'Run Scenario Stress'}</button>
               <button onClick={runCorrelation} style={{ background: 'var(--surface-hi)', color: 'var(--text-2)', border: '1px solid var(--border)', borderRadius: 4, padding: '8px 10px', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>{loading === 'corr' ? 'Running...' : 'Run Correlation Scan'}</button>
@@ -1520,8 +1525,8 @@ export default function RiskCopilot() {
           </div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
-          <div style={{ ...cardStyle, gridColumn: '1 / -1' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10, marginTop: 10 }}>
+          <div style={{ ...compactCard, gridColumn: '1 / -1' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
               <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: sectionTitle, fontWeight: 700 }}>MANUAL TRADER TOOLKIT</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1548,14 +1553,14 @@ export default function RiskCopilot() {
             <div style={{ color: 'var(--text-3)', fontSize: textSm, marginBottom: 10, lineHeight: 1.5 }}>
               Hands-on calculators for position sizing, slippage-adjusted R:R, expectancy, and custom portfolio shock testing.
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 6, marginBottom: 6 }}>
               <input type="number" step="1000" value={manualInputs.capital} onChange={(e) => setManualInputs((p) => ({ ...p, capital: Number(e.target.value) }))} placeholder="Capital" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="0.1" value={manualInputs.riskPct} onChange={(e) => setManualInputs((p) => ({ ...p, riskPct: Number(e.target.value) }))} placeholder="Risk %/trade" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="0.01" value={manualInputs.entry} onChange={(e) => setManualInputs((p) => ({ ...p, entry: Number(e.target.value) }))} placeholder="Entry" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="0.01" value={manualInputs.stop} onChange={(e) => setManualInputs((p) => ({ ...p, stop: Number(e.target.value) }))} placeholder="Stop" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="0.01" value={manualInputs.target} onChange={(e) => setManualInputs((p) => ({ ...p, target: Number(e.target.value) }))} placeholder="Target" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 8, marginBottom: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 6, marginBottom: 6 }}>
               <input type="number" step="1" value={manualInputs.slippageBps} onChange={(e) => setManualInputs((p) => ({ ...p, slippageBps: Number(e.target.value) }))} placeholder="Slippage bps" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="1" value={manualInputs.feeBps} onChange={(e) => setManualInputs((p) => ({ ...p, feeBps: Number(e.target.value) }))} placeholder="Fee bps" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
               <input type="number" step="1" value={manualInputs.winRatePct} onChange={(e) => setManualInputs((p) => ({ ...p, winRatePct: Number(e.target.value) }))} placeholder="Win rate %" style={{ background: 'var(--surface-hi)', border: '1px solid var(--border)', color: 'var(--text-1)', borderRadius: 4, padding: '6px 8px', fontSize: textXs }} />
@@ -1611,7 +1616,7 @@ export default function RiskCopilot() {
             </div>
           </div>
 
-          <div style={cardStyle}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 10 }}>PRE-TRADE IMPACT</div>
             {!preTrade ? <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Run pre-trade simulation to view before/after risk metrics.</div> : (
               <>
@@ -1628,7 +1633,7 @@ export default function RiskCopilot() {
             )}
           </div>
 
-          <div style={cardStyle}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 10 }}>SCENARIO STRESS</div>
             {!stress ? <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Run scenario stress test to estimate portfolio impact.</div> : (
               <>
@@ -1646,7 +1651,7 @@ export default function RiskCopilot() {
             )}
           </div>
 
-          <div style={cardStyle}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 10 }}>CORRELATION HOTSPOTS</div>
             {!corr ? <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Run correlation scan to detect duplicate bets.</div> : (
               <>
@@ -1665,7 +1670,7 @@ export default function RiskCopilot() {
             )}
           </div>
 
-          <div style={cardStyle}>
+          <div style={compactCard}>
             <div style={{ fontFamily: mono, color: 'var(--text-3)', fontSize: 11, marginBottom: 10 }}>HEDGE SUGGESTIONS</div>
             {!hedges ? <div style={{ color: 'var(--text-4)', fontSize: 12 }}>Generate trims/adds to reduce concentration and VaR.</div> : (
               <>

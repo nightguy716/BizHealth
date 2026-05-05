@@ -1,48 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import TickerAutocomplete from '../components/TickerAutocomplete';
+import { fromCompanyToTradingViewSymbol, getTradingViewSymbolCandidates, toTradingViewSymbol } from '../lib/chartSymbols';
 
 const QUICK_SYMBOLS = ['NASDAQ:AAPL', 'NASDAQ:NVDA', 'NYSE:SLB', 'NSE:RELIANCE', 'NSE:TCS'];
 
-function toTvCore(raw) {
-  // TradingView can reject some Yahoo-style characters (e.g., M&M).
-  // Normalize to a safer core symbol representation.
-  return String(raw || '')
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, '')
-    .replace(/\.NS$/, '')
-    .replace(/\.BO$/, '')
-    .replace(/&/g, '_')
-    .replace(/\./g, '_');
-}
-
 function normalizeSymbol(raw) {
-  const value = String(raw || '').trim().toUpperCase();
-  if (!value) return 'NYSE:SLB';
-  if (value.includes(':')) {
-    const [ex = 'NYSE', sym = 'SLB'] = value.split(':');
-    return `${ex}:${toTvCore(sym)}`;
-  }
-  if (value.endsWith('.NS')) return `NSE:${toTvCore(value)}`;
-  if (value.endsWith('.BO')) return `BSE:${toTvCore(value)}`;
-  return `NYSE:${toTvCore(value)}`;
-}
-
-function fromCompanyToSymbol(company) {
-  const ticker = String(company?.ticker || '').trim().toUpperCase();
-  const exchange = String(company?.exchange || '').trim().toUpperCase();
-  if (!ticker) return 'NYSE:SLB';
-  if (ticker.includes(':')) {
-    const [ex = 'NYSE', sym = 'SLB'] = ticker.split(':');
-    return `${ex}:${toTvCore(sym)}`;
-  }
-  if (ticker.endsWith('.NS')) return `NSE:${toTvCore(ticker)}`;
-  if (ticker.endsWith('.BO')) return `BSE:${toTvCore(ticker)}`;
-  if (exchange === 'NSE') return `NSE:${toTvCore(ticker)}`;
-  if (exchange === 'BSE') return `BSE:${toTvCore(ticker)}`;
-  if (exchange === 'NASDAQ') return `NASDAQ:${toTvCore(ticker)}`;
-  return `NYSE:${toTvCore(ticker)}`;
+  return toTradingViewSymbol(raw, 'NYSE');
 }
 
 function symbolToSearchValue(raw) {
@@ -64,6 +28,7 @@ export default function StockChart() {
 
   const [inputValue, setInputValue] = useState(querySymbol);
   const [symbol, setSymbol] = useState(querySymbol);
+  const [fallbackSymbols, setFallbackSymbols] = useState([]);
   const [isDark, setIsDark] = useState(document?.documentElement?.dataset?.theme !== 'light');
 
   useEffect(() => {
@@ -127,8 +92,10 @@ export default function StockChart() {
 
   function applySymbol(raw) {
     const next = normalizeSymbol(raw);
+    const candidates = getTradingViewSymbolCandidates(raw, next.split(':')[0] || 'NYSE');
     setSymbol(next);
     setInputValue(next);
+    setFallbackSymbols(candidates.filter((s) => s !== next).slice(0, 3));
     navigate(`/charts?symbol=${encodeURIComponent(next)}`, { replace: true });
   }
 
@@ -147,7 +114,7 @@ export default function StockChart() {
             <TickerAutocomplete
               value={inputValue}
               onChange={setInputValue}
-              onSelect={(company) => applySymbol(fromCompanyToSymbol(company))}
+              onSelect={(company) => applySymbol(fromCompanyToTradingViewSymbol(company))}
               placeholder="Search ticker/company (e.g., SLB, AAPL, RELIANCE)"
             />
           </div>
@@ -188,6 +155,30 @@ export default function StockChart() {
             </button>
           ))}
         </div>
+
+        {fallbackSymbols.length > 0 && (
+          <div style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-4)' }}>Symbol fallback:</span>
+            {fallbackSymbols.map((s) => (
+              <button
+                key={s}
+                onClick={() => applySymbol(s)}
+                style={{
+                  background: 'var(--surface)',
+                  color: 'var(--text-3)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 999,
+                  padding: '4px 9px',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div
           style={{

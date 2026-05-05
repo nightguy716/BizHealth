@@ -106,6 +106,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
         scrollbarWidth: 'thin',
         scrollbarColor: 'var(--border-hi) transparent',
         transition: 'width 0.25s ease',
+        zIndex: mobile ? 70 : 55,
       }}>
 
       {/* Top royal-blue accent bar */}
