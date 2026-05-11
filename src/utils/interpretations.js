@@ -123,6 +123,36 @@ export function getInterpretation(ratioKey, value, status, threshold) {
       amber: `Altman Z-Score of ${v} (1.1–2.6) is in the grey zone — some financial stress indicators present. Monitor liquidity and leverage closely.`,
       red:   `Altman Z-Score of ${v} is below 1.1 — distress zone. Altman's model predicts a meaningful probability of financial difficulty. Address solvency and liquidity urgently.`,
     },
+    netInterestIncome: {
+      green: `Net Interest Income of ${v} indicates your lending spread is positive after funding costs.`,
+      amber: `Net Interest Income of ${v} is thin. Review liability costs and pricing discipline on new assets.`,
+      red:   `Net Interest Income of ${v} is weak/negative — spread pressure can materially hurt banking profitability.`,
+    },
+    netInterestMargin: {
+      green: `Net Interest Margin of ${v}% is healthy for a banking book and supports sustainable profitability.`,
+      amber: `Net Interest Margin of ${v}% is below the ideal benchmark of ${threshold}%. Monitor funding mix and repricing risk.`,
+      red:   `Net Interest Margin of ${v}% is low — spread compression is a key risk. Rebalance asset-liability mix and improve pricing.`,
+    },
+    costToIncome: {
+      green: `Cost-to-Income of ${v}% is efficient and indicates controlled operating overhead against operating income.`,
+      amber: `Cost-to-Income of ${v}% is acceptable but can improve. Focus on branch/productivity and process digitization.`,
+      red:   `Cost-to-Income of ${v}% is high versus ${threshold}% — operating efficiency is weak and dragging returns.`,
+    },
+    equityToAssets: {
+      green: `Equity-to-Assets of ${v}% indicates a solid capital cushion relative to total assets.`,
+      amber: `Equity-to-Assets of ${v}% is moderate. Keep capital buffers strong as balance sheet risk grows.`,
+      red:   `Equity-to-Assets of ${v}% is thin — capital cushion may be inadequate for stress scenarios.`,
+    },
+    loanToDeposit: {
+      green: `Loan-to-Deposit ratio of ${v}% suggests lending growth is supported by deposits without excessive liquidity strain.`,
+      amber: `Loan-to-Deposit ratio of ${v}% is elevated. Monitor funding mix and short-term liquidity buffers closely.`,
+      red:   `Loan-to-Deposit ratio of ${v}% is high versus ${threshold}%. Funding stress risk rises if deposit growth slows.`,
+    },
+    creditCostToIncome: {
+      green: `Credit Cost / Income of ${v}% indicates manageable impairment pressure relative to operating income.`,
+      amber: `Credit Cost / Income of ${v}% is moderate. Watch underwriting quality and provisioning trends.`,
+      red:   `Credit Cost / Income of ${v}% is high versus ${threshold}% — elevated asset quality stress is hitting profitability.`,
+    },
   };
 
   if (!map[ratioKey]) return '';

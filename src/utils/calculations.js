@@ -106,3 +106,43 @@ export const calcAltmanZ = (ca, cl, ta, np, gp, opex, eq) => {
   const X4 = totalLiab > 0 ? (eq || 0) / totalLiab : 0;
   return (6.56 * X1) + (3.26 * X2) + (6.72 * X3) + (1.05 * X4);
 };
+
+// ── Banking / Financial Sector Metrics ──────────────────────
+// Net Interest Income (NII) = Interest Income - Interest Expense
+export const calcNetInterestIncome = (interestIncome, interestExpense) => {
+  if (!interestIncome && !interestExpense) return null;
+  return (interestIncome || 0) - (interestExpense || 0);
+};
+
+// NIM proxy = NII / Total Assets (used as a balance-sheet proxy when
+// average earning assets are unavailable in user inputs).
+export const calcNetInterestMarginProxy = (interestIncome, interestExpense, totalAssets) => {
+  if (!totalAssets) return null;
+  const nii = calcNetInterestIncome(interestIncome, interestExpense);
+  if (nii === null) return null;
+  return (nii / totalAssets) * 100;
+};
+
+// Cost-to-Income ratio is a core banking efficiency metric.
+export const calcCostToIncome = (opex, revenue) => {
+  if (!revenue) return null;
+  return (opex / revenue) * 100;
+};
+
+// Capital cushion proxy = Equity / Total Assets.
+export const calcEquityToAssets = (equity, totalAssets) => {
+  if (!totalAssets) return null;
+  return (equity / totalAssets) * 100;
+};
+
+// Loan-to-Deposit Ratio (LDR) proxy for liquidity/asset-liability balance.
+export const calcLoanToDeposit = (grossLoans, deposits) => {
+  if (!deposits) return null;
+  return (grossLoans / deposits) * 100;
+};
+
+// Credit cost proxy = provisions / operating income.
+export const calcCreditCostToIncome = (provisions, revenue) => {
+  if (!revenue) return null;
+  return (provisions / revenue) * 100;
+};

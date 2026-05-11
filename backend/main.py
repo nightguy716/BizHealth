@@ -278,6 +278,64 @@ def _yfv(obj, *keys):
     return None
 
 
+def _derive_operating_expenses(
+    revenue: float | None,
+    gross_profit: float | None,
+    operating_income: float | None,
+    explicit_opex: float | None = None,
+    rd: float | None = None,
+    sga: float | None = None,
+) -> float | None:
+    """
+    Prefer directly reported OpEx, then derive from gross profit - operating income,
+    then fall back to explicit component rollup where available.
+    """
+    if explicit_opex is not None:
+        return explicit_opex
+    if gross_profit is not None and operating_income is not None:
+        return max(0.0, gross_profit - operating_income)
+    if revenue is not None and operating_income is not None and gross_profit is None:
+        # If gross profit is unavailable but revenue/op-inc exists, avoid inventing COGS.
+        # Do not derive an aggressive value from partial data.
+        return None
+    if rd is not None and sga is not None:
+        return max(0.0, rd + sga)
+    return None
+
+
+def _augment_core_inputs(raw_inputs: dict[str, float | None]) -> tuple[dict[str, float | None], dict[str, str]]:
+    """
+    Fill key dependencies used by ratio engine (margins, DPO, CCC) and record
+    whether each field is reported directly or derived.
+    """
+    data = dict(raw_inputs)
+    sources = {k: ("reported" if v is not None else "missing") for k, v in data.items()}
+
+    rev = data.get("revenue")
+    gp = data.get("grossProfit")
+    cogs = data.get("cogs")
+    opx = data.get("operatingExpenses")
+    op_income = data.get("operatingIncome")
+
+    if gp is None and rev is not None and cogs is not None:
+        data["grossProfit"] = rev - cogs
+        sources["grossProfit"] = "derived_from_revenue_and_cogs"
+        gp = data["grossProfit"]
+
+    if cogs is None and rev is not None and gp is not None:
+        data["cogs"] = max(0.0, rev - gp)
+        sources["cogs"] = "derived_from_revenue_and_gross_profit"
+        cogs = data["cogs"]
+
+    if opx is None:
+        d_opex = _derive_operating_expenses(rev, gp, op_income)
+        if d_opex is not None:
+            data["operatingExpenses"] = d_opex
+            sources["operatingExpenses"] = "derived_from_gross_profit_and_operating_income"
+
+    return data, sources
+
+
 def _parse_yf_response(data: dict) -> dict:
     """Parse Yahoo Finance quoteSummary into our historical + inputs format."""
     result = (data.get("quoteSummary") or {}).get("result") or [{}]
@@ -299,6 +357,14 @@ def _parse_yf_response(data: dict) -> dict:
         da     = _yfv(s, "depreciationAndAmortization")
         ebitda = (op + da) if op and da else None
         shares = _yfv(s, "dilutedAverageShares")
+        op_exp = _derive_operating_expenses(
+            rev,
+            gp,
+            op,
+            explicit_opex=_yfv(s, "operatingExpenses"),
+            rd=rd,
+            sga=sga,
+        )
         return {
             "year":              (s.get("endDate") or {}).get("fmt", "")[:4],
             "revenue":           rev,
@@ -306,7 +372,7 @@ def _parse_yf_response(data: dict) -> dict:
             "grossProfit":       gp,
             "rd":                rd,
             "sga":               sga,
-            "operatingExpenses": (rd + sga) if rd and sga else None,
+            "operatingExpenses": op_exp,
             "operatingIncome":   op,
             "preTaxIncome":      _yfv(s, "incomeBeforeTax"),
             "tax":               _yfv(s, "incomeTaxExpense"),
@@ -428,10 +494,12 @@ def _parse_yf_response(data: dict) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "operatingIncome":    inc0.get("operatingIncome"),
         "da":                 inc0.get("da")              or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
         "operatingCashFlow":  cf0.get("cfOps")            or fd_ocf,
     }
+    raw_inputs, input_sources = _augment_core_inputs(raw_inputs)
     data_fields = {}
     for k, v in raw_inputs.items():
         if v is not None and not (isinstance(v, float) and math.isnan(v)) and abs(v) > 0:
@@ -491,6 +559,7 @@ def _parse_yf_response(data: dict) -> dict:
         "filled":      filled,
         "total":       total,
         "data":        data_fields,
+        "data_sources": input_sources,
         "historical":  historical,
         "market_data": market_data,
     }
@@ -683,7 +752,7 @@ SECTOR_MAP = {
     "Industrials":         "manufacturing",
     "Basic Materials":     "manufacturing",
     "Energy":              "manufacturing",
-    "Real Estate":         "general",
+    "Real Estate":         "real_estate",
     "Utilities":           "general",
 }
 
@@ -833,7 +902,10 @@ async def get_company(ticker: str):
         "interestExpense":    interest,
         "receivables":        receivables,
         "cogs":               cogs_raw,
+        "operatingIncome":    _fv(inc, "operatingIncome"),
+        "accountsPayable":    _fv(bal, "accountPayables", "accountsPayable"),
     }
+    raw, input_sources = _augment_core_inputs(raw)
 
     mapped = {}
     for k, v in raw.items():
@@ -855,6 +927,7 @@ async def get_company(ticker: str):
         "filled":   filled,
         "total":    total,
         "data":     mapped,
+        "data_sources": input_sources,
     }
 
 
@@ -993,6 +1066,14 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
         da   = _fv(r, "depreciationAndAmortization", "depreciation")
         ni   = _fv(r, "netIncome", "netIncomeFromContinuingOperations")
         ie   = _fv(r, "interestAndDebtExpense", "interestExpense")
+        op_exp = _derive_operating_expenses(
+            rev,
+            gp,
+            op,
+            explicit_opex=_fv(r, "operatingExpenses"),
+            rd=rd,
+            sga=sga,
+        )
         return {
             "year":              r.get("fiscalDateEnding", "")[:4],
             "revenue":           rev,
@@ -1000,7 +1081,7 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
             "grossProfit":       gp,
             "rd":                rd,
             "sga":               sga,
-            "operatingExpenses": (rd + sga) if rd and sga else _fv(r, "operatingExpenses"),
+            "operatingExpenses": op_exp,
             "operatingIncome":   op,
             "preTaxIncome":      _fv(r, "incomeBeforeTax"),
             "tax":               _fv(r, "incomeTaxExpense"),
@@ -1080,10 +1161,12 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "operatingIncome":    inc0.get("operatingIncome"),
         "da":                 inc0.get("da") or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
         "operatingCashFlow":  cf0.get("cfOps"),
     }
+    raw_inputs, input_sources = _augment_core_inputs(raw_inputs)
 
     data_fields = {}
     for k, v in raw_inputs.items():
@@ -1108,6 +1191,7 @@ async def _av_fetch(sym: str, api_key: str) -> dict:
         "filled":     filled,
         "total":      total,
         "data":       data_fields,
+        "data_sources": input_sources,
         "historical": historical,
     }
 
@@ -1154,6 +1238,14 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
         ie   = fv(d, "interestExpense")
         da   = fv(d, "depreciationAndAmortization")
         ni   = fv(d, "netIncome")
+        op_exp = _derive_operating_expenses(
+            rev,
+            gp,
+            op,
+            explicit_opex=fv(d, "operatingExpenses"),
+            rd=rd,
+            sga=sga,
+        )
         return {
             "year":              d.get("calendarYear", d.get("date", "")[:4]),
             "revenue":           rev,
@@ -1161,7 +1253,7 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
             "grossProfit":       gp,
             "rd":                rd,
             "sga":               sga,
-            "operatingExpenses": fv(d, "operatingExpenses") or ((rd+sga) if rd and sga else None),
+            "operatingExpenses": op_exp,
             "operatingIncome":   op,
             "preTaxIncome":      fv(d, "incomeBeforeTax"),
             "tax":               fv(d, "incomeTaxExpense"),
@@ -1241,10 +1333,12 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "operatingIncome":    inc0.get("operatingIncome"),
         "da":                 inc0.get("da") or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
         "operatingCashFlow":  cf0.get("cfOps"),
     }
+    raw_inputs, input_sources = _augment_core_inputs(raw_inputs)
 
     data_fields = {}
     for k, v in raw_inputs.items():
@@ -1269,6 +1363,7 @@ async def _fmp_fetch(sym: str, api_key: str) -> dict:
         "filled":     filled,
         "total":      total,
         "data":       data_fields,
+        "data_sources": input_sources,
         "historical": historical,
     }
 
@@ -1360,6 +1455,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
     _BAL_PPE        = ['Net PPE', 'Property Plant Equipment Net', 'Net Property Plant And Equipment']
     _BAL_GW         = ['Goodwill', 'GoodWill']
     _BAL_APIC       = ['Additional Paid In Capital', 'Capital Surplus']
+    _BAL_AP         = ['Accounts Payable', 'Account Payables', 'Payables And Accrued Expenses']
 
     _CF_OPS         = ['Operating Cash Flow', 'Total Cash From Operating Activities']
     _CF_CAPEX       = ['Capital Expenditure', 'Capital Expenditures', 'Purchase Of PPE']
@@ -1400,6 +1496,14 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
         ni   = gv(inc_df, col, _INC_NI)
         ie   = gv(inc_df, col, _INC_IE)
         ebitda = gv(inc_df, col, _INC_EBITDA) or ((op + da) if op and da else None)
+        op_exp = _derive_operating_expenses(
+            rev,
+            gp,
+            op,
+            explicit_opex=gv(inc_df, col, _INC_OPEX),
+            rd=rd,
+            sga=sga,
+        )
         return {
             "year":              str(col.year) if hasattr(col, "year") else str(col)[:4],
             "revenue":           rev,
@@ -1407,7 +1511,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
             "grossProfit":       gp,
             "rd":                rd,
             "sga":               sga,
-            "operatingExpenses": (rd + sga) if rd and sga else None,
+            "operatingExpenses": op_exp,
             "operatingIncome":   op,
             "preTaxIncome":      gv(inc_df, col, _INC_PRETAX),
             "tax":               gv(inc_df, col, _INC_TAX),
@@ -1432,6 +1536,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
             "ppe":                gv(bal_df, col, _BAL_PPE),
             "goodwill":           gv(bal_df, col, _BAL_GW),
             "currentLiabilities": gv(bal_df, col, _BAL_CL),
+            "ap":                 gv(bal_df, col, _BAL_AP),
             "ltDebt":             ltd,
             "currentDebt":        std,
             "totalDebt":          td if td > 0 else None,
@@ -1504,10 +1609,12 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
         "interestExpense":    inc0.get("interestExpense"),
         "receivables":        bal0.get("receivables"),
         "cogs":               inc0.get("cogs"),
+        "operatingIncome":    inc0.get("operatingIncome"),
         "da":                 inc0.get("da")           or cf0.get("da"),
         "accountsPayable":    bal0.get("ap"),
         "operatingCashFlow":  cf0.get("cfOps")         or inf_ocf,
     }
+    raw_inputs, input_sources = _augment_core_inputs(raw_inputs)
 
     data_fields = {}
     for k, v in raw_inputs.items():
@@ -1531,6 +1638,7 @@ def _yf_fetch_ticker(sym: str, session=None) -> dict:
         "filled":     filled,
         "total":      total,
         "data":       data_fields,
+        "data_sources": input_sources,
         "historical": historical,
     }
 
