@@ -8,18 +8,9 @@ export const DEMO_DATA = {
   currentAssets:'4500000', currentLiabilities:'2800000', inventory:'1200000', cash:'800000',
   totalAssets:'12000000', equity:'6500000', totalDebt:'3500000',
   revenue:'24000000', grossProfit:'5400000', operatingExpenses:'2200000',
-  netProfit:'1800000', interestIncome:'900000', interestExpense:'420000', receivables:'2800000', cogs:'18600000',
+  netProfit:'1800000', interestExpense:'420000', receivables:'2800000', cogs:'18600000',
   // CFA inputs
   da:'480000', accountsPayable:'1400000', operatingCashFlow:'2100000',
-};
-
-export const BANK_DEMO_DATA = {
-  currentAssets:'920000000', currentLiabilities:'840000000', inventory:'0', cash:'120000000',
-  totalAssets:'2800000000', equity:'260000000', totalDebt:'2140000000',
-  revenue:'182000000', grossProfit:'104000000', operatingExpenses:'72000000',
-  netProfit:'31800000', interestIncome:'146000000', interestExpense:'98000000',
-  receivables:'0', cogs:'0', da:'4800000', accountsPayable:'0', operatingCashFlow:'40200000',
-  deposits:'1750000000', grossLoans:'1620000000', provisions:'13800000',
 };
 
 const CSV_MAP = {
@@ -29,10 +20,6 @@ const CSV_MAP = {
   'total equity':'equity','shareholders equity':'equity','total debt':'totalDebt',
   'debt':'totalDebt','revenue':'revenue','total revenue':'revenue','sales':'revenue',
   'turnover':'revenue','gross profit':'grossProfit','operating expenses':'operatingExpenses',
-  'interest income':'interestIncome','net interest income':'interestIncome',
-  'deposits':'deposits','total deposits':'deposits',
-  'gross loans':'grossLoans','loan book':'grossLoans','advances':'grossLoans',
-  'provisions':'provisions','credit cost':'provisions','loan loss provisions':'provisions',
   'opex':'operatingExpenses','net profit':'netProfit','profit after tax':'netProfit',
   'pat':'netProfit','interest expense':'interestExpense','interest':'interestExpense',
   'finance costs':'interestExpense','receivables':'receivables',
@@ -54,7 +41,6 @@ const FIELDS = [
   { key:'revenue',            label:'Total Revenue',       g:'P&L'          },
   { key:'grossProfit',        label:'Gross Profit',        g:'P&L'          },
   { key:'operatingExpenses',  label:'Operating Expenses',  g:'P&L'          },
-  { key:'interestIncome',     label:'Interest Income',     g:'P&L'          },
   { key:'netProfit',          label:'Net Profit',          g:'P&L'          },
   { key:'interestExpense',    label:'Interest Expense',    g:'P&L'          },
   { key:'receivables',        label:'Accounts Receivable', g:'Working Capital'},
@@ -62,9 +48,6 @@ const FIELDS = [
   { key:'da',                 label:'D&A (Depreciation)',  g:'CFA Inputs'   },
   { key:'accountsPayable',    label:'Accounts Payable',    g:'CFA Inputs'   },
   { key:'operatingCashFlow',  label:'Operating Cash Flow', g:'CFA Inputs'   },
-  { key:'deposits',           label:'Total Deposits',      g:'Bank Inputs'  },
-  { key:'grossLoans',         label:'Gross Loans',         g:'Bank Inputs'  },
-  { key:'provisions',         label:'Credit Provisions',   g:'Bank Inputs'  },
 ];
 
 const GROUPS = [
@@ -72,19 +55,12 @@ const GROUPS = [
   { id: 'P&L',            label: 'P & L',           color: '#00e887' },
   { id: 'Working Capital',label: 'Working Capital', color: '#22d3ee' },
   { id: 'CFA Inputs',     label: 'CFA Inputs',      color: '#f59e0b' },
-  { id: 'Bank Inputs',    label: 'Bank Inputs',     color: '#6b84f8' },
 ];
 
 export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCalculate, onReset, onCompanyLoaded, collapsed = false, mobile = false, onClose }) {
   const fileRef = useRef(null);
-  const activeFieldKeys = FIELDS
-    .filter((f) => industry === 'finance' || f.g !== 'Bank Inputs')
-    .map((f) => f.key);
-  const filled  = activeFieldKeys.filter((k) => String(inputs[k] || '').trim() !== '').length;
-  const pct     = Math.round((filled / activeFieldKeys.length) * 100);
-  const bankFieldKeys = ['interestIncome', 'deposits', 'grossLoans', 'provisions'];
-  const bankFilled = bankFieldKeys.filter((k) => String(inputs[k] || '').trim() !== '').length;
-  const bankPct = Math.round((bankFilled / bankFieldKeys.length) * 100);
+  const filled  = Object.values(inputs).filter(v => v !== '').length;
+  const pct     = Math.round((filled / FIELDS.length) * 100);
 
   const handleCSV = e => {
     const file = e.target.files?.[0];
@@ -231,15 +207,6 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
             </svg>
             Upload CSV
           </button>
-          {industry === 'finance' && (
-            <button onClick={() => setInputs(BANK_DEMO_DATA)}
-              className="flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1.5"
-              style={{ background: 'rgba(107,132,248,0.14)', border: '1px solid rgba(107,132,248,0.32)', color: '#c7d2fe' }}
-              onMouseEnter={e => { e.currentTarget.style.background='rgba(107,132,248,0.24)'; }}
-              onMouseLeave={e => { e.currentTarget.style.background='rgba(107,132,248,0.14)'; }}>
-              Bank Template
-            </button>
-          )}
           <input ref={fileRef} type="file" accept=".csv" onChange={handleCSV} className="hidden" />
         </div>
       </div>
@@ -252,7 +219,7 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
           </span>
           <span className="mono text-[10px] font-bold"
             style={{ color: pct === 100 ? '#00e887' : pct >= 60 ? '#fbbf24' : 'var(--text-3)' }}>
-            {filled} / {activeFieldKeys.length}
+            {filled} / {FIELDS.length}
           </span>
         </div>
         <div className="h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.07)' }}>
@@ -263,25 +230,11 @@ export default function Sidebar({ inputs, setInputs, industry, setIndustry, onCa
               boxShadow: pct === 100 ? '0 0 8px #00e887' : '0 0 8px rgba(79,110,247,0.7)',
             }} />
         </div>
-        {industry === 'finance' && (
-          <div className="flex items-center justify-between mt-2">
-            <span className="mono text-[9px] uppercase tracking-[0.1em]" style={{ color: 'var(--text-muted)' }}>
-              Bank Fields
-            </span>
-            <span
-              className="mono text-[10px] font-bold"
-              style={{ color: bankPct === 100 ? '#00e887' : bankPct >= 50 ? '#fbbf24' : 'var(--text-3)' }}
-            >
-              {bankFilled} / {bankFieldKeys.length}
-            </span>
-          </div>
-        )}
       </div>
 
       {/* ── Input field groups ──────────────────────────── */}
       <div className="px-4 pb-2 flex-1 overflow-y-auto">
         {GROUPS.map(g => {
-          if (g.id === 'Bank Inputs' && industry !== 'finance') return null;
           const groupFields = FIELDS.filter(f => f.g === g.id);
           const groupFilled = groupFields.filter(f => inputs[f.key] !== '').length;
           return (

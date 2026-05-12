@@ -32,13 +32,6 @@ const BASE = {
   cashConversionCycle: { threshold: 45,   direction: 'lower'  }, // DSO + DIO − DPO (days)
   cfoToNetIncome:      { threshold: 1.0,  direction: 'higher' }, // Cash quality ratio
   altmanZ:             { threshold: 2.6,  direction: 'higher' }, // Z'' > 2.6 = safe zone
-  // ── Banking overlays (used for finance sector cards) ──────
-  netInterestIncome:   { threshold: 0,    direction: 'higher' }, // Positive spread
-  netInterestMargin:   { threshold: 2.5,  direction: 'higher' }, // Proxy NIM %
-  costToIncome:        { threshold: 55,   direction: 'lower'  }, // Lower is better
-  equityToAssets:      { threshold: 8,    direction: 'higher' }, // Capital adequacy proxy
-  loanToDeposit:       { threshold: 90,   direction: 'lower'  }, // Above ~100 can pressure liquidity
-  creditCostToIncome:  { threshold: 8,    direction: 'lower'  }, // Lower credit cost is healthier
 };
 
 const CFA_BASE = {
@@ -132,39 +125,6 @@ export const INDUSTRY_BENCHMARKS = {
     cashConversionCycle:   { threshold: 20,   direction: 'lower'  },
     cfoToNetIncome:        { threshold: 1.0,  direction: 'higher' },
     altmanZ:               { threshold: 2.6,  direction: 'higher' },
-    netInterestIncome:     { threshold: 0,    direction: 'higher' },
-    netInterestMargin:     { threshold: 2.8,  direction: 'higher' },
-    costToIncome:          { threshold: 55,   direction: 'lower'  },
-    equityToAssets:        { threshold: 8.0,  direction: 'higher' },
-    loanToDeposit:         { threshold: 92,   direction: 'lower'  },
-    creditCostToIncome:    { threshold: 8,    direction: 'lower'  },
-  },
-  real_estate: {
-    label: 'Real Estate',
-    currentRatio:          { threshold: 1.3,  direction: 'higher' },
-    quickRatio:            { threshold: 0.7,  direction: 'higher' },
-    cashRatio:             { threshold: 0.25, direction: 'higher' },
-    grossMargin:           { threshold: 30,   direction: 'higher' },
-    operatingMargin:       { threshold: 14,   direction: 'higher' },
-    netMargin:             { threshold: 10,   direction: 'higher' },
-    roe:                   { threshold: 10,   direction: 'higher' },
-    roa:                   { threshold: 3,    direction: 'higher' },
-    assetTurnover:         { threshold: 0.35, direction: 'higher' },
-    fixedAssetTurnover:    { threshold: 0.8,  direction: 'higher' },
-    // Real estate has longer billing/collection and project cycles.
-    receivablesDays:       { threshold: 150,  direction: 'lower'  },
-    inventoryDays:         { threshold: 240,  direction: 'lower'  },
-    debtToEquity:          { threshold: 2.5,  direction: 'lower'  },
-    interestCoverage:      { threshold: 2.0,  direction: 'higher' },
-    ebitdaMargin:          { threshold: 18,   direction: 'higher' },
-    roic:                  { threshold: 7,    direction: 'higher' },
-    equityMultiplier:      { threshold: 5.0,  direction: 'lower'  },
-    debtToCapital:         { threshold: 0.65, direction: 'lower'  },
-    netDebtToEbitda:       { threshold: 4.0,  direction: 'lower'  },
-    daysPayableOutstanding:{ threshold: 75,   direction: 'higher' },
-    cashConversionCycle:   { threshold: 180,  direction: 'lower'  },
-    cfoToNetIncome:        { threshold: 0.8,  direction: 'higher' },
-    altmanZ:               { threshold: 2.0,  direction: 'higher' },
   },
   retail: {
     label: 'Retail',

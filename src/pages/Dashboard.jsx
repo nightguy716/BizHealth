@@ -3,7 +3,7 @@
  * Orchestrates state, calculations, PDF export, and the full page layout.
  */
 
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import jsPDF from 'jspdf';
 
@@ -23,6 +23,15 @@ function decodeShare(str) {
   } catch { return null; }
 }
 
+function toChartSymbol(raw) {
+  let t = String(raw || '').trim().toUpperCase();
+  if (!t) return 'NYSE:SLB';
+  if (t.startsWith('NSE:') || t.startsWith('BSE:') || t.startsWith('NYSE:') || t.startsWith('NASDAQ:')) return t;
+  if (t.endsWith('.NS')) return `NSE:${t.replace('.NS', '')}`;
+  if (t.endsWith('.BO')) return `BSE:${t.replace('.BO', '')}`;
+  return `NYSE:${t}`;
+}
+
 import Sidebar          from '../components/Sidebar';
 import SummaryBanner    from '../components/SummaryBanner';
 import RatioGroup       from '../components/RatioGroup';
@@ -40,7 +49,6 @@ import { FinAxisLockup } from '../components/FinAxisLogo';
 import TourOverlay, { useShouldShowTour } from '../components/TourOverlay';
 import { ownerHeaders } from '../lib/ownerHeaders';
 import { getBackendBaseUrl } from '../lib/backendUrl';
-import { toTradingViewSymbol } from '../lib/chartSymbols';
 
 import { SECTOR_COMPANIES, COMPARISON_RATIOS } from '../data/sectorData';
 
@@ -51,8 +59,6 @@ import {
   calcInventoryDays, calcDebtToEquity, calcInterestCoverage,
   calcEbitdaMargin, calcROIC, calcEquityMultiplier, calcDebtToCapital,
   calcNetDebtToEbitda, calcDPO, calcCCC, calcCfoToNetIncome, calcAltmanZ,
-  calcNetInterestIncome, calcNetInterestMarginProxy, calcCostToIncome, calcEquityToAssets,
-  calcLoanToDeposit, calcCreditCostToIncome,
 } from '../utils/calculations';
 
 import { getStatus, getBarWidth, INDUSTRY_BENCHMARKS } from '../utils/benchmarks';
@@ -82,20 +88,12 @@ const RECOMMENDATIONS = {
   cashConversionCycle:    'Tighten DSO via early-payment incentives, reduce DIO via demand forecasting, extend DPO via supplier negotiations.',
   cfoToNetIncome:         'Investigate the gap between reported profits and cash. Analyse receivables build-up and revenue recognition policies.',
   altmanZ:                'Prioritise liquidity improvement, profitability recovery, and debt reduction. Consider restructuring options.',
-  netInterestIncome:      'Protect NII by managing funding mix, reducing high-cost liabilities, and repricing low-yield assets.',
-  netInterestMargin:      'Improve spread through better loan mix, repricing discipline, and tighter ALM execution.',
-  costToIncome:           'Reduce operating overhead through branch productivity, automation, and process simplification.',
-  equityToAssets:         'Strengthen capital cushion through retained earnings and prudent balance-sheet growth.',
-  loanToDeposit:          'Balance loan growth with stable deposit growth to avoid funding stress.',
-  creditCostToIncome:     'Tighten underwriting and improve recoveries to reduce provisioning drag.',
 };
 
 const EMPTY_INPUTS = {
   currentAssets:'', currentLiabilities:'', inventory:'', cash:'',
   totalAssets:'', equity:'', totalDebt:'',
   revenue:'', grossProfit:'', operatingExpenses:'', netProfit:'', interestExpense:'',
-  interestIncome:'',
-  deposits:'', grossLoans:'', provisions:'',
   receivables:'', cogs:'',
   da:'', accountsPayable:'', operatingCashFlow:'',
 };
@@ -221,13 +219,6 @@ export default function App() {
       cashConversionCycle:    calcCCC(n('receivables'), n('revenue'), n('inventory'), n('cogs'), n('accountsPayable')),
       cfoToNetIncome:         calcCfoToNetIncome(n('operatingCashFlow'), n('netProfit')),
       altmanZ:                calcAltmanZ(n('currentAssets'), n('currentLiabilities'), n('totalAssets'), n('netProfit'), n('grossProfit'), n('operatingExpenses'), n('equity')),
-      // ── Banking overlays (sector-aware cards) ───────────────
-      netInterestIncome:      calcNetInterestIncome(n('interestIncome'), n('interestExpense')),
-      netInterestMargin:      calcNetInterestMarginProxy(n('interestIncome'), n('interestExpense'), n('totalAssets')),
-      costToIncome:           calcCostToIncome(n('operatingExpenses'), n('revenue')),
-      equityToAssets:         calcEquityToAssets(n('equity'), n('totalAssets')),
-      loanToDeposit:          calcLoanToDeposit(n('grossLoans'), n('deposits')),
-      creditCostToIncome:     calcCreditCostToIncome(n('provisions'), n('revenue')),
     };
     const statuses = {};
     Object.keys(rv).forEach(k => { statuses[k] = getStatus(rv[k], k, industry); });
@@ -1196,83 +1187,27 @@ export default function App() {
     };
   }
 
-  const isFinanceSector = industry === 'finance';
-  const isRealEstateSector = industry === 'real_estate';
-  const bankDataCompleteness = useMemo(() => {
-    if (!isFinanceSector) return null;
-    const keys = ['interestIncome', 'deposits', 'grossLoans', 'provisions'];
-    const filled = keys.filter((k) => String(inputs[k] || '').trim() !== '').length;
-    return { filled, total: keys.length, pct: Math.round((filled / keys.length) * 100) };
-  }, [isFinanceSector, inputs]);
-
-  const GROUPS = useMemo(() => {
-    if (isFinanceSector) {
-      return [
-        {
-          title: 'Banking Profitability',
-          ratios: [
-            card('netInterestIncome', 'Net Interest Income', ''),
-            card('netInterestMargin', 'Net Interest Margin (Proxy)', '%'),
-            card('costToIncome', 'Cost to Income', '%'),
-            card('netMargin', 'Net Margin', '%'),
-            card('roe', 'Return on Equity', '%'),
-            card('roa', 'Return on Assets', '%'),
-          ],
-        },
-        {
-          title: 'Banking Balance Sheet & Capital',
-          ratios: [
-            card('equityToAssets', 'Equity / Assets', '%'),
-            card('loanToDeposit', 'Loan to Deposit', '%'),
-            card('debtToCapital', 'Debt / Capital', '%'),
-            card('debtToEquity', 'Debt to Equity', 'x'),
-            card('equityMultiplier', 'Equity Multiplier', 'x'),
-            card('currentRatio', 'Current Ratio', 'x'),
-            card('cashRatio', 'Cash Ratio', 'x'),
-          ],
-        },
-        {
-          title: 'Credit Quality & Cash Discipline',
-          ratios: [
-            card('creditCostToIncome', 'Credit Cost / Income', '%'),
-            card('cfoToNetIncome', 'CFO / Net Income', 'x'),
-            card('netDebtToEbitda', 'Net Debt / EBITDA', 'x'),
-            card('altmanZ', 'Altman Z-Score', ''),
-          ],
-        },
-      ];
-    }
-
-    return [
-      { title: 'Liquidity',     ratios: [card('currentRatio','Current Ratio','x'), card('quickRatio','Quick Ratio','x'), card('cashRatio','Cash Ratio','x')] },
-      { title: 'Profitability', ratios: [card('grossMargin','Gross Margin','%'), card('operatingMargin','Operating Margin','%'), card('netMargin','Net Margin','%'), card('roe','Return on Equity','%'), card('roa','Return on Assets','%')] },
-      {
-        title: isRealEstateSector ? 'Efficiency & Project Cycle' : 'Efficiency',
-        ratios: [
-          card('assetTurnover','Asset Turnover','x'),
-          card('fixedAssetTurnover','Fixed Asset Turnover','x'),
-          card('receivablesDays', isRealEstateSector ? 'Receivables Days (Project Billing)' : 'Receivables Days',' days'),
-          card('inventoryDays', isRealEstateSector ? 'Inventory Days (Project Cycle)' : 'Inventory Days',' days'),
-        ],
-      },
-      { title: 'Leverage',      ratios: [card('debtToEquity','Debt to Equity','x'), card('interestCoverage','Interest Coverage','x')] },
-      { title: 'CFA — Advanced Profitability & Capital', ratios: [
-        card('ebitdaMargin',    'EBITDA Margin',       '%'),
-        card('roic',            'ROIC',                '%'),
-        card('equityMultiplier','Equity Multiplier',   'x'),
-      ]},
-      { title: 'CFA — Credit & Solvency', ratios: [
-        card('debtToCapital',          'Debt / Capital',            '%'),
-        card('netDebtToEbitda',        'Net Debt / EBITDA',         'x'),
-        card('altmanZ',                'Altman Z-Score',            ''),
-      ]},
-      { title: 'CFA — Working Capital & Earnings Quality', ratios: [
-        card('daysPayableOutstanding', 'Days Payable Outstanding',  ' days'),
-        card('cashConversionCycle',    'Cash Conversion Cycle',     ' days'),
-        card('cfoToNetIncome',         'CFO / Net Income',          'x'),
-      ]},
-    ];
-  }, [industry, isFinanceSector, isRealEstateSector, results]);
+  const GROUPS = [
+    { title: 'Liquidity',     ratios: [card('currentRatio','Current Ratio','x'), card('quickRatio','Quick Ratio','x'), card('cashRatio','Cash Ratio','x')] },
+    { title: 'Profitability', ratios: [card('grossMargin','Gross Margin','%'), card('operatingMargin','Operating Margin','%'), card('netMargin','Net Margin','%'), card('roe','Return on Equity','%'), card('roa','Return on Assets','%')] },
+    { title: 'Efficiency',    ratios: [card('assetTurnover','Asset Turnover','x'), card('fixedAssetTurnover','Fixed Asset Turnover','x'), card('receivablesDays','Receivables Days',' days'), card('inventoryDays','Inventory Days',' days')] },
+    { title: 'Leverage',      ratios: [card('debtToEquity','Debt to Equity','x'), card('interestCoverage','Interest Coverage','x')] },
+    { title: 'CFA — Advanced Profitability & Capital', ratios: [
+      card('ebitdaMargin',    'EBITDA Margin',       '%'),
+      card('roic',            'ROIC',                '%'),
+      card('equityMultiplier','Equity Multiplier',   'x'),
+    ]},
+    { title: 'CFA — Credit & Solvency', ratios: [
+      card('debtToCapital',          'Debt / Capital',            '%'),
+      card('netDebtToEbitda',        'Net Debt / EBITDA',         'x'),
+      card('altmanZ',                'Altman Z-Score',            ''),
+    ]},
+    { title: 'CFA — Working Capital & Earnings Quality', ratios: [
+      card('daysPayableOutstanding', 'Days Payable Outstanding',  ' days'),
+      card('cashConversionCycle',    'Cash Conversion Cycle',     ' days'),
+      card('cfoToNetIncome',         'CFO / Net Income',          'x'),
+    ]},
+  ];
 
   const allStatuses = results ? Object.values(results.statuses) : Array(14).fill('na');
   const healthScore = (() => {
@@ -1283,7 +1218,7 @@ export default function App() {
   })();
 
   const hasCompany = !!(companyContext.ticker || companyContext.name);
-  const chartSymbol = toTradingViewSymbol(companyContext.ticker, 'NYSE');
+  const chartSymbol = toChartSymbol(companyContext.ticker);
   const today = new Date().toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' }).toUpperCase();
 
   const sidebarProps = {
@@ -1524,7 +1459,6 @@ export default function App() {
                 <span className="mono text-[10px] font-bold uppercase tracking-[0.14em]"
                   style={{ color: 'var(--text-4)' }}>
                   {GROUPS.reduce((a, g) => a + g.ratios.length, 0)} RATIOS COMPUTED
-                  {bankDataCompleteness ? ` · BANK DATA ${bankDataCompleteness.filled}/${bankDataCompleteness.total}` : ''}
                 </span>
                 <div className="flex items-center gap-1 p-1 rounded-xl"
                   style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
