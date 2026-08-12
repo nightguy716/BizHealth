@@ -246,47 +246,116 @@ export default function App() {
     const ticker = companyContext.ticker || '-';
     const curr = companyContext.currency || 'USD';
     const today = new Date().toLocaleDateString('en-IN');
+    const fmtNum = (v) => (v === null || v === undefined || Number.isNaN(Number(v)) ? '' : Number(v));
+    const fmtRatio = (v) => (v === null || v === undefined || Number.isNaN(Number(v)) ? 'N/A' : Number(v).toFixed(2));
 
-    const overviewRows = [
-      ['Valoreva Analysis Export', ''],
-      ['Generated On', today],
-      ['Company', companyName],
-      ['Ticker', ticker],
-      ['Industry', industry],
-      ['Currency', curr],
-      ['Health Score', `${healthScore}/100`],
+    const summaryRows = [
+      ['VALOREVA IB-STYLE FINANCIAL MODEL', '', '', ''],
+      ['Generated On', today, '', ''],
+      ['Company', companyName, 'Ticker', ticker],
+      ['Industry', industry, 'Currency', curr],
+      ['Health Score', `${healthScore}/100`, '', ''],
       [],
-      ['Ratio', 'Value', 'Status'],
+      ['SECTION', 'RATIO', 'VALUE', 'STATUS'],
     ];
-    Object.entries(results.ratioValues || {}).forEach(([k, v]) => {
-      const val = (v === null || v === undefined || Number.isNaN(v)) ? 'N/A' : Number(v).toFixed(4);
-      overviewRows.push([k, val, results.statuses?.[k] || 'na']);
-    });
-    const wsOverview = XLSX.utils.aoa_to_sheet(overviewRows);
-    XLSX.utils.book_append_sheet(wb, wsOverview, 'Overview');
-
-    const inputRows = [['Input Field', 'Value']];
-    Object.entries(inputs || {}).forEach(([k, v]) => inputRows.push([k, v ?? '']));
-    const wsInputs = XLSX.utils.aoa_to_sheet(inputRows);
-    XLSX.utils.book_append_sheet(wb, wsInputs, 'Inputs');
-
-    const histToSheet = (name, rows) => {
-      if (!Array.isArray(rows) || rows.length === 0) return;
-      const keys = Array.from(rows.reduce((acc, row) => {
-        Object.keys(row || {}).forEach((k) => acc.add(k));
-        return acc;
-      }, new Set()));
-      const aoa = [keys];
-      rows.forEach((row) => {
-        aoa.push(keys.map((k) => row?.[k] ?? ''));
+    const ratioSections = [
+      ['Liquidity', ['currentRatio', 'quickRatio', 'cashRatio']],
+      ['Profitability', ['grossMargin', 'operatingMargin', 'netMargin', 'roe', 'roa']],
+      ['Efficiency', ['assetTurnover', 'fixedAssetTurnover', 'receivablesDays', 'inventoryDays']],
+      ['Leverage', ['debtToEquity', 'interestCoverage', 'debtToCapital', 'netDebtToEbitda']],
+      ['Advanced', ['ebitdaMargin', 'roic', 'equityMultiplier', 'daysPayableOutstanding', 'cashConversionCycle', 'cfoToNetIncome', 'altmanZ']],
+    ];
+    ratioSections.forEach(([section, keys]) => {
+      keys.forEach((k) => {
+        summaryRows.push([
+          section,
+          k,
+          fmtRatio(results?.ratioValues?.[k]),
+          String(results?.statuses?.[k] || 'na').toUpperCase(),
+        ]);
       });
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
-    };
-    histToSheet('Hist_Income', historical?.income || []);
-    histToSheet('Hist_Balance', historical?.balance || []);
-    histToSheet('Hist_Cashflow', historical?.cashflow || []);
+    });
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summaryRows), 'Executive Summary');
 
-    XLSX.writeFile(wb, `Valoreva-${companyName.replace(/\s+/g, '-')}-Analysis.xlsx`);
+    const inputRows = [['INPUT FIELD', 'VALUE']];
+    Object.entries(inputs || {}).forEach(([k, v]) => inputRows.push([k, v ?? '']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(inputRows), 'Inputs');
+
+    const pickYears = (rows = []) => {
+      const out = [];
+      rows.forEach((r) => {
+        const y = String(r?.year || '').trim();
+        if (y && !out.includes(y)) out.push(y);
+      });
+      return out;
+    };
+
+    const buildStatement = (title, rows, lineMap) => {
+      const years = pickYears(rows).slice(0, 5);
+      if (!years.length) return;
+      const header = [title, ...years];
+      const aoa = [header];
+      lineMap.forEach(([label, key]) => {
+        const line = [label];
+        years.forEach((y) => {
+          const row = (rows || []).find((r) => String(r?.year || '') === y) || {};
+          line.push(fmtNum(row?.[key]));
+        });
+        aoa.push(line);
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), title.slice(0, 31));
+    };
+
+    buildStatement('Income Statement', historical?.income || [], [
+      ['Revenue', 'revenue'],
+      ['Cost of Goods Sold', 'cogs'],
+      ['Gross Profit', 'grossProfit'],
+      ['Operating Expenses', 'operatingExpenses'],
+      ['Operating Income', 'operatingIncome'],
+      ['Interest Expense', 'interestExpense'],
+      ['Net Profit', 'netProfit'],
+      ['Depreciation & Amortization', 'da'],
+      ['EBITDA', 'ebitda'],
+      ['Diluted EPS', 'eps'],
+    ]);
+    buildStatement('Balance Sheet', historical?.balance || [], [
+      ['Current Assets', 'currentAssets'],
+      ['Cash', 'cash'],
+      ['Receivables', 'receivables'],
+      ['Inventory', 'inventory'],
+      ['Total Assets', 'totalAssets'],
+      ['Current Liabilities', 'currentLiabilities'],
+      ['Accounts Payable', 'ap'],
+      ['Total Debt', 'totalDebt'],
+      ['Equity', 'equity'],
+      ['Retained Earnings', 'retainedEarnings'],
+    ]);
+    buildStatement('Cash Flow', historical?.cashflow || [], [
+      ['Net Income', 'netIncome'],
+      ['Depreciation & Amortization', 'da'],
+      ['Change in Working Capital', 'wc'],
+      ['Cash From Operations', 'cfOps'],
+      ['Capital Expenditure', 'capex'],
+      ['Cash From Investing', 'cfInvesting'],
+      ['Cash From Financing', 'cfFinancing'],
+      ['Buybacks', 'buybacks'],
+      ['Dividends', 'dividends'],
+    ]);
+
+    const assumptionsRows = [
+      ['IB MODEL ASSUMPTIONS', 'VALUE', 'NOTE'],
+      ['Discount Rate (WACC)', 10.0, 'Base discount rate used for indicative valuation'],
+      ['Terminal Growth %', 4.0, 'Long-run growth assumption'],
+      ['Target Debt/Capital %', 40.0, 'Capital structure target'],
+      ['Scenario', 'Base', 'Use with Dashboard scenario tools'],
+      [],
+      ['QUALITY FLAGS', '', ''],
+      ['AI Insights Available', aiInsights ? 'YES' : 'NO', 'Based on latest assistant/analysis output'],
+      ['Historical Data Points', (historical?.income || []).length, 'Annual income rows available'],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(assumptionsRows), 'Assumptions');
+
+    XLSX.writeFile(wb, `Valoreva-${companyName.replace(/\s+/g, '-')}-IB-Model.xlsx`);
   }
 
   async function handleExportExcel() {
@@ -325,7 +394,7 @@ export default function App() {
     } catch (e) {
       try {
         await exportExcelClientFallback();
-        alert(`Backend export failed (${e.message}). Downloaded client-side Excel fallback instead.`);
+        alert(`Backend export failed (${e.message}). Downloaded IB-style local model workbook instead.`);
       } catch (fallbackErr) {
         alert('Excel export failed: ' + e.message + ` | Fallback failed: ${fallbackErr.message}`);
       }
