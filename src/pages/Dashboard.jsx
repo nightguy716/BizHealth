@@ -110,7 +110,9 @@ export default function App() {
   const [historical,      setHistorical]      = useState({ income: [], balance: [] });
   const [aiInsights,      setAiInsights]      = useState(null);
   const [exporting,       setExporting]       = useState(false);
-  const [sidebarOpen,     setSidebarOpen]     = useState(() => localStorage.getItem('bh_sidebar') !== 'closed');
+  // Keep sidebar open by default to avoid "dead" dashboard states
+  // when a previously collapsed state is persisted.
+  const [sidebarOpen,     setSidebarOpen]     = useState(true);
   const [mobileOpen,      setMobileOpen]      = useState(false);
   const [showTour,        setShowTour]        = useState(() => useShouldShowTour());
   const [viewMode,        setViewMode]        = useState('cards'); // 'cards' | 'table'
