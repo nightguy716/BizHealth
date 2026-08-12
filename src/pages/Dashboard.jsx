@@ -238,12 +238,63 @@ export default function App() {
     setCompanyContext({ name: '', ticker: '', currency: 'INR', isListed: false, sector: '', marketData: {} });
   }
 
+  async function exportExcelClientFallback() {
+    if (!results) return;
+    const XLSX = await import('xlsx');
+    const wb = XLSX.utils.book_new();
+    const companyName = companyContext.name || 'Valoreva';
+    const ticker = companyContext.ticker || '-';
+    const curr = companyContext.currency || 'USD';
+    const today = new Date().toLocaleDateString('en-IN');
+
+    const overviewRows = [
+      ['Valoreva Analysis Export', ''],
+      ['Generated On', today],
+      ['Company', companyName],
+      ['Ticker', ticker],
+      ['Industry', industry],
+      ['Currency', curr],
+      ['Health Score', `${healthScore}/100`],
+      [],
+      ['Ratio', 'Value', 'Status'],
+    ];
+    Object.entries(results.ratioValues || {}).forEach(([k, v]) => {
+      const val = (v === null || v === undefined || Number.isNaN(v)) ? 'N/A' : Number(v).toFixed(4);
+      overviewRows.push([k, val, results.statuses?.[k] || 'na']);
+    });
+    const wsOverview = XLSX.utils.aoa_to_sheet(overviewRows);
+    XLSX.utils.book_append_sheet(wb, wsOverview, 'Overview');
+
+    const inputRows = [['Input Field', 'Value']];
+    Object.entries(inputs || {}).forEach(([k, v]) => inputRows.push([k, v ?? '']));
+    const wsInputs = XLSX.utils.aoa_to_sheet(inputRows);
+    XLSX.utils.book_append_sheet(wb, wsInputs, 'Inputs');
+
+    const histToSheet = (name, rows) => {
+      if (!Array.isArray(rows) || rows.length === 0) return;
+      const keys = Array.from(rows.reduce((acc, row) => {
+        Object.keys(row || {}).forEach((k) => acc.add(k));
+        return acc;
+      }, new Set()));
+      const aoa = [keys];
+      rows.forEach((row) => {
+        aoa.push(keys.map((k) => row?.[k] ?? ''));
+      });
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), name);
+    };
+    histToSheet('Hist_Income', historical?.income || []);
+    histToSheet('Hist_Balance', historical?.balance || []);
+    histToSheet('Hist_Cashflow', historical?.cashflow || []);
+
+    XLSX.writeFile(wb, `Valoreva-${companyName.replace(/\s+/g, '-')}-Analysis.xlsx`);
+  }
+
   async function handleExportExcel() {
     if (!results) return;
     const backendUrl = getBackendBaseUrl();
-    if (!backendUrl) { alert('Backend not connected'); return; }
     setExporting(true);
     try {
+      if (!backendUrl) throw new Error('Backend not connected');
       const body = {
         company:    companyContext,
         industry,
@@ -259,7 +310,10 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error('Export failed');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.detail || `Export failed (${res.status})`);
+      }
       const blob = await res.blob();
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
@@ -269,7 +323,12 @@ export default function App() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
-      alert('Excel export failed: ' + e.message);
+      try {
+        await exportExcelClientFallback();
+        alert(`Backend export failed (${e.message}). Downloaded client-side Excel fallback instead.`);
+      } catch (fallbackErr) {
+        alert('Excel export failed: ' + e.message + ` | Fallback failed: ${fallbackErr.message}`);
+      }
     } finally {
       setExporting(false);
     }
