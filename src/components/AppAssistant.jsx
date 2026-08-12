@@ -12,6 +12,65 @@ const STARTER_PROMPTS = [
   'How do I use Risk Copilot step by step?',
 ];
 
+function localAssistantReply(pathname, userInput) {
+  const q = String(userInput || '').toLowerCase();
+  const page = String(pathname || '/');
+
+  if (q.includes('risk copilot') || page.includes('risk-copilot')) {
+    return [
+      'Risk Copilot quick flow:',
+      '1) Set/verify positions and candidate trade.',
+      '2) Run Pre-Trade Impact, Scenario Stress, Correlation, and Hedges.',
+      '3) Check Risk Readiness and apply fix actions if not PASS.',
+      '4) Export IC Note after final checks.',
+      'If a section is blank, run its button once to generate that module output.',
+    ].join('\n');
+  }
+
+  if (q.includes('watchlist') || page.includes('watchlist')) {
+    return [
+      'Watchlist quick flow:',
+      '- Add ticker/company from the search bar.',
+      '- Prices and news refresh automatically.',
+      '- Use Ping/Alert controls per stock for movement updates.',
+      '- If a price is unavailable, re-open the card or re-add ticker with exchange format like RELIANCE.NS.',
+    ].join('\n');
+  }
+
+  if (q.includes('dashboard') || q.includes('ratio') || q.includes('health') || page.includes('dashboard')) {
+    return [
+      'Dashboard quick flow:',
+      '1) Load company from lookup OR enter financial inputs in sidebar.',
+      '2) Click Calculate to generate ratios and health score.',
+      '3) Review cards first: Liquidity, Profitability, Efficiency, Leverage.',
+      '4) Use table view + charts for deeper breakdown.',
+      'If ratios show N/A, one or more required fields are missing.',
+    ].join('\n');
+  }
+
+  if (q.includes('journal') || q.includes('debate') || page.includes('journal')) {
+    return [
+      'Journal AI Debate quick flow:',
+      '- Enter thesis and context, then run debate.',
+      '- 4-5 rounds are generated, then arbiter verdict is returned.',
+      '- Keep prompts concise and specific for better signal.',
+    ].join('\n');
+  }
+
+  if (q.includes('what can i do') || q.includes('how to use')) {
+    return [
+      'You can use:',
+      '- Dashboard: ratio health analysis',
+      '- Watchlist: live price/news tracking',
+      '- Risk Copilot: pre-trade risk checks',
+      '- Journal: AI debate and verdict',
+      'Tell me your page + goal, and I will give exact steps.',
+    ].join('\n');
+  }
+
+  return 'I can help with Dashboard, Watchlist, Risk Copilot, and Journal workflows. Tell me your current page and exact goal, and I will give you step-by-step actions.';
+}
+
 export default function AppAssistant() {
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -68,6 +127,7 @@ export default function AppAssistant() {
           'Content-Type': 'application/json',
           ...ownerHeaders(),
         },
+        signal: AbortSignal.timeout(15000),
         body: JSON.stringify({
           path: location.pathname,
           user_input: value,
@@ -81,11 +141,12 @@ export default function AppAssistant() {
       const reply = String(data?.reply || '').trim() || 'I could not generate a useful answer yet.';
       setMessages((prev) => [...prev, { role: 'assistant', content: reply }]);
     } catch (e) {
+      const fallback = localAssistantReply(location.pathname, value);
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: `I hit an error: ${e.message}. Please retry, and ensure backend AI key is configured.`,
+          content: `${fallback}\n\n(Assistant cloud response is temporarily unavailable: ${e.message})`,
         },
       ]);
     } finally {
